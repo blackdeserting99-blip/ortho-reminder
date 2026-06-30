@@ -1,8 +1,18 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --surface: #ffffff;
+  --surface-muted: #f8fbff;
+  --surface-soft: #eef4ff;
+  --border: #cbd5e1;
+  --muted: #64748b;
+  --primary: #2563eb;
+  --primary-soft: #dbeafe;
+  --primary-strong: #1d4ed8;
+  --accent: #14b8a6;
+  --accent-soft: #d1fae5;
 }
 
 @theme inline {
@@ -12,15 +22,75 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+html,
+body {
+  min-height: 100%;
 }
 
 body {
-  background: var(--background);
+  margin: 0;
+  min-height: 100%;
+  background: radial-gradient(circle at top left, rgba(37, 99, 235, 0.12), transparent 24%),
+    radial-gradient(circle at bottom right, rgba(20, 184, 166, 0.12), transparent 25%),
+    var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  line-height: 1.6;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  transition: all 0.2s ease;
+}
+
+button,
+input,
+textarea,
+select {
+  border-radius: 1rem;
+}
+
+@media (max-width: 767px) {
+  main {
+    padding-bottom: 5rem;
+  }
+
+  select,
+  option {
+    white-space: nowrap;
+  }
+}
+
+input,
+textarea,
+select {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: #ffffff;
+}
+
+input:focus,
+textarea:focus,
+select:focus,
+button:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.22);
+  outline-offset: 4px;
+}
+
+button {
+  cursor: pointer;
+}
+
+::selection {
+  background: rgba(37, 99, 235, 0.22);
 }
