@@ -179,6 +179,33 @@ function getRelationNumberOptions(relationClass: string) {
   return relationClass === "Cl 3" ? negativeOptions : positiveOptions;
 }
 
+function EruptionCell({
+  toothKey,
+  toothNumber,
+  status,
+  onToggle,
+}: {
+  toothKey: string;
+  toothNumber: string;
+  status: "present" | "not-present";
+  onToggle: (toothKey: string) => void;
+}) {
+  const isPresent = status === "present";
+
+  return (
+    <button
+      type="button"
+      onClick={() => onToggle(toothKey)}
+      className={`flex h-10 min-h-11 min-w-11 items-center justify-center rounded-full border border-slate-300 bg-white text-lg font-bold ${isPresent ? "text-emerald-600" : "text-red-600"}`}
+      aria-label={`${toothNumber} ${status}`}
+      aria-pressed={isPresent}
+      style={{ touchAction: "manipulation" }}
+    >
+      {isPresent ? "✔" : "✕"}
+    </button>
+  );
+}
+
 function formatRelationSummary(pattern: string, classValue: string, leftValue: string, rightValue: string) {
   if (pattern === "Asymmetric") {
     return `Asymmetric (L: ${leftValue || "-"}, R: ${rightValue || "-"})`;
@@ -673,12 +700,17 @@ export default function CaseSheetPage() {
                         {eruptionQuadrants[0].numbers.map((number) => {
                           const key = `${eruptionQuadrants[0].key}-${number}`;
                           const selected = draft.eruptionStatus[key] ?? "not-present";
-                          const icon = selected === "present" ? "✔" : "✕";
-                          const color = selected === "present" ? "text-emerald-600" : "text-red-600";
                           return (
-                            <button key={key} type="button" onClick={() => updateEruptionStatus(key, selected === "present" ? "not-present" : "present") } className={`flex h-10 items-center justify-center rounded-full border border-slate-300 bg-white text-lg font-bold ${color}`} aria-label={`${number} ${selected}`}>
-                              {icon}
-                            </button>
+                            <EruptionCell
+                              key={key}
+                              toothKey={key}
+                              toothNumber={number}
+                              status={selected}
+                              onToggle={(toothKey) => {
+                                const current = draft.eruptionStatus[toothKey] ?? "not-present";
+                                updateEruptionStatus(toothKey, current === "present" ? "not-present" : "present");
+                              }}
+                            />
                           );
                         })}
                       </div>
@@ -696,12 +728,17 @@ export default function CaseSheetPage() {
                         {eruptionQuadrants[1].numbers.map((number) => {
                           const key = `${eruptionQuadrants[1].key}-${number}`;
                           const selected = draft.eruptionStatus[key] ?? "not-present";
-                          const icon = selected === "present" ? "✔" : "✕";
-                          const color = selected === "present" ? "text-emerald-600" : "text-red-600";
                           return (
-                            <button key={key} type="button" onClick={() => updateEruptionStatus(key, selected === "present" ? "not-present" : "present") } className={`flex h-10 items-center justify-center rounded-full border border-slate-300 bg-white text-lg font-bold ${color}`} aria-label={`${number} ${selected}`}>
-                              {icon}
-                            </button>
+                            <EruptionCell
+                              key={key}
+                              toothKey={key}
+                              toothNumber={number}
+                              status={selected}
+                              onToggle={(toothKey) => {
+                                const current = draft.eruptionStatus[toothKey] ?? "not-present";
+                                updateEruptionStatus(toothKey, current === "present" ? "not-present" : "present");
+                              }}
+                            />
                           );
                         })}
                       </div>
@@ -719,12 +756,17 @@ export default function CaseSheetPage() {
                         {eruptionQuadrants[2].numbers.map((number) => {
                           const key = `${eruptionQuadrants[2].key}-${number}`;
                           const selected = draft.eruptionStatus[key] ?? "not-present";
-                          const icon = selected === "present" ? "✔" : "✕";
-                          const color = selected === "present" ? "text-emerald-600" : "text-red-600";
                           return (
-                            <button key={key} type="button" onClick={() => updateEruptionStatus(key, selected === "present" ? "not-present" : "present") } className={`flex h-10 items-center justify-center rounded-full border border-slate-300 bg-white text-lg font-bold ${color}`} aria-label={`${number} ${selected}`}>
-                              {icon}
-                            </button>
+                            <EruptionCell
+                              key={key}
+                              toothKey={key}
+                              toothNumber={number}
+                              status={selected}
+                              onToggle={(toothKey) => {
+                                const current = draft.eruptionStatus[toothKey] ?? "not-present";
+                                updateEruptionStatus(toothKey, current === "present" ? "not-present" : "present");
+                              }}
+                            />
                           );
                         })}
                       </div>
@@ -742,12 +784,17 @@ export default function CaseSheetPage() {
                         {eruptionQuadrants[3].numbers.map((number) => {
                           const key = `${eruptionQuadrants[3].key}-${number}`;
                           const selected = draft.eruptionStatus[key] ?? "not-present";
-                          const icon = selected === "present" ? "✔" : "✕";
-                          const color = selected === "present" ? "text-emerald-600" : "text-red-600";
                           return (
-                            <button key={key} type="button" onClick={() => updateEruptionStatus(key, selected === "present" ? "not-present" : "present") } className={`flex h-10 items-center justify-center rounded-full border border-slate-300 bg-white text-lg font-bold ${color}`} aria-label={`${number} ${selected}`}>
-                              {icon}
-                            </button>
+                            <EruptionCell
+                              key={key}
+                              toothKey={key}
+                              toothNumber={number}
+                              status={selected}
+                              onToggle={(toothKey) => {
+                                const current = draft.eruptionStatus[toothKey] ?? "not-present";
+                                updateEruptionStatus(toothKey, current === "present" ? "not-present" : "present");
+                              }}
+                            />
                           );
                         })}
                       </div>

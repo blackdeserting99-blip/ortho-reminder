@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Modal from "../../components/Modal";
 import { useEffect, useState } from "react";
 import Sidebar from "../../components/Sidebar";
+import DateInput from "../../components/DateInput";
 import { formatDateDMY } from "../../lib/date";
 
 type Visit = {
@@ -63,6 +64,7 @@ export default function PatientProfilePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [visitsOrder, setVisitsOrder] = useState<"newest" | "oldest">("newest");
   const [editingAppt, setEditingAppt] = useState(false);
+  const [appointmentMode, setAppointmentMode] = useState("30 Days");
   const [manualDate, setManualDate] = useState("");
   const [manualTime, setManualTime] = useState("");
 
@@ -75,8 +77,21 @@ export default function PatientProfilePage() {
     if (foundPatient) {
       setManualDate(foundPatient.appointmentDate || "");
       setManualTime(foundPatient.appointmentTime || "");
+      setAppointmentMode(foundPatient.appointmentDate ? "Manual" : "30 Days");
     }
   }, [params.id]);
+
+  const getSelectedDate = () => {
+    if (appointmentMode === "Manual") return manualDate;
+
+    const days = parseInt(appointmentMode, 10);
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + days);
+    return futureDate.toISOString().split("T")[0];
+  };
+
+  const selectedDate = getSelectedDate();
+  const isFriday = selectedDate && new Date(selectedDate).getDay() === 5;
 
   const saveNotes = () => {
     const patients = JSON.parse(localStorage.getItem("patients") || "[]");
@@ -97,14 +112,14 @@ export default function PatientProfilePage() {
   };
 
   const saveManualAppointment = () => {
-    if (!manualDate) {
+    if (!selectedDate) {
       alert("Please choose a date");
       return;
     }
     const patients = JSON.parse(localStorage.getItem("patients") || "[]");
-    const updatedPatients = patients.map((p: any) => (p.id.toString() === params.id ? { ...p, appointmentDate: manualDate, appointmentTime: manualTime } : p));
+    const updatedPatients = patients.map((p: any) => (p.id.toString() === params.id ? { ...p, appointmentDate: selectedDate, appointmentTime: manualTime } : p));
     localStorage.setItem("patients", JSON.stringify(updatedPatients));
-    setPatient((prev) => (prev ? { ...prev, appointmentDate: manualDate, appointmentTime: manualTime } : null));
+    setPatient((prev) => (prev ? { ...prev, appointmentDate: selectedDate, appointmentTime: manualTime } : null));
     setEditingAppt(false);
   };
 
@@ -415,11 +430,53 @@ export default function PatientProfilePage() {
           </div>
           <div className="mt-4">
             {editingAppt ? (
-              <div className="flex gap-2 items-center">
-                <input type="date" value={manualDate} onChange={(e) => setManualDate(e.target.value)} className="border p-2 rounded" />
-                <input type="time" value={manualTime} onChange={(e) => setManualTime(e.target.value)} className="border p-2 rounded" />
-                <button onClick={saveManualAppointment} className="bg-blue-600 text-white px-3 py-1 rounded">Save</button>
-                <button onClick={() => setEditingAppt(false)} className="bg-slate-300 px-3 py-1 rounded">Cancel</button>
+              <div className="space-y-3">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-700">Next Appointment Date</label>
+                  <select value={appointmentMode} onChange={(e) => setAppointmentMode(e.target.value)} className="w-full border border-slate-300 p-2 rounded-lg">
+                    <option>15 Days</option>
+                    <option>30 Days</option>
+                    <option>45 Days</option>
+                    <option>60 Days</option>
+                    <option>Manual</option>
+                  </select>
+                </div>
+                {appointmentMode === "Manual" && (
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-slate-700">Appointment Date</label>
+                    <DateInput
+                      value={manualDate}
+                      onChange={setManualDate}
+                      className="w-full border border-slate-300 p-2 rounded-lg"
+                    />
+                  </div>
+                )}
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-sm font-semibold text-slate-700">Selected Date</p>
+                  <p className="text-sm text-slate-900">{selectedDate || "-"}</p>
+                  {isFriday && <p className="mt-2 text-sm text-orange-700">Note: This appointment is scheduled on Friday.</p>}
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-700">Appointment Time</label>
+                  <select value={manualTime} onChange={(e) => setManualTime(e.target.value)} className="w-full border border-slate-300 p-2 rounded-lg">
+                    <option>09:00 AM</option>
+                    <option>10:00 AM</option>
+                    <option>11:00 AM</option>
+                    <option>12:00 PM</option>
+                    <option>01:00 PM</option>
+                    <option>02:00 PM</option>
+                    <option>03:00 PM</option>
+                    <option>04:00 PM</option>
+                    <option>05:00 PM</option>
+                    <option>06:00 PM</option>
+                    <option>07:00 PM</option>
+                    <option>08:00 PM</option>
+                  </select>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={saveManualAppointment} className="bg-blue-600 text-white px-3 py-1 rounded">Save</button>
+                  <button onClick={() => setEditingAppt(false)} className="bg-slate-300 px-3 py-1 rounded">Cancel</button>
+                </div>
               </div>
             ) : (
               <button onClick={() => setEditingAppt(true)} className="bg-emerald-600 text-white px-3 py-1 rounded">Change Date</button>

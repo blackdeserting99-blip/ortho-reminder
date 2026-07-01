@@ -32,7 +32,7 @@ export default function RetainersPage() {
 
   useEffect(() => {
     const savedPatients = JSON.parse(localStorage.getItem("patients") || "[]");
-    const retainers = savedPatients.filter((patient: Patient) => patient.caseStatus === "retainer");
+    const retainers = savedPatients.  filter((patient: Patient) => patient.caseStatus === "retainer");
     setRetainerPatients(retainers);
   }, []);
 

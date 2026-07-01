@@ -25,16 +25,16 @@ export default function Sidebar() {
   const menuItems = [
     { href: "/", label: "Dashboard", icon: Home },
     { href: "/patients", label: "Patients", icon: Users },
-    { href: "/finished-cases", label: "Finished Cases", icon: Calendar },
-    { href: "/retainers", label: "Retainers", icon: Repeat },
-    { href: "/archive", label: "Archive", icon: Archive },
     { href: "/calendar", label: "Calendar", icon: Calendar },
+    { href: "/retainers", label: "Retainers", icon: Repeat },
+    { href: "/finished-cases", label: "Finished Cases", icon: Calendar },
+    { href: "/archive", label: "Archive", icon: Archive },
     { href: "/support", label: "Support", icon: HelpCircle },
     { href: "/about", label: "About", icon: Info },
   ];
 
   return (
-    <aside className="group fixed bottom-0 left-0 right-0 h-16 z-50 w-full md:static md:w-20 md:hover:w-72 md:min-h-screen bg-slate-950 text-white shadow-2xl flex flex-col md:flex-col border-b border-slate-900 md:border-b-0 md:border-r overflow-hidden transition-[width] duration-300 ease-in-out">
+    <aside className="group fixed bottom-0 left-0 right-0 h-16 z-50 w-full md:sticky md:top-0 md:h-screen md:w-20 md:hover:w-72 md:self-start bg-slate-950 text-white shadow-2xl flex flex-col md:flex-col border-b border-slate-900 md:border-b-0 md:border-r overflow-hidden transition-[width] duration-300 ease-in-out">
       <div className="hidden md:block p-4 md:p-6 border-b border-slate-900">
         <div className="flex items-center gap-3">
           <div className="flex h-12 w-12 items-center justify-center rounded-3xl bg-blue-500 text-2xl shadow-lg">

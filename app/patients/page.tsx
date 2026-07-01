@@ -4,20 +4,13 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   UserRound,
-  MessageCircle,
   Archive,
   Trash2,
-  Send,
 } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import Modal from "../components/Modal";
+import DateInput from "../components/DateInput";
 import { formatDateDMY } from "../lib/date";
-import {
-  buildWhatsAppBotMessage,
-  createWhatsAppUrl,
-  getReminderType,
-  WhatsAppReminderType,
-} from "../lib/whatsapp";
 type Visit = {
   date: string;
   time: string;
@@ -88,9 +81,7 @@ export default function PatientsPage() {
 
 const [showDeletePatientModal, setShowDeletePatientModal] = useState(false);
 const [deletePatientId, setDeletePatientId] = useState<number | null>(null);
-const [sendStatus, setSendStatus] = useState<Record<number, string>>({});
-const [sendingDue, setSendingDue] = useState(false);
-const [dueSendResult, setDueSendResult] = useState<string | null>(null);
+const [autoMessagesEnabled, setAutoMessagesEnabled] = useState(false);
 
 const promptDeletePatient = (id: number) => {
   setDeletePatientId(id);
@@ -118,102 +109,6 @@ const archivePatient = (id: number) => {
     "patients",
     JSON.stringify(updatedPatients)
   );
-};
-
-const sendWhatsAppReminder = async (patient: Patient) => {
-  const reminderType = getReminderType(patient.appointmentDate);
-  const message = buildWhatsAppBotMessage(
-    patient,
-    reminderType ?? "general"
-  );
-
-  setSendStatus((prev) => ({
-    ...prev,
-    [patient.id]: "sending",
-  }));
-
-  try {
-    const response = await fetch("/api/send-whatsapp", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        phone: patient.phone,
-        message,
-        reminderType,
-      }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data?.error || "Send failed");
-    }
-
-    setSendStatus((prev) => ({
-      ...prev,
-      [patient.id]: "sent",
-    }));
-  } catch (error: any) {
-    setSendStatus((prev) => ({
-      ...prev,
-      [patient.id]: error?.message || "failed",
-    }));
-  }
-};
-
-const sendDueReminders = async () => {
-  setDueSendResult(null);
-  setSendingDue(true);
-
-  const duePatients = patients.filter((patient) => {
-    if (patient.caseStatus === "archived") return false;
-    return getReminderType(patient.appointmentDate) !== null;
-  });
-
-  if (duePatients.length === 0) {
-    setDueSendResult("No due reminders found for today.");
-    setSendingDue(false);
-    return;
-  }
-
-  const results = await Promise.all(
-    duePatients.map(async (patient) => {
-      const reminderType = getReminderType(patient.appointmentDate);
-      const message = buildWhatsAppBotMessage(
-        patient,
-        reminderType ?? "general"
-      );
-
-      const response = await fetch("/api/send-whatsapp", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          phone: patient.phone,
-          message,
-          reminderType,
-        }),
-      });
-
-      const result = await response.json();
-      return {
-        id: patient.id,
-        success: response.ok,
-        message: result?.error || "sent",
-      };
-    })
-  );
-
-  const failed = results.filter((item) => !item.success);
-  setDueSendResult(
-    failed.length === 0
-      ? `Sent reminders to ${results.length} patient(s).`
-      : `Sent ${results.length - failed.length}, failed ${failed.length}.`
-  );
-  setSendingDue(false);
 };
 
 const exportPatients = () => {
@@ -489,31 +384,30 @@ All ({allCount})
             <option value="manual">Manual date</option>
           </select>
           {dateMode === "manual" && (
-            <input
-              type="date"
-              value={manualDate}
-              onChange={(e) => setManualDate(e.target.value)}
-              className="mt-3 w-full rounded-3xl border border-gray-200 bg-white px-4 py-3 text-slate-900 shadow-sm focus:border-blue-300 focus:ring-2 focus:ring-blue-200"
-            />
+            <div className="mt-3">
+              <DateInput
+                value={manualDate}
+                onChange={setManualDate}
+                className="w-full rounded-3xl border border-gray-200 bg-white px-4 py-3 text-slate-900 shadow-sm focus:border-blue-300 focus:ring-2 focus:ring-blue-200"
+              />
+            </div>
           )}
         </div>
 
       </div>
-      <div className="flex flex-wrap gap-2 mb-6">
-        <button
-          onClick={sendDueReminders}
-          disabled={sendingDue}
-          className="bg-green-600 text-white px-5 py-3 rounded-lg"
-          title="Send reminders for due appointments"
-        >
-          <Send size={18} className="inline mr-2" />
-          Send Due Reminders
-        </button>
-        {dueSendResult && (
-          <div className="text-sm text-slate-600 mt-2">
-            {dueSendResult}
-          </div>
-        )}
+      <div className="flex flex-wrap items-center gap-3 mb-6 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+        <label className="flex items-center gap-3 text-sm font-medium text-slate-700">
+          <input
+            type="checkbox"
+            checked={autoMessagesEnabled}
+            onChange={(e) => setAutoMessagesEnabled(e.target.checked)}
+            className="h-4 w-4 rounded border-slate-300 text-green-600 focus:ring-green-500"
+          />
+          Enable auto WhatsApp messages
+        </label>
+        <span className="text-sm text-slate-500">
+          {autoMessagesEnabled ? "Enabled for future bot integration" : "Disabled for now"}
+        </span>
       </div>
       <div className="bg-white rounded-3xl shadow-sm overflow-hidden border border-slate-200">
         <div className="overflow-x-auto">
@@ -557,10 +451,6 @@ All ({allCount})
             ) : (
               filteredPatients.map(
                 (patient) => {
-
-                  const whatsappMessage = buildWhatsAppBotMessage(patient);
-
-                  const whatsappUrl = createWhatsAppUrl(patient.phone, whatsappMessage);
 
                   const lastVisit =
                     patient.visits &&
@@ -705,24 +595,6 @@ All ({allCount})
   >
     <UserRound size={18} />
   </Link>
-
-  <a
-    href={whatsappUrl}
-    target="_blank"
-    rel="noopener noreferrer"
-    className="w-9 h-9 rounded-xl border border-green-200 flex items-center justify-center text-green-600 hover:bg-green-50 transition"
-    title="WhatsApp"
-  >
-    <MessageCircle size={18} />
-  </a>
-
-  <button
-    onClick={() => sendWhatsAppReminder(patient)}
-    className="w-9 h-9 rounded-xl border border-teal-200 flex items-center justify-center text-teal-600 hover:bg-teal-50 transition"
-    title="Send Reminder"
-  >
-    <Send size={18} />
-  </button>
 
 <button
   onClick={() => archivePatient(patient.id)}

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Sidebar from "../../components/Sidebar";
+import DateInput from "../../components/DateInput";
 import { formatDateDMY } from "../../lib/date";
 
 type Visit = {
@@ -128,6 +129,32 @@ const [plannedElasticEnabled, setPlannedElasticEnabled] =
 const [plannedElasticType, setPlannedElasticType] =
   useState("Class II");
 
+const [plannedUpperWireSystem, setPlannedUpperWireSystem] =
+  useState<"MBT/Roth" | "Damon">("MBT/Roth");
+const [plannedUpperWireType, setPlannedUpperWireType] =
+  useState<"Niti" | "SS">("Niti");
+const [plannedUpperWireGauge, setPlannedUpperWireGauge] =
+  useState("12");
+const [plannedUpperWireOther, setPlannedUpperWireOther] =
+  useState("");
+const [plannedUpperDamonWire, setPlannedUpperDamonWire] =
+  useState("0.014 CuNiTi");
+const [plannedUpperDamonWireOther, setPlannedUpperDamonWireOther] =
+  useState("");
+
+const [plannedLowerWireSystem, setPlannedLowerWireSystem] =
+  useState<"MBT/Roth" | "Damon">("MBT/Roth");
+const [plannedLowerWireType, setPlannedLowerWireType] =
+  useState<"Niti" | "SS">("Niti");
+const [plannedLowerWireGauge, setPlannedLowerWireGauge] =
+  useState("12");
+const [plannedLowerWireOther, setPlannedLowerWireOther] =
+  useState("");
+const [plannedLowerDamonWire, setPlannedLowerDamonWire] =
+  useState("0.014 CuNiTi");
+const [plannedLowerDamonWireOther, setPlannedLowerDamonWireOther] =
+  useState("");
+
 const [plannedTadsEnabled, setPlannedTadsEnabled] =
   useState(false);
 
@@ -180,6 +207,12 @@ const [conflictWarning, setConflictWarning] =
         wireSystem as "MBT/Roth" | "Damon"
       );
       setLowerWireSystem(
+        wireSystem as "MBT/Roth" | "Damon"
+      );
+      setPlannedUpperWireSystem(
+        wireSystem as "MBT/Roth" | "Damon"
+      );
+      setPlannedLowerWireSystem(
         wireSystem as "MBT/Roth" | "Damon"
       );
     }
@@ -336,6 +369,26 @@ const [conflictWarning, setConflictWarning] =
             lowerDamonWire,
             lowerDamonWireOther
           );
+          const plannedUpperWire = plannedUpperArchEnabled
+            ? formatWireLabel(
+                plannedUpperWireSystem,
+                plannedUpperWireType,
+                plannedUpperWireGauge,
+                plannedUpperWireOther,
+                plannedUpperDamonWire,
+                plannedUpperDamonWireOther
+              )
+            : "";
+          const plannedLowerWire = plannedLowerArchEnabled
+            ? formatWireLabel(
+                plannedLowerWireSystem,
+                plannedLowerWireType,
+                plannedLowerWireGauge,
+                plannedLowerWireOther,
+                plannedLowerDamonWire,
+                plannedLowerDamonWireOther
+              )
+            : "";
 
           const newVisit = {
             date: today,
@@ -348,8 +401,8 @@ const [conflictWarning, setConflictWarning] =
             payment,
             visitNotes,
             plannedNotes: plannedNotes || initialPlannedNotes,
-            plannedUpperArch,
-            plannedLowerArch,
+            plannedUpperArch: plannedUpperWire,
+            plannedLowerArch: plannedLowerWire,
             plannedElasticType: plannedElasticEnabled
               ? plannedElasticType
               : "",
@@ -774,60 +827,220 @@ const [conflictWarning, setConflictWarning] =
 
   <div className="mb-4">
   <label className="flex items-center gap-3 font-semibold mb-3">
-  <input
-    type="checkbox"
-    checked={plannedUpperArchEnabled}
-    onChange={(e) =>
-      setPlannedUpperArchEnabled(
-        e.target.checked
-      )
-    }
-  />
-  Planned Upper Arch
-</label>
+    <input
+      type="checkbox"
+      checked={plannedUpperArchEnabled}
+      onChange={(e) => setPlannedUpperArchEnabled(e.target.checked)}
+    />
+    Planned Upper Arch
+  </label>
 
-{plannedUpperArchEnabled && (
-  <input
-    type="text"
-    value={plannedUpperArch}
-    onChange={(e) =>
-      setPlannedUpperArch(
-        e.target.value
-      )
-    }
-    className="w-full border p-3 rounded mb-4"
-  />
-)}
+  {plannedUpperArchEnabled && (
+    <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-3">
+      <div className="text-sm text-slate-700">
+        Wire system: {getWireSystemLabel(plannedUpperWireSystem, patient?.bracketType)}
+      </div>
 
+      {plannedUpperWireSystem === "MBT/Roth" ? (
+        <>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <label className="flex items-center gap-3 rounded-2xl border border-slate-300 px-3 py-2">
+              <input
+                type="radio"
+                name="plannedUpperWireType"
+                value="Niti"
+                checked={plannedUpperWireType === "Niti"}
+                onChange={() => {
+                  setPlannedUpperWireType("Niti");
+                  if (!wireGauges("Niti").includes(plannedUpperWireGauge)) {
+                    setPlannedUpperWireGauge("12");
+                  }
+                }}
+              />
+              Niti
+            </label>
+            <label className="flex items-center gap-3 rounded-2xl border border-slate-300 px-3 py-2">
+              <input
+                type="radio"
+                name="plannedUpperWireType"
+                value="SS"
+                checked={plannedUpperWireType === "SS"}
+                onChange={() => {
+                  setPlannedUpperWireType("SS");
+                  if (!wireGauges("SS").includes(plannedUpperWireGauge)) {
+                    setPlannedUpperWireGauge("18");
+                  }
+                }}
+              />
+              SS
+            </label>
+          </div>
+
+          <div>
+            <label className="block mb-2 font-semibold text-sm">Wire gauge</label>
+            <select
+              value={plannedUpperWireGauge}
+              onChange={(e) => setPlannedUpperWireGauge(e.target.value)}
+              className="w-full border p-3 rounded"
+            >
+              {wireGauges(plannedUpperWireType).map((gauge) => (
+                <option key={gauge} value={gauge}>
+                  {gauge}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {plannedUpperWireGauge === "Other" && (
+            <input
+              type="text"
+              value={plannedUpperWireOther}
+              onChange={(e) => setPlannedUpperWireOther(e.target.value)}
+              placeholder="Enter custom wire"
+              className="w-full border p-3 rounded"
+            />
+          )}
+        </>
+      ) : (
+        <div>
+          <label className="block mb-2 font-semibold text-sm">Damon wire</label>
+          <select
+            value={plannedUpperDamonWire}
+            onChange={(e) => setPlannedUpperDamonWire(e.target.value)}
+            className="w-full border p-3 rounded"
+          >
+            {damonWireOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+          {plannedUpperDamonWire === "Other" && (
+            <input
+              type="text"
+              value={plannedUpperDamonWireOther}
+              onChange={(e) => setPlannedUpperDamonWireOther(e.target.value)}
+              placeholder="Enter custom Damon wire"
+              className="w-full border p-3 rounded mt-2"
+            />
+          )}
+        </div>
+      )}
+
+      <div className="text-sm text-slate-600">
+        Selected: {formatWireLabel(plannedUpperWireSystem, plannedUpperWireType, plannedUpperWireGauge, plannedUpperWireOther, plannedUpperDamonWire, plannedUpperDamonWireOther)}
+      </div>
+    </div>
+  )}
 </div>
 
 <div className="mb-4">
-<label className="flex items-center gap-3 font-semibold mb-3">
-  <input
-    type="checkbox"
-    checked={plannedLowerArchEnabled}
-    onChange={(e) =>
-      setPlannedLowerArchEnabled(
-        e.target.checked
-      )
-    }
-  />
-  Planned Lower Arch
-</label>
+  <label className="flex items-center gap-3 font-semibold mb-3">
+    <input
+      type="checkbox"
+      checked={plannedLowerArchEnabled}
+      onChange={(e) => setPlannedLowerArchEnabled(e.target.checked)}
+    />
+    Planned Lower Arch
+  </label>
 
-{plannedLowerArchEnabled && (
-  <input
-    type="text"
-    value={plannedLowerArch}
-    onChange={(e) =>
-      setPlannedLowerArch(
-        e.target.value
-      )
-    }
-    className="w-full border p-3 rounded mb-4"
-  />
-)}
+  {plannedLowerArchEnabled && (
+    <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-3">
+      <div className="text-sm text-slate-700">
+        Wire system: {getWireSystemLabel(plannedLowerWireSystem, patient?.bracketType)}
+      </div>
 
+      {plannedLowerWireSystem === "MBT/Roth" ? (
+        <>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <label className="flex items-center gap-3 rounded-2xl border border-slate-300 px-3 py-2">
+              <input
+                type="radio"
+                name="plannedLowerWireType"
+                value="Niti"
+                checked={plannedLowerWireType === "Niti"}
+                onChange={() => {
+                  setPlannedLowerWireType("Niti");
+                  if (!wireGauges("Niti").includes(plannedLowerWireGauge)) {
+                    setPlannedLowerWireGauge("12");
+                  }
+                }}
+              />
+              Niti
+            </label>
+            <label className="flex items-center gap-3 rounded-2xl border border-slate-300 px-3 py-2">
+              <input
+                type="radio"
+                name="plannedLowerWireType"
+                value="SS"
+                checked={plannedLowerWireType === "SS"}
+                onChange={() => {
+                  setPlannedLowerWireType("SS");
+                  if (!wireGauges("SS").includes(plannedLowerWireGauge)) {
+                    setPlannedLowerWireGauge("18");
+                  }
+                }}
+              />
+              SS
+            </label>
+          </div>
+
+          <div>
+            <label className="block mb-2 font-semibold text-sm">Wire gauge</label>
+            <select
+              value={plannedLowerWireGauge}
+              onChange={(e) => setPlannedLowerWireGauge(e.target.value)}
+              className="w-full border p-3 rounded"
+            >
+              {wireGauges(plannedLowerWireType).map((gauge) => (
+                <option key={gauge} value={gauge}>
+                  {gauge}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {plannedLowerWireGauge === "Other" && (
+            <input
+              type="text"
+              value={plannedLowerWireOther}
+              onChange={(e) => setPlannedLowerWireOther(e.target.value)}
+              placeholder="Enter custom wire"
+              className="w-full border p-3 rounded"
+            />
+          )}
+        </>
+      ) : (
+        <div>
+          <label className="block mb-2 font-semibold text-sm">Damon wire</label>
+          <select
+            value={plannedLowerDamonWire}
+            onChange={(e) => setPlannedLowerDamonWire(e.target.value)}
+            className="w-full border p-3 rounded"
+          >
+            {damonWireOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+          {plannedLowerDamonWire === "Other" && (
+            <input
+              type="text"
+              value={plannedLowerDamonWireOther}
+              onChange={(e) => setPlannedLowerDamonWireOther(e.target.value)}
+              placeholder="Enter custom Damon wire"
+              className="w-full border p-3 rounded mt-2"
+            />
+          )}
+        </div>
+      )}
+
+      <div className="text-sm text-slate-600">
+        Selected: {formatWireLabel(plannedLowerWireSystem, plannedLowerWireType, plannedLowerWireGauge, plannedLowerWireOther, plannedLowerDamonWire, plannedLowerDamonWireOther)}
+      </div>
+    </div>
+  )}
 </div>
 
 <label className="flex items-center gap-3 font-semibold mb-3">
@@ -937,14 +1150,9 @@ const [conflictWarning, setConflictWarning] =
 
 {appointmentMode === "Manual" && (
   <div className="mb-4">
-    <input
-      type="date"
+    <DateInput
       value={appointmentDate}
-      onChange={(e) =>
-        setAppointmentDate(
-          e.target.value
-        )
-      }
+      onChange={setAppointmentDate}
       className="w-full border p-3 rounded"
     />
       {isFriday && (

@@ -63,12 +63,16 @@ select {
 
 @media (max-width: 767px) {
   main {
-    padding-bottom: 5rem;
+    padding-bottom: 6.5rem;
   }
 
   select,
   option {
     white-space: nowrap;
+  }
+
+  body {
+    padding-bottom: 0.5rem;
   }
 }
 

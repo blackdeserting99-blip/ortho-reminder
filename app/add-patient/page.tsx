@@ -1,14 +1,14 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { formatDateDMY } from "../lib/date";
 import { useRouter } from "next/navigation";
 import Sidebar from "../components/Sidebar";
+import DateInput from "../components/DateInput";
 
 export default function AddPatientPage() {
   const router = useRouter();
-  const manualDateInputRef = useRef<HTMLInputElement | null>(null);
 
 const [name, setName] = useState("");
 const [phone, setPhone] = useState("");
@@ -682,19 +682,9 @@ const [totalFee, setTotalFee] =
                 Appointment Date
               </label>
 
-              <input
-                ref={manualDateInputRef}
-                type="date"
+              <DateInput
                 value={appointmentDate}
-                onChange={(e) =>
-                  setAppointmentDate(e.target.value)
-                }
-                onFocus={(e) =>
-                  (e.target as HTMLInputElement).showPicker?.()
-                }
-                onClick={(e) =>
-                  (e.target as HTMLInputElement).showPicker?.()
-                }
+                onChange={setAppointmentDate}
                 className="w-full border p-3 rounded"
               />
                 {isFriday && (
