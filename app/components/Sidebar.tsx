@@ -1,8 +1,8 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-// Use the original SVG for visible sidebar branding
 import {
   Home,
   Users,
@@ -44,6 +44,14 @@ export default function Sidebar() {
   return (
     <aside className="group fixed bottom-0 left-0 right-0 h-16 z-50 w-full md:sticky md:top-24 md:h-screen md:w-20 md:hover:w-72 md:self-start bg-[linear-gradient(135deg,_#0f766e_0%,_#14b8a6_45%,_#2dd4bf_100%)] text-white shadow-2xl flex flex-col md:flex-col border-b border-teal-200/60 md:border-b-0 md:border-r overflow-hidden transition-[width] duration-300 ease-in-out">
       <div className="h-3 md:h-4 w-full bg-[linear-gradient(90deg,_rgba(255,255,255,0.18),_rgba(255,255,255,0.02),_rgba(255,255,255,0.18))]" />
+
+      <div className="hidden md:flex items-center justify-center py-5">
+        <Link href="/" className="flex items-center justify-center w-full">
+          <div className="w-full max-w-[220px]">
+            {/* Logo removed from sidebar per request; Navbar now contains the logo */}
+          </div>
+        </Link>
+      </div>
 
       <nav className="flex-1 flex md:flex-col flex-row items-center md:items-start px-2 md:px-3 py-2 md:py-3 gap-1.5 overflow-x-auto md:overflow-y-auto">
         {menuItems.map((item) => {

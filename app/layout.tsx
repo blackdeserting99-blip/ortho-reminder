@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Pacifico, Poppins } from "next/font/google";
 import "./globals.css";
-import PortalHeader from "./components/PortalHeader";
+import Navbar from "./components/Navbar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -22,8 +22,13 @@ const poppins = Poppins({
   weight: ["600", "700"],
 });
 export const metadata: Metadata = {
-  title: "ortho prime",
-  description: "A responsive orthodontic practice dashboard built by an Iraqi dental team to help orthodontists manage patients and appointments.",
+  title: "Ortho Assistant",
+  description: "A healthcare practice management dashboard powered by OrthoPrime.",
+  icons: {
+    icon: "/logo.png",
+    shortcut: "/logo.png",
+    apple: "/logo.png",
+  },
 };
 
 export default function RootLayout({
@@ -37,10 +42,9 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-slate-50 text-slate-900 antialiased">
-          <PortalHeader />
-
         <div className="min-h-full">
-          <div className="min-h-screen content-offset">{children}</div>
+          <Navbar />
+          <div className="min-h-screen">{children}</div>
         </div>
       </body>
     </html>

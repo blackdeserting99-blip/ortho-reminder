@@ -50,7 +50,7 @@ export default function DateInput({
       role="button"
       tabIndex={0}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openPicker(); }}
-      className={`w-full rounded-xl border border-slate-300 bg-white px-4 py-3 shadow-sm transition duration-200 hover:border-teal-500 hover:shadow-md focus-within:border-teal-500 focus-within:ring-2 focus-within:ring-teal-200 ${className}`}
+      className={`w-full rounded-xl border border-slate-300 bg-white px-4 py-3 shadow-sm transition duration-200 hover:border-teal-500 hover:shadow-md focus-within:border-teal-500 focus-within:ring-2 focus-within:ring-teal-200 cursor-pointer ${className}`}
     >
       <input
         id={inputId}
@@ -61,8 +61,7 @@ export default function DateInput({
         max={max}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="block h-10 w-full cursor-pointer border-0 bg-transparent p-0 text-slate-900 outline-none"
-        onClick={(e) => e.stopPropagation()}
+        className="block h-10 w-full border-0 bg-transparent p-0 text-slate-900 outline-none"
       />
     </div>
   );

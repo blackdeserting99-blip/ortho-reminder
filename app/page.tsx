@@ -443,7 +443,7 @@ type Patient = {
                           <td className="py-4 px-4">
                             <div className="flex gap-2 flex-wrap">
                               <Link
-                                href={`/new-appointment/${patient.id}`}
+                                href={`/new-appointment/${patient.id}?focus=current`}
                                 className="bg-green-100 text-green-700 px-3 py-2 rounded-lg hover:bg-green-200 text-sm"
                               >
                                 ✓

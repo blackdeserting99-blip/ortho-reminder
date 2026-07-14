@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Ortho-only cursive logo (static, transparent background) -->
-<svg xmlns="http://www.w3.org/2000/svg" width="200" height="72" viewBox="0 0 200 72" preserveAspectRatio="xMinYMid meet">
-  <text x="0" y="46" font-family="Pacifico, Brush Script MT, cursive" font-size="40" fill="#0f172a" letter-spacing="-0.04em">ortho</text>
-</svg>

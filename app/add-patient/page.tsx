@@ -100,6 +100,11 @@ const [occupation, setOccupation] = useState("");
   const [myofunctionalWeeklyDays, setMyofunctionalWeeklyDays] =
     useState<string[]>([]);
 
+  // Clear aligner states
+  const [plannedAligners, setPlannedAligners] = useState(30);
+  const [givenCount, setGivenCount] = useState(10);
+  const [alignerWearDays, setAlignerWearDays] = useState(14);
+
 const [notes, setNotes] = useState("");
 const [plannedNotesEnabled, setPlannedNotesEnabled] = useState(false);
 const [plannedNotes, setPlannedNotes] = useState("");
@@ -108,6 +113,10 @@ const [showNotes, setShowNotes] =
   useState(false);
 
 const [totalFee, setTotalFee] = useState("");
+  const [additionalEnabled, setAdditionalEnabled] = useState(false);
+  const [additionalAmount, setAdditionalAmount] = useState("");
+  const [additionalReason, setAdditionalReason] = useState("");
+  const [retainerFee, setRetainerFee] = useState("");
   const [conflictWarning, setConflictWarning] = useState("");
   const [timeConflictMessage, setTimeConflictMessage] = useState("");
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
@@ -115,10 +124,27 @@ const [totalFee, setTotalFee] = useState("");
   const getSelectedDate = () => {
     if (appointmentMode === "Manual") return normalizeDateIso(appointmentDate);
 
-    const days = parseInt(appointmentMode, 10);
-    const futureDate = new Date();
-    futureDate.setDate(futureDate.getDate() + days);
-    return normalizeDateIso(futureDate.toISOString().split("T")[0]);
+    // Clear Aligners Auto mode: schedule after given aligners * wearDays
+    if (treatmentType === "Clear Aligners" && appointmentMode === "Auto") {
+      const today = new Date();
+      const daysToAdd = Number(givenCount) * Number(alignerWearDays);
+      const future = new Date(today);
+      future.setDate(future.getDate() + daysToAdd);
+      return normalizeDateIso(future.toISOString().split("T")[0]);
+    }
+
+    // If appointmentMode is numeric (e.g., "15 Days" -> 15), parse and add
+    const parsed = parseInt(appointmentMode, 10);
+    if (!Number.isNaN(parsed)) {
+      const future = new Date();
+      future.setDate(future.getDate() + parsed);
+      return normalizeDateIso(future.toISOString().split("T")[0]);
+    }
+
+    // Fallback: 30 days
+    const fallback = new Date();
+    fallback.setDate(fallback.getDate() + 30);
+    return normalizeDateIso(fallback.toISOString().split("T")[0]);
   };
 
   const selectedDate = getSelectedDate();
@@ -190,7 +216,8 @@ const [totalFee, setTotalFee] = useState("");
       notes: notes.trim(),
       plannedNotes: plannedNotesEnabled ? plannedNotes.trim() : "",
       totalFee: Number(totalFee) || 0,
-      totalPaid: 0,
+      totalPaid: Number(additionalAmount) || 0,
+      retainerFee: Number(retainerFee) || 0,
       elasticEnabled: false,
       elasticType: "",
       tadsNote: "",
@@ -214,7 +241,15 @@ const [totalFee, setTotalFee] = useState("");
                   : undefined,
             }
           : undefined,
-      visits: [],
+          clearAlignersPlan:
+            treatmentType === "Clear Aligners"
+              ? {
+                  total: plannedAligners,
+                  given: givenCount,
+                  wearDays: alignerWearDays,
+                }
+              : undefined,
+          visits: [],
     };
 
     const validation = validatePatientRecord(newPatient, existingPatients);
@@ -422,6 +457,16 @@ const [totalFee, setTotalFee] = useState("");
       <option>Roth System</option>
       <option>Damon System</option>
     </select>
+  </div>
+)}
+{treatmentType === "Retainers" && (
+  <div className="mt-4">
+    <label className="block mb-2">Retainer Fee</label>
+    <div className="flex items-center gap-2">
+      <input type="text" value={retainerFee ? Number(retainerFee).toLocaleString() : retainerFee} onChange={(e) => setRetainerFee(e.target.value.replace(/\D/g, ""))} placeholder="0" className="flex-1 border p-3 rounded" />
+      <span className="font-semibold text-slate-700">IQD</span>
+    </div>
+    <p className="text-sm text-slate-500 mt-2">This will be recorded as the retainer charge for this patient.</p>
   </div>
 )}
 </div>
@@ -660,6 +705,64 @@ const [totalFee, setTotalFee] = useState("");
             </>
           )}
 
+        {treatmentType === "Clear Aligners" && (
+          <div className="mb-6 bg-slate-50 border border-slate-200 rounded-xl p-4">
+            <div className="text-sm font-semibold text-slate-700 mb-3">Clear Aligners plan</div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center mb-3">
+              <div>
+                <label className="block mb-1 text-sm">Planned total aligners</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={plannedAligners}
+                  onChange={(e) => setPlannedAligners(Number(e.target.value) || 0)}
+                  className="w-full border p-2 rounded"
+                />
+              </div>
+
+              <div>
+                <label className="block mb-1 text-sm">Mark given at this visit</label>
+                <div className="flex items-center gap-2">
+                  <div className="text-sm text-slate-600">Click dots below to mark</div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block mb-1 text-sm">Days per aligner</label>
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => setAlignerWearDays((v) => Math.max(1, v - 1))} className="px-3 py-1 bg-white border rounded">-</button>
+                  <input type="number" min={1} value={alignerWearDays} onChange={(e) => setAlignerWearDays(Number(e.target.value) || 0)} className="w-20 text-center border p-2 rounded" />
+                  <button type="button" onClick={() => setAlignerWearDays((v) => v + 1)} className="px-3 py-1 bg-white border rounded">+</button>
+                </div>
+              </div>
+            </div>
+
+            <div className="mb-3">
+              <label className="block mb-1 text-sm">Aligners (total)</label>
+              <div className="flex flex-wrap gap-2">
+                {Array.from({ length: Math.max(0, plannedAligners) }).map((_, i) => {
+                  const selected = i < givenCount;
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setGivenCount((cur) => (cur === i + 1 ? i : i + 1))}
+                      title={`Aligner ${i + 1}`}
+                      className={`w-3 h-3 rounded-full transition-colors ${selected ? 'bg-teal-700' : 'bg-slate-300'}`}
+                    />
+                  );
+                })}
+              </div>
+              <div className="text-sm text-slate-700 mt-2">Given this visit: <strong>{givenCount}</strong></div>
+            </div>
+
+            <div className="text-sm text-slate-700">
+              Next appointment (auto): <strong>{treatmentType === "Clear Aligners" ? `${givenCount * alignerWearDays} days from today` : "N/A"}</strong>
+            </div>
+          </div>
+        )}
+
           <div className="mb-4">
             <label className="block mb-2">
               Next Appointment Date
@@ -667,16 +770,23 @@ const [totalFee, setTotalFee] = useState("");
 
             <select
               value={appointmentMode}
-              onChange={(e) =>
-                setAppointmentMode(e.target.value)
-              }
+              onChange={(e) => setAppointmentMode(e.target.value)}
               className="w-full border p-3 rounded"
             >
-              <option>15 Days</option>
-              <option>30 Days</option>
-              <option>45 Days</option>
-              <option>60 Days</option>
-              <option>Manual</option>
+              {treatmentType === "Clear Aligners" ? (
+                <>
+                  <option>Auto</option>
+                  <option>Manual</option>
+                </>
+              ) : (
+                <>
+                  <option>15</option>
+                  <option>30</option>
+                  <option>45</option>
+                  <option>60</option>
+                  <option>Manual</option>
+                </>
+              )}
             </select>
             {isFriday && (
               <p className="text-sm text-orange-700 mt-2">
@@ -819,6 +929,40 @@ const [totalFee, setTotalFee] = useState("");
           </p>
         </div>
 
+        <div className="mb-4">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={additionalEnabled}
+              onChange={(e) => setAdditionalEnabled(e.target.checked)}
+            />
+            Additional payment
+          </label>
+
+          {additionalEnabled && (
+            <div className="mt-3 space-y-2">
+              <div>
+                <label className="block mb-1 text-sm">Additional fees</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={additionalAmount ? Number(additionalAmount).toLocaleString() : ""}
+                    onChange={(e) => setAdditionalAmount(e.target.value.replace(/\D/g, ""))}
+                    placeholder="0"
+                    className="flex-1 border p-3 rounded"
+                  />
+                  <span className="font-semibold text-slate-700">IQD</span>
+                </div>
+                <p className="text-xs text-slate-500 mt-1">This amount will be added to total paid.</p>
+              </div>
+              <div>
+                <label className="block mb-1 text-sm">Reason for additional fee</label>
+                <input type="text" value={additionalReason} onChange={(e) => setAdditionalReason(e.target.value)} className="w-full border p-2 rounded" />
+              </div>
+            </div>
+          )}
+        </div>
+
         <div className="mb-6">
           <label className="block mb-2">
             Appointment Time
@@ -860,8 +1004,9 @@ const [totalFee, setTotalFee] = useState("");
         )}
 
         <button
+          type="button"
           onClick={savePatient}
-          className="bg-teal-600 text-white px-6 py-3 rounded-lg"
+          className="bg-teal-600 text-white px-6 py-3 rounded-lg relative z-10"
         >
           Save Patient
         </button>

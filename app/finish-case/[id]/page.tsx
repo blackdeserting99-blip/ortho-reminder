@@ -16,6 +16,7 @@ export default function FinishCasePage() {
 
   const [retainerDate, setRetainerDate] = useState("");
   const [retainerTime, setRetainerTime] = useState("09:00 AM");
+  const [retainerFee, setRetainerFee] = useState("");
 
   const finishCase = () => {
     const patients = JSON.parse(
@@ -62,6 +63,7 @@ p.id.toString() === patientId
 treatment: p.treatment,
               appointmentDate: retainerDate,
               appointmentTime: retainerTime,
+              retainerFee: Number(retainerFee) || 0,
             }
           : p
     );
@@ -133,6 +135,14 @@ treatment: p.treatment,
                   <option>05:00 PM</option>
                   <option>06:00 PM</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="block mb-1 font-medium text-black">Retainer Fee</label>
+                <div className="flex items-center gap-2">
+                  <input type="text" value={retainerFee ? Number(retainerFee).toLocaleString() : retainerFee} onChange={(e) => setRetainerFee(e.target.value.replace(/\D/g, ""))} className="w-full border p-2 rounded text-black" placeholder="0" />
+                  <span className="font-semibold">IQD</span>
+                </div>
               </div>
 
               <button onClick={moveToRetainer} className="bg-purple-600 text-white px-5 py-3 rounded-lg">Save Retainer</button>

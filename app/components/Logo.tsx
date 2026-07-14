@@ -1,42 +1,46 @@
 "use client";
 
-import { Pacifico } from "next/font/google";
-
-const pacifico = Pacifico({
-  weight: ["400"],
-  subsets: ["latin"],
-});
-
 export default function Logo() {
   return (
-    <div className="logo-wrapper" aria-hidden={false}>
-      <svg viewBox="0 0 320 80" className="logo-svg" aria-label="Ortho Prime logo" role="img">
+    <div className="flex items-center gap-3">
+      <svg
+        width="56"
+        height="56"
+        viewBox="0 0 56 56"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        className="rounded-lg shadow-md"
+        aria-hidden
+      >
         <defs>
-          <clipPath id="logoClip">
-            <rect x="0" y="0" width="320" height="80" rx="8" />
-          </clipPath>
+          <linearGradient id="lg" x1="0" x2="1">
+            <stop offset="0%" stopColor="#14B8A6" />
+            <stop offset="60%" stopColor="#0EA5A4" />
+            <stop offset="100%" stopColor="#0F4A4F" />
+          </linearGradient>
         </defs>
 
-        {/* Hand-traced path for 'ortho' (single continuous stroke) */}
-        <g clipPath="url(#logoClip)">
-          <path
-            id="ortho-path"
-            className="logo-path"
-            d="M10 50 C18 14, 46 12, 60 48 C66 64, 86 60, 94 46 C102 32, 126 30, 138 46 C144 58, 158 66, 176 50"
-            fill="none"
-          />
-
-          {/* small flourish to complete the 'o' ending */}
-          <path
-            d="M176 50 C182 42, 190 42, 196 48"
-            className="logo-path"
-            fill="none"
-          />
-
-          {/* 'prime' text placed closer to the traced 'ortho' */}
-          <text x="198" y="52" className="logo-prime" style={{ fontFamily: "Inter, Arial, sans-serif", fontSize: 36, fontWeight: 700 }}>prime</text>
-        </g>
+        <rect width="56" height="56" rx="10" fill="url(#lg)" />
+        <text
+          x="50%"
+          y="60%"
+          textAnchor="middle"
+          fontFamily="Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial"
+          fontWeight="700"
+          fontSize="18"
+          fill="#fff"
+        >
+          OA
+        </text>
       </svg>
+
+      <div className="leading-none text-white">
+        <div className="text-lg font-semibold tracking-tight">
+          <span className="italic font-extrabold">ortho</span>
+          <span className="font-extrabold">assistant</span>
+        </div>
+        <div className="text-[10px] text-white/80 tracking-widest">powered by <span className="font-medium">orthoprime</span></div>
+      </div>
     </div>
   );
 }

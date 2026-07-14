@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Sidebar from "../../components/Sidebar";
 import DateInput from "../../components/DateInput";
 import { formatDateDMY } from "../../lib/date";
@@ -66,6 +66,8 @@ const [elasticType, setElasticType] =
   useState("None");
   const [elasticOther, setElasticOther] =
   useState("");
+const [elasticGauge, setElasticGauge] = useState<"Small"|"Medium"|"Heavy"|"Other">("Medium");
+const [elasticSize, setElasticSize] = useState<string>("1/8");
 
 const [visitNotes, setVisitNotes] =
   useState("");
@@ -75,6 +77,23 @@ const [plannedNotes, setPlannedNotes] =
 
 const [paymentReceived, setPaymentReceived] =
   useState("");
+
+const [additionalEnabled, setAdditionalEnabled] = useState(false);
+const [additionalAmount, setAdditionalAmount] = useState("");
+const [additionalReason, setAdditionalReason] = useState("");
+const [additionalCollected, setAdditionalCollected] = useState(true);
+
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const focus = searchParams?.get?.("focus");
+    if (focus === "current") {
+      const el = document.getElementById("current-appointment");
+      if (el) {
+        setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
+      }
+    }
+  }, [searchParams]);
 
     const [upperWireSystem, setUpperWireSystem] =
   useState<"MBT/Roth" | "Damon">("MBT/Roth");
@@ -128,6 +147,9 @@ const [plannedElasticEnabled, setPlannedElasticEnabled] =
 
 const [plannedElasticType, setPlannedElasticType] =
   useState("Class II");
+const [plannedElasticGauge, setPlannedElasticGauge] = useState<"Small"|"Medium"|"Heavy"|"Other">("Medium");
+const [plannedElasticSize, setPlannedElasticSize] = useState<string>("1/8");
+const [plannedElasticOther, setPlannedElasticOther] = useState("");
 
 const [plannedUpperWireSystem, setPlannedUpperWireSystem] =
   useState<"MBT/Roth" | "Damon">("MBT/Roth");
@@ -329,10 +351,8 @@ const [conflictWarning, setConflictWarning] =
       localStorage.getItem("patients") || "[]"
     );
 
-    const payment =
-      Number(
-        paymentReceived.replace(/,/g, "")
-      ) || 0;
+    const payment = Number(paymentReceived.replace(/,/g, "")) || 0;
+    const additional = Number(additionalAmount.replace(/,/g, "")) || 0;
 
     const conflict = patients.some(
       (p: Patient) =>
@@ -406,6 +426,9 @@ const [conflictWarning, setConflictWarning] =
             nextDate: selectedDate,
             nextTime: appointmentTime,
             payment,
+            additionalPayment: additionalEnabled ? additional : 0,
+            additionalPaid: additionalEnabled ? !!additionalCollected : false,
+            additionalReason: additionalEnabled ? additionalReason : "",
             visitNotes,
             plannedNotes: plannedNotes || initialPlannedNotes,
             plannedUpperArch: plannedUpperWire,
@@ -413,6 +436,9 @@ const [conflictWarning, setConflictWarning] =
             plannedElasticType: isFixedBraces && plannedElasticEnabled
               ? plannedElasticType
               : "",
+            plannedElasticGauge: isFixedBraces && plannedElasticEnabled ? plannedElasticGauge : "",
+            plannedElasticSize: isFixedBraces && plannedElasticEnabled ? plannedElasticSize : "",
+            plannedElasticOther: isFixedBraces && plannedElasticEnabled ? plannedElasticOther : "",
             plannedTadsNote: isFixedBraces && plannedTadsEnabled
               ? plannedTadsNote
               : "",
@@ -423,6 +449,8 @@ const [conflictWarning, setConflictWarning] =
             elasticEnabled: isFixedBraces ? elasticEnabled : false,
             elasticType: isFixedBraces && elasticEnabled ? elasticType : "",
             elasticOther: isFixedBraces ? elasticOther : "",
+            elasticGauge: isFixedBraces ? (elasticEnabled ? elasticGauge : "") : "",
+            elasticSize: isFixedBraces ? (elasticEnabled ? elasticSize : "") : "",
             tadsEnabled: isFixedBraces ? tadsEnabled : false,
             tadsNote: isFixedBraces ? tadsNote : "",
           };
@@ -434,7 +462,7 @@ const [conflictWarning, setConflictWarning] =
             firstAppointment: false,
             elasticEnabled,
             elasticType: elasticEnabled ? elasticType : "",
-            totalPaid: (p.totalPaid || 0) + payment,
+            totalPaid: (p.totalPaid || 0) + payment + (additionalCollected ? additional : 0),
             plannedNotes: existingVisits.length === 0 ? "" : p.plannedNotes,
             visits: [...existingVisits, newVisit],
           };
@@ -478,7 +506,7 @@ const [conflictWarning, setConflictWarning] =
           </div>
 
           <div className="grid gap-6 xl:grid-cols-2">
-            <div className="border rounded-xl p-5 bg-blue-50">
+            <div id="current-appointment" className="border rounded-xl p-5 bg-blue-50">
               <h2 className="text-xl font-bold text-blue-700 mb-5">
                 Current Appointment
               </h2>
@@ -733,7 +761,7 @@ const [conflictWarning, setConflictWarning] =
                       <option>Other</option>
                     </select>
 
-                    {elasticType === "Other" && (
+                    {elasticType === "Other" ? (
                       <input
                         type="text"
                         value={elasticOther}
@@ -741,6 +769,29 @@ const [conflictWarning, setConflictWarning] =
                         placeholder="Custom elastic"
                         className="w-full border p-3 rounded mt-2"
                       />
+                    ) : (
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        <div>
+                          <label className="block mb-1 text-sm">Elastic Gauge</label>
+                          <select value={elasticGauge} onChange={(e) => setElasticGauge(e.target.value as any)} className="w-full border p-2 rounded">
+                            <option value="Small">Small</option>
+                            <option value="Medium">Medium</option>
+                            <option value="Heavy">Heavy</option>
+                            <option value="Other">Other</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block mb-1 text-sm">Elastic Size</label>
+                          <select value={elasticSize} onChange={(e) => setElasticSize(e.target.value)} className="w-full border p-2 rounded">
+                            <option>1/8</option>
+                            <option>3/16</option>
+                            <option>1/4</option>
+                            <option>5/16</option>
+                            <option>3/8</option>
+                            <option>Other</option>
+                          </select>
+                        </div>
+                      </div>
                     )}
                   </div>
                 )}
@@ -796,6 +847,45 @@ const [conflictWarning, setConflictWarning] =
                     <span className="font-semibold text-slate-700">IQD</span>
                   </div>
                 </div>
+                <div className="mb-4">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={additionalEnabled}
+                      onChange={(e) => setAdditionalEnabled(e.target.checked)}
+                    />
+                    Additional payment
+                  </label>
+
+                  {additionalEnabled && (
+                    <div className="mt-3 space-y-2">
+                      <div>
+                        <label className="block mb-1 text-sm">Additional fees</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={additionalAmount ? Number(additionalAmount).toLocaleString() : ""}
+                            onChange={(e) => setAdditionalAmount(e.target.value.replace(/\D/g, ""))}
+                            placeholder="0"
+                            className="flex-1 border p-3 rounded"
+                          />
+                          <span className="font-semibold text-slate-700">IQD</span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-1">This is an additional fee and will not be added to the patient's total paid. It is recorded separately on the visit.</p>
+                      </div>
+                      <div>
+                        <label className="block mb-1 text-sm">Reason for additional fee</label>
+                        <input type="text" value={additionalReason} onChange={(e) => setAdditionalReason(e.target.value)} className="w-full border p-2 rounded" />
+                      </div>
+                      <div>
+                        <label className="flex items-center gap-2 mt-2">
+                          <input type="checkbox" checked={additionalCollected} onChange={(e) => setAdditionalCollected(e.target.checked)} />
+                          Collected (mark as paid now)
+                        </label>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </>
             ) : (
               <>
@@ -829,6 +919,39 @@ const [conflictWarning, setConflictWarning] =
                     <span className="font-semibold text-slate-700">IQD</span>
                   </div>
                 </div>
+                <div className="mb-4">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={additionalEnabled}
+                      onChange={(e) => setAdditionalEnabled(e.target.checked)}
+                    />
+                    Additional payment
+                  </label>
+
+                  {additionalEnabled && (
+                    <div className="mt-3 space-y-2">
+                      <div>
+                        <label className="block mb-1 text-sm">Additional fees</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={additionalAmount ? Number(additionalAmount).toLocaleString() : ""}
+                            onChange={(e) => setAdditionalAmount(e.target.value.replace(/\D/g, ""))}
+                            placeholder="0"
+                            className="flex-1 border p-3 rounded"
+                          />
+                          <span className="font-semibold text-slate-700">IQD</span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-1">This is an additional fee and will not be added to the patient's total paid. It is recorded separately on the visit.</p>
+                      </div>
+                      <div>
+                        <label className="block mb-1 text-sm">Reason for additional fee</label>
+                        <input type="text" value={additionalReason} onChange={(e) => setAdditionalReason(e.target.value)} className="w-full border p-2 rounded" />
+                      </div>
+                    </div>
+                  )}
+                </div>
               </>
             )}
 
@@ -839,7 +962,7 @@ const [conflictWarning, setConflictWarning] =
 
               <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-4">
                 <h3 className="mb-3 text-lg font-semibold text-slate-800">Planned Visit Details</h3>
-                <p className="mb-4 text-sm text-slate-600">These mirror the current visit options so the next visit can be planned in the same way.</p>
+                {/* description removed per request */}
 
                 {isFixedBraces ? (
                   <div className="space-y-4">
@@ -1074,6 +1197,38 @@ const [conflictWarning, setConflictWarning] =
                           <option>Vertical</option>
                           <option>Other</option>
                         </select>
+                        {plannedElasticType === "Other" ? (
+                          <input
+                            type="text"
+                            value={plannedElasticOther}
+                            onChange={(e) => setPlannedElasticOther(e.target.value)}
+                            placeholder="Custom elastic"
+                            className="w-full border p-3 rounded mt-2"
+                          />
+                        ) : (
+                          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                            <div>
+                              <label className="block mb-1 text-sm">Planned Elastic Gauge</label>
+                              <select value={plannedElasticGauge} onChange={(e) => setPlannedElasticGauge(e.target.value as any)} className="w-full border p-2 rounded">
+                                <option value="Small">Small</option>
+                                <option value="Medium">Medium</option>
+                                <option value="Heavy">Heavy</option>
+                                <option value="Other">Other</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block mb-1 text-sm">Planned Elastic Size</label>
+                              <select value={plannedElasticSize} onChange={(e) => setPlannedElasticSize(e.target.value)} className="w-full border p-2 rounded">
+                                <option>1/8</option>
+                                <option>3/16</option>
+                                <option>1/4</option>
+                                <option>5/16</option>
+                                <option>3/8</option>
+                                <option>Other</option>
+                              </select>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
 

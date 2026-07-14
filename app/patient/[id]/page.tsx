@@ -27,6 +27,17 @@ type Visit = {
   plannedNotes?: string;
   nextDate?: string;
   nextTime?: string;
+  additionalPayment?: number;
+  additionalPaid?: boolean;
+  additionalReason?: string;
+  elasticGauge?: string;
+  elasticSize?: string;
+  plannedElasticGauge?: string;
+  plannedElasticSize?: string;
+  plannedElasticOther?: string;
+  additionalPayment?: number;
+  additionalPaid?: boolean;
+  additionalReason?: string;
 };
 
 type AttachedPhoto = {
@@ -111,6 +122,50 @@ export default function PatientProfilePage() {
     setTreatmentActive(false);
   };
 
+  const printReceipt = () => {
+    if (!patient) return;
+
+    const rows = (patient.visits || [])
+      .filter((visit) => visit.additionalPayment)
+      .map((visit) => {
+        const reason = visit.additionalReason ? ` — ${visit.additionalReason}` : "";
+        return `<div class="field"><span>${formatDateDMY(visit.date)}</span><span>${(visit.additionalPayment || 0).toLocaleString()} IQD${reason}</span></div>`;
+      })
+      .join("");
+
+    const html = `<!doctype html><html><head><title>Receipt</title><style>
+      body{font-family:Inter,system-ui,sans-serif;color:#111;margin:20px}
+      .title{font-size:24px;font-weight:700;margin-bottom:16px}
+      .field{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #ddd}
+      .section{margin-top:20px}
+      .section-title{font-weight:700;margin-bottom:12px}
+      .label{font-weight:600}
+    </style></head><body>
+      <div class="title">Receipt</div>
+      <div class="section">
+        <div class="field"><span class="label">Receipt Date</span><span>${formatDateDMY(new Date().toISOString().split("T")[0])}</span></div>
+        <div class="field"><span class="label">Patient</span><span>${patient.name}</span></div>
+        <div class="field"><span class="label">Phone</span><span>${patient.phone}</span></div>
+        <div class="field"><span class="label">Case</span><span>${patient.treatment}</span></div>
+      </div>
+      <div class="section">
+        <div class="section-title">Financial Summary</div>
+        <div class="field"><span class="label">Total Fee</span><span>${overallTotalFee.toLocaleString()} IQD</span></div>
+        <div class="field"><span class="label">Paid</span><span>${totalPaid.toLocaleString()} IQD</span></div>
+        <div class="field"><span class="label">Additional Fees Total</span><span>${additionalFeesTotal.toLocaleString()} IQD</span></div>
+        <div class="field"><span class="label">Remaining</span><span>${remaining.toLocaleString()} IQD</span></div>
+      </div>
+      ${rows ? `<div class="section"><div class="section-title">Additional Fee Details</div>${rows}</div>` : ""}
+      <script>window.onload = function(){ window.print(); }</script>
+    </body></html>`;
+
+    const receiptWindow = window.open("", "_blank", "width=800,height=600");
+    if (!receiptWindow) return;
+    receiptWindow.document.open();
+    receiptWindow.document.write(html);
+    receiptWindow.document.close();
+  };
+
   const saveManualAppointment = () => {
     if (!selectedDate) {
       alert("Please choose a date");
@@ -192,7 +247,7 @@ export default function PatientProfilePage() {
         const updatedPatients2 = patients2.map((p: any) => (p.id === patient!.id ? { ...p, appointmentDate: modalDate, appointmentTime: modalTime } : p));
         localStorage.setItem("patients", JSON.stringify(updatedPatients2));
       }
-      router.push(`/new-appointment/${patient!.id}`);
+      router.push(`/new-appointment/${patient!.id}?focus=current`);
     } else {
       // refresh current view
       router.refresh();
@@ -219,9 +274,11 @@ export default function PatientProfilePage() {
   }
 
   const lastVisit = patient.visits && patient.visits.length > 0 ? patient.visits[patient.visits.length - 1] : null;
-  const totalFee = patient.totalFee || 0;
+  const baseTotalFee = patient.totalFee || 0;
   const totalPaid = patient.totalPaid || 0;
-  const remaining = totalFee - totalPaid;
+  const additionalFeesTotal = (patient.visits || []).reduce((sum, v: any) => sum + (v.additionalPayment || 0), 0);
+  const overallTotalFee = baseTotalFee + additionalFeesTotal;
+  const remaining = overallTotalFee - totalPaid;
 
   const getStatusColor = (status?: string) => {
     switch (status) {
@@ -278,7 +335,7 @@ export default function PatientProfilePage() {
             <div className="flex gap-2 flex-wrap justify-end">
               {(patient.appointmentDate === "" || !patient.appointmentDate) && patient.caseStatus !== "finished" && (
                 <Link
-                  href={`/new-appointment/${patient.id}`}
+                    href={`/new-appointment/${patient.id}?focus=current`}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-lg font-medium transition"
                 >
                   New Appointment
@@ -290,6 +347,13 @@ export default function PatientProfilePage() {
               >
                 Edit Patient
               </Link>
+              <button
+                type="button"
+                onClick={printReceipt}
+                className="bg-slate-500 hover:bg-slate-600 text-white px-5 py-2.5 rounded-lg font-medium transition"
+              >
+                Print Receipt
+              </button>
               {patient.caseStatus === "finished" ? (
                 <button
                   onClick={() => setShowFinishedModal(true)}
@@ -401,11 +465,15 @@ export default function PatientProfilePage() {
             <div className="space-y-4">
               <div>
                 <p className="text-sm text-slate-500">Total Fee</p>
-                <p className="text-2xl font-bold text-slate-900">{totalFee.toLocaleString()} IQD</p>
+                <p className="text-2xl font-bold text-slate-900">{overallTotalFee.toLocaleString()} IQD</p>
               </div>
               <div className="bg-emerald-50 rounded-lg p-3 border border-emerald-200">
                 <p className="text-sm text-emerald-600">Paid</p>
                 <p className="text-xl font-bold text-emerald-700">{totalPaid.toLocaleString()} IQD</p>
+              </div>
+              <div className="bg-amber-50 rounded-lg p-3 border border-amber-200">
+                <p className="text-sm text-amber-700">Additional Fees Total</p>
+                <p className="text-xl font-bold text-amber-800">{additionalFeesTotal.toLocaleString()} IQD</p>
               </div>
               <div className="bg-red-50 rounded-lg p-3 border border-red-200">
                 <p className="text-sm text-red-600">Remaining</p>
@@ -595,7 +663,7 @@ export default function PatientProfilePage() {
                         <div className="flex justify-between items-start mb-4">
                           <div>
                             <p className="text-sm text-slate-500">Visit #{realIndex + 1}</p>
-                            <p className="text-lg font-semibold text-slate-900">{visit.date}</p>
+                            <p className="text-lg font-semibold text-slate-900">{formatDateDMY(visit.date)}</p>
                             <p className="text-slate-600">{visit.time}</p>
                           </div>
                           <div className="flex gap-2">
@@ -627,6 +695,20 @@ export default function PatientProfilePage() {
                             </p>
                           </div>
                           {visit.payment && (<div><p className="text-xs text-slate-500 mb-1">Payment</p><p className="font-semibold text-emerald-700">{visit.payment.toLocaleString()} IQD</p></div>)}
+                          {visit.additionalPayment ? (
+                            <div>
+                              <p className="text-xs text-slate-500 mb-1">Additional Fee</p>
+                              <p className="font-semibold text-amber-700">{(visit.additionalPayment || 0).toLocaleString()} IQD</p>
+                              {visit.additionalReason && <p className="text-sm text-slate-500 mt-1">Reason: {visit.additionalReason}</p>}
+                              <div className="mt-2">
+                                {visit.additionalPaid ? (
+                                  <span className="inline-block bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-sm font-semibold">Collected</span>
+                                ) : (
+                                  <span className="inline-block bg-red-100 text-red-700 px-2 py-1 rounded text-sm font-semibold">Outstanding</span>
+                                )}
+                              </div>
+                            </div>
+                          ) : null}
                         </div>
                       </div>
                     );

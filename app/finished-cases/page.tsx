@@ -80,7 +80,7 @@ export default function FinishedCasesPage() {
     localStorage.setItem("patients", JSON.stringify(updatedPatients));
     setShowUnfinishModal(false);
     if (unfinishScheduleNow) {
-      router.push(`/new-appointment/${id}`);
+      router.push(`/new-appointment/${id}?focus=current`);
     } else {
       setFinishedPatients(updatedPatients.filter((p: Patient) => p.caseStatus === "finished"));
       setHighlightId(id);
