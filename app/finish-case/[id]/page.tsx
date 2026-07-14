@@ -3,6 +3,7 @@
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import Sidebar from "../../components/Sidebar";
+import DateInput from "../../components/DateInput";
 
 export default function FinishCasePage() {
   const params = useParams();
@@ -111,12 +112,7 @@ treatment: p.treatment,
             <div className="space-y-4">
               <div>
                 <label className="block mb-1 font-medium text-black">Retainer Date</label>
-                <input
-                  type="date"
-                  value={retainerDate}
-                  onChange={(e) => setRetainerDate(e.target.value)}
-                  className="w-full border rounded p-2 text-black"
-                />
+                <DateInput value={retainerDate} onChange={setRetainerDate} className="" />
               </div>
 
               <div>

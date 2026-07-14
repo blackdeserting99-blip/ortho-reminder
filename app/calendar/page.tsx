@@ -37,8 +37,21 @@ export default function CalendarPage() {
     return { daysInMonth, startingDayOfWeek, year, month };
   };
 
+  const normalizeAppointmentDate = (value: string) => {
+    if (!value) return "";
+    const parsed = new Date(value);
+    if (!isNaN(parsed.getTime())) {
+      return parsed.toISOString().split("T")[0];
+    }
+    return value;
+  };
+
   useEffect(() => {
-    const patients = JSON.parse(localStorage.getItem("patients") || "[]");
+    const rawPatients = JSON.parse(localStorage.getItem("patients") || "[]");
+    const patients = rawPatients.map((p: any) => ({
+      ...p,
+      appointmentDate: normalizeAppointmentDate(p.appointmentDate),
+    }));
 
     const { daysInMonth: totalDays, startingDayOfWeek, year, month } = getDaysInMonth(currentDate);
 
@@ -139,7 +152,7 @@ export default function CalendarPage() {
                 </button>
                 <button
                   onClick={goToToday}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition"
+                  className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-medium transition"
                 >
                   Today
                 </button>
@@ -176,12 +189,12 @@ export default function CalendarPage() {
                   <div
                     key={idx}
                     className={`min-h-[200px] border-r border-b border-slate-200 p-4 last:border-r-0 ${
-                      isToday ? "bg-blue-50" : dayData ? "bg-white hover:bg-slate-50" : "bg-slate-50"
+                      isToday ? "bg-teal-50" : dayData ? "bg-white hover:bg-slate-50" : "bg-slate-50"
                     } transition`}
                   >
                     {dayData ? (
                       <>
-                        <div className={`text-lg font-bold mb-3 ${isToday ? "text-blue-600" : "text-slate-900"}`}>
+                        <div className={`text-lg font-bold mb-3 ${isToday ? "text-teal-600" : "text-slate-900"}`}>
                           {dayData.day}
                         </div>
 
@@ -193,12 +206,12 @@ export default function CalendarPage() {
                               <Link
                                 key={patient.id}
                                 href={`/patient/${patient.id}`}
-                                className="block p-2 bg-blue-100 hover:bg-blue-200 rounded-lg transition group"
+                                className="block p-2 bg-teal-100 hover:bg-teal-200 rounded-lg transition group"
                               >
-                                <div className="text-xs font-semibold text-blue-900 group-hover:text-blue-700">
+                                <div className="text-xs font-semibold text-teal-900 group-hover:text-teal-700">
                                   {patient.time}
                                 </div>
-                                <div className="text-sm font-semibold text-blue-800 group-hover:text-blue-600 truncate">
+                                <div className="text-sm font-semibold text-teal-800 group-hover:text-teal-600 truncate">
                                   {patient.name}
                                 </div>
                               </Link>
@@ -218,7 +231,7 @@ export default function CalendarPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
               <p className="text-sm uppercase tracking-[0.2em] text-slate-500 mb-2">Total Appointments</p>
-              <p className="text-4xl font-semibold text-blue-600">
+              <p className="text-4xl font-semibold text-teal-600">
                 {daysInMonth.reduce((sum, day) => sum + day.patients.length, 0)}
               </p>
             </div>
@@ -242,3 +255,4 @@ export default function CalendarPage() {
     </div>
   );
 }
+

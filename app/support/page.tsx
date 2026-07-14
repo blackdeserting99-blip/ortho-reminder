@@ -9,7 +9,7 @@ export default function SupportPage() {
       <main className="flex-1 p-6 md:p-8 w-full">
         <div className="max-w-6xl mx-auto">
           <div className="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden">
-            <div className="bg-gradient-to-r from-slate-950 via-blue-900 to-slate-900 px-6 py-12 sm:px-10 sm:py-16 text-white">
+            <div className="bg-gradient-to-r from-slate-950 via-teal-900 to-slate-900 px-6 py-12 sm:px-10 sm:py-16 text-white">
               <p className="text-sm uppercase tracking-[0.25em] text-slate-300">Support Center</p>
               <h1 className="mt-4 text-4xl sm:text-5xl font-semibold tracking-tight">
                 Need help? We're here for you.
@@ -79,3 +79,4 @@ export default function SupportPage() {
     </div>
   );
 }
+

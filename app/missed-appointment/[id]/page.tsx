@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Sidebar from "../../components/Sidebar";
+import DateInput from "../../components/DateInput";
 import Modal from "../../components/Modal";
 
 export default function MissedAppointmentPage() {
@@ -104,9 +105,9 @@ export default function MissedAppointmentPage() {
               </div>
             </div>
             {action === 'reschedule' && (
-              <div className="mt-3">
+                <div className="mt-3">
                 <label className="block mb-2 font-semibold">New Appointment Date</label>
-                <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} className="w-full border p-3 rounded" />
+                <DateInput value={newDate} onChange={setNewDate} className="" />
               </div>
             )}
           </div>

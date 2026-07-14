@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Colored animated orthoprime logo: rounded gradient background, animate 'ortho' handwriting reveal and fade in 'prime' -->
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="72" viewBox="0 0 320 72" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#27d5c0" />
+      <stop offset="100%" stop-color="#17a89e" />
+    </linearGradient>
+    <radialGradient id="h" cx="0.85" cy="0.15" r="0.7">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.24" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+
+  <style>
+    .prime { fill: #ffffff; opacity: 0; animation: primeFade 0.4s ease-out 1.95s forwards; }
+    .ortho-fill { fill: #ffffff; }
+
+    .reveal-path { stroke: #ffffff; stroke-width: 10; stroke-linecap: round; stroke-linejoin: round; fill: none; stroke-dasharray: 1200; stroke-dashoffset: 1200; vector-effect: non-scaling-stroke; animation: draw 1.6s linear forwards; }
+    .reveal-path-2 { stroke: #ffffff; stroke-width: 10; stroke-linecap: round; stroke-linejoin: round; fill: none; stroke-dasharray: 240; stroke-dashoffset: 240; vector-effect: non-scaling-stroke; animation: draw2 0.35s linear 1.6s forwards; }
+
+    @keyframes draw { to { stroke-dashoffset: 0; } }
+    @keyframes draw2 { to { stroke-dashoffset: 0; } }
+    @keyframes primeFade { to { opacity: 1; } }
+  </style>
+
+  <!-- background rounded rect like original logo -->
+  <rect width="320" height="72" rx="20" fill="url(#g)" />
+  <rect width="320" height="72" rx="20" fill="url(#h)" />
+
+  <defs>
+    <mask id="revealMask">
+      <rect x="0" y="0" width="320" height="72" fill="black" />
+      <!-- stroke paths reveal the ortho fill -->
+      <path class="reveal-path" d="M44 46 C52 18, 80 18, 98 46 C106 64, 126 62, 140 46 C148 34, 168 30, 182 46" fill="none" stroke="#ffffff" />
+      <path class="reveal-path-2" d="M182 46 C190 56, 202 58, 214 46" fill="none" stroke="#ffffff" />
+    </mask>
+  </defs>
+
+  <!-- ortho filled white, revealed by mask -->
+  <g mask="url(#revealMask)">
+    <text x="44" y="46" font-family="Pacifico, Brush Script MT, cursive" font-size="40" fill="#ffffff" letter-spacing="-0.04em">ortho</text>
+  </g>
+
+  <!-- prime white, fades in after ortho completes -->
+  <text x="170" y="46" font-family="Inter, Arial, sans-serif" font-size="40" font-weight="700" class="prime">prime</text>
+</svg>

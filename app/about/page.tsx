@@ -9,7 +9,7 @@ export default function AboutPage() {
       <main className="flex-1 p-6 md:p-8 w-full">
         <div className="max-w-6xl mx-auto">
           <div className="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden">
-            <div className="bg-blue-950 px-6 py-12 sm:px-10 sm:py-16 text-white">
+            <div className="bg-teal-950 px-6 py-12 sm:px-10 sm:py-16 text-white">
               <p className="text-sm uppercase tracking-[0.25em] text-slate-300">About Us</p>
               <h1 className="mt-4 text-4xl sm:text-5xl font-semibold tracking-tight">
                 Built by a small Iraqi dental team for orthodontists.
@@ -54,3 +54,4 @@ export default function AboutPage() {
     </div>
   );
 }
+

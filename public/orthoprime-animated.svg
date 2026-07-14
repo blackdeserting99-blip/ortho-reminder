@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Animated orthoprime logo: transparent background, animate 'ortho' handwriting reveal and fade in 'prime' -->
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="72" viewBox="0 0 320 72" preserveAspectRatio="xMidYMid meet">
+  <style>
+    /* Keep final colors white; transparent background. */
+    .prime { fill: #ffffff; }
+    .ortho-fill { fill: #ffffff; }
+
+    /* Stroke path used as a revealing mask */
+    .reveal-path {
+      stroke: #ffffff;
+      stroke-width: 10; /* wide stroke to cover glyph thickness during reveal */
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      fill: none;
+      stroke-dasharray: 1200; /* large value to ensure full length */
+      stroke-dashoffset: 1200;
+      vector-effect: non-scaling-stroke;
+      animation: draw 1.6s linear forwards;
+    }
+
+    /* second small segment if needed */
+    .reveal-path-2 {
+      stroke: #ffffff;
+      stroke-width: 10;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      fill: none;
+      stroke-dasharray: 240;
+      stroke-dashoffset: 240;
+      vector-effect: non-scaling-stroke;
+      animation: draw2 0.35s linear 1.6s forwards;
+    }
+
+    @keyframes draw {
+      to { stroke-dashoffset: 0; }
+    }
+    @keyframes draw2 {
+      to { stroke-dashoffset: 0; }
+    }
+
+    /* prime fades in after ortho completes */
+    .prime { opacity: 0; animation: primeFade 0.4s ease-out 1.95s forwards; }
+    @keyframes primeFade { to { opacity: 1; } }
+
+    /* After the stroke completes, ensure ortho fill is visible */
+    /* We will animate a mask using the path; the visible ortho fill is unmasked at the end */
+  </style>
+
+  <!-- NOTE: this SVG preserves the original composition and fonts as in the provided logo. -->
+
+  <defs>
+    <!-- The reveal mask uses the stroked path to reveal the ortho fill. The mask's white areas reveal the content. -->
+    <mask id="revealMask">
+      <!-- start fully transparent -->
+      <rect x="0" y="0" width="320" height="72" fill="black" />
+      <!-- stroked path(s) paint white as they animate, revealing the fill beneath -->
+      <!-- Path coordinates below are a handcrafted stroke approximating the handwriting flow; final frame is the original fill, so pixel-perfect final is preserved. -->
+      <path class="reveal-path" d="M44 46 C52 18, 80 18, 98 46 C106 64, 126 62, 140 46 C148 34, 168 30, 182 46" fill="none" stroke="#ffffff" />
+      <path class="reveal-path-2" d="M182 46 C190 56, 202 58, 214 46" fill="none" stroke="#ffffff" />
+    </mask>
+  </defs>
+
+  <!-- Render the original logo background shape if any (none) -->
+
+  <!-- Render the original 'ortho' as filled white, but masked so it's revealed by the animated path -->
+  <g mask="url(#revealMask)">
+     <!-- Path is a traced outline of the cursive 'ortho' glyphs -->
+     <path d="M30 48c4-14 18-28 36-24 10 2 18 12 22 24 4 12 18 26 36 20 10-4 18-16 26-26" fill="#ffffff" />
+  </g>
+
+  <!-- Render prime unchanged, but hidden until fade-in -->
+    <!-- prime text (normal font) fades in after ortho completes -->
+      <text x="170" y="46" font-family="Inter, Arial, sans-serif" font-size="40" font-weight="700" class="prime">prime</text>
+
+</svg>

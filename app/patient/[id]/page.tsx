@@ -658,7 +658,7 @@ export default function PatientProfilePage() {
               </div>
               {modalScheduleNow && (
                 <div className="mt-3 flex gap-2">
-                  <input type="date" value={modalDate} onChange={(e) => setModalDate(e.target.value)} className="border p-2 rounded w-1/2" />
+                  <DateInput value={modalDate} onChange={setModalDate} className="w-1/2" />
                   <input type="time" value={modalTime} onChange={(e) => setModalTime(e.target.value)} className="border p-2 rounded w-1/2" />
                 </div>
               )}

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Sidebar from "../components/Sidebar";
+import DateInput from "../components/DateInput";
 import Modal from "../components/Modal";
 
 type Patient = {
@@ -129,7 +130,7 @@ export default function FinishedCasesPage() {
                       <div className="flex gap-2 flex-wrap">
                         <Link
                           href={`/patient/${patient.id}`}
-                          className="bg-blue-600 text-white px-3 py-1 rounded"
+                          className="bg-teal-600 text-white px-3 py-1 rounded"
                         >
                           View Record
                         </Link>
@@ -168,20 +169,15 @@ export default function FinishedCasesPage() {
                 <div>
                   <button
                     onClick={() => setUnfinishScheduleNow(!unfinishScheduleNow)}
-                    className={`px-3 py-1 rounded-full ${unfinishScheduleNow ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-700"}`}
+                    className={`px-3 py-1 rounded-full ${unfinishScheduleNow ? "bg-teal-600 text-white" : "bg-slate-100 text-slate-700"}`}
                   >
                     {unfinishScheduleNow ? "Schedule now" : "Reopen"}
                   </button>
                 </div>
               </div>
-              {unfinishScheduleNow && (
+                  {unfinishScheduleNow && (
                 <div className="mt-3 grid gap-3 md:grid-cols-2">
-                  <input
-                    type="date"
-                    value={unfinishDate}
-                    onChange={(e) => setUnfinishDate(e.target.value)}
-                    className="border p-3 rounded-xl w-full"
-                  />
+                  <DateInput value={unfinishDate} onChange={setUnfinishDate} className="" />
                   <input
                     type="time"
                     value={unfinishTime}

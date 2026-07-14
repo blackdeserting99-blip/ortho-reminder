@@ -1,0 +1,68 @@
+Subject: Request for Goodwill Compensation — Repeated Failed Header Fixes (ortho-reminder repo)
+
+Hello Support team,
+
+Summary
+- User: (please add your account email/username)
+- Repo: c:\Users\dell\Desktop\ortho-reminder (3)\ortho-reminder
+- Date range: 2026-07-07 (recent session)
+- Issue: Multiple unsuccessful attempts by the AI assistant to implement a permanently fixed, non-animated header (CSS-only). The assistant repeatedly introduced JS/portal-based fixes, animated CSS, and scroll listeners, despite explicit repeated user instructions to remove all scroll/animation behavior. This consumed many interaction credits.
+
+What happened (concise)
+- User requested a header that "must remain permanently fixed at the top of the viewport at all times" with no JS or scroll-driven behavior.
+- The assistant repeatedly created and modified files introducing JS (PortalHeader, HeaderFixer) and CSS transitions/animations, then attempted fixes, which did not satisfy the user's requirement.
+- The user repeatedly asked to remove JS and to make the header static; the assistant continued with partial fixes and trial changes, causing repeated cycles and extra credits spent.
+
+Key repository edits by the assistant (for reference)
+- Modified: app/layout.tsx — replaced previous portal header and set a static header element
+- Modified: app/globals.css — multiple edits to header CSS (position, colors, !important overrides, content-offset)
+- Deleted: app/components/PortalHeader.tsx
+- Deleted: app/components/HeaderFixer.tsx
+- File created: support_escalation.txt (this file)
+
+Build/dev notes
+- Multiple successful builds ran during the session: `npm run build` produced "Compiled successfully" outputs several times.
+- Dev server issues: the dev server failed to start in some attempts (exit code 1) due to an already-running process on port 3000; user may have killed PID(s) manually.
+
+Relevant logs and transcript
+- Chat transcript (detailed agent actions and edits):
+  c:\Users\dell\AppData\Roaming\Code\User\workspaceStorage\2d6590aa64c419deba8817d16506eb42\GitHub.copilot-chat\transcripts\57b56868-538f-49c9-a965-6b7f11ecc902.jsonl
+- Build outputs are in the terminal during the session; key recent build results included repeated "Compiled successfully" messages.
+
+User impact / requested remedy
+- The user reports repeated credit consumption and frustration due to the assistant not following explicit instructions.
+- Requested remedy: goodwill compensation (subscription time or credits) or another appropriate gesture.
+
+Attachments to include when submitting
+- This file: support_escalation.txt (summary and instructions)
+- The chat transcript above (attach the JSONL transcript file)
+- A short list of changed files (commit diff or list) showing the edits (you can attach a .diff or paste the small list above)
+- (Optional) Screenshots or video showing header moving during scroll and showing request text in the chat
+
+Suggested support message (copy/paste)
+Subject: Request for Goodwill Compensation — Repeated Failed Header Fixes
+Body:
+Hello,
+
+I experienced repeated failed attempts by the assistant to implement a simple CSS-only fixed header in my repository. Despite explicit instructions, the assistant added JS and animation code and required multiple correction cycles, consuming many credits. I request goodwill compensation for the extra credits/time spent. I have attached the transcript, a summary of edits, and build logs. Please advise on next steps.
+
+Thank you,
+(please add your account email/username)
+
+What I can provide if you need more
+- Exact timestamps of interactions (available in the transcript)
+- The terminal build outputs (I can copy them into a text file)
+- A short screen recording or steps to reproduce in Chrome to demonstrate remaining issues
+
+How to submit
+- Open your support or help page for your subscription provider
+- Paste the suggested subject and body above
+- Attach the transcript file from the path above and this `support_escalation.txt`
+- Optionally attach a diff or screenshot
+
+If you want, I can also prepare a ZIP with the transcript and a small diff file (I can create it here). Reply and I will bundle those files for you to attach.
+
+---
+Repository path: c:\Users\dell\Desktop\ortho-reminder (3)\ortho-reminder
+Escalation prepared by: Assistant (session notes included)
+Timestamp: 2026-07-07

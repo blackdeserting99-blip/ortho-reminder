@@ -4,8 +4,9 @@ import Link from "next/link";
 
 export default function Navbar() {
   return (
-    <nav className="bg-blue-700 text-white px-4 py-4 shadow-lg mb-6">
-      <div className="flex flex-wrap gap-3 md:gap-6">
+    <nav className="bg-teal-700 text-white px-4 py-4 shadow-lg mb-6">
+      <div className="flex flex-wrap items-center gap-3 md:gap-6">
+        <div className="logo-text mr-auto text-white">Ortho Prime</div>
 
         <Link
           href="/"

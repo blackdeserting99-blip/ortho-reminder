@@ -259,7 +259,7 @@ const overdueCount = patients.filter(
       <div className="flex flex-wrap gap-4 mb-6">
         <Link
           href="/add-patient"
-          className="bg-blue-600 text-white px-6 py-3 rounded-lg"
+          className="bg-teal-600 text-white px-6 py-3 rounded-lg"
         >
           New Patient
         </Link>
@@ -278,7 +278,7 @@ const overdueCount = patients.filter(
     <div className="text-sm uppercase tracking-[0.2em] text-slate-500">
       Patients
     </div>
-    <div className="text-4xl font-semibold text-blue-700 mt-3">
+    <div className="text-4xl font-semibold text-teal-700 mt-3">
       {totalPatients}
     </div>
   </div>
@@ -307,7 +307,7 @@ const overdueCount = patients.filter(
         placeholder="Search patient..."
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
-        className="w-full mb-6 p-4 bg-white border border-gray-200 rounded-3xl text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="w-full mb-6 p-4 bg-white border border-gray-200 rounded-3xl text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
       />
       <div className="flex flex-wrap gap-2 mb-6">
 
@@ -315,7 +315,7 @@ const overdueCount = patients.filter(
   onClick={() => setFilter("all")}
   className={`px-4 py-2 rounded-lg ${
     filter === "all"
-      ? "bg-blue-600 text-white"
+      ? "bg-teal-600 text-white"
       : "bg-white border border-gray-200 text-gray-700"
   }`}
 >
@@ -326,7 +326,7 @@ All ({allCount})
   onClick={() => setFilter("today")}
   className={`px-4 py-2 rounded-lg ${
     filter === "today"
-      ? "bg-blue-600 text-white"
+      ? "bg-teal-600 text-white"
       : "bg-white border border-gray-200 text-gray-700"
   }`}
 >
@@ -337,7 +337,7 @@ All ({allCount})
   onClick={() => setFilter("upcoming")}
   className={`px-4 py-2 rounded-lg ${
     filter === "upcoming"
-      ? "bg-blue-600 text-white"
+      ? "bg-teal-600 text-white"
       : "bg-white border border-gray-200 text-gray-700"
   }`}
 >
@@ -347,7 +347,7 @@ All ({allCount})
   onClick={() => setFilter("overdue")}
   className={`px-4 py-2 rounded-lg ${
     filter === "overdue"
-      ? "bg-blue-600 text-white"
+      ? "bg-teal-600 text-white"
       : "bg-white border border-gray-200 text-gray-700"
   }`}
 >
@@ -361,7 +361,7 @@ All ({allCount})
           <select
             value={treatmentCategory}
             onChange={(e) => setTreatmentCategory(e.target.value)}
-            className="w-full rounded-3xl border border-gray-200 bg-white px-4 py-3 text-slate-900 shadow-sm focus:border-blue-300 focus:ring-2 focus:ring-blue-200"
+            className="w-full rounded-3xl border border-gray-200 bg-white px-4 py-3 text-slate-900 shadow-sm focus:border-teal-300 focus:ring-2 focus:ring-teal-200"
           >
             <option value="all">All treatments</option>
             <option value="fixed-braces">Fixed Braces</option>
@@ -377,7 +377,7 @@ All ({allCount})
           <select
             value={dateMode}
             onChange={(e) => setDateMode(e.target.value)}
-            className="w-full rounded-3xl border border-gray-200 bg-white px-4 py-3 text-slate-900 shadow-sm focus:border-blue-300 focus:ring-2 focus:ring-blue-200"
+            className="w-full rounded-3xl border border-gray-200 bg-white px-4 py-3 text-slate-900 shadow-sm focus:border-teal-300 focus:ring-2 focus:ring-teal-200"
           >
             <option value="newest">Newest first</option>
             <option value="oldest">Oldest first</option>
@@ -388,7 +388,7 @@ All ({allCount})
               <DateInput
                 value={manualDate}
                 onChange={setManualDate}
-                className="w-full rounded-3xl border border-gray-200 bg-white px-4 py-3 text-slate-900 shadow-sm focus:border-blue-300 focus:ring-2 focus:ring-blue-200"
+                className="w-full rounded-3xl border border-gray-200 bg-white px-4 py-3 text-slate-900 shadow-sm focus:border-teal-300 focus:ring-2 focus:ring-teal-200"
               />
             </div>
           )}
@@ -475,7 +475,7 @@ All ({allCount})
 <td className="px-4 py-3 align-top">
   <div className="flex items-center gap-3">
 
-    <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-bold flex items-center justify-center shadow-sm">
+    <div className="w-10 h-10 rounded-full bg-gradient-to-r from-teal-500 to-cyan-600 text-white font-bold flex items-center justify-center shadow-sm">
       {patient.name
         .split(" ")
         .map((n) => n[0])
@@ -490,7 +490,7 @@ All ({allCount})
 
         <Link
           href={`/patient/${patient.id}`}
-          className="font-bold text-gray-900 hover:text-blue-600"
+          className="font-bold text-gray-900 hover:text-teal-600"
         >
           {patient.name}
         </Link>
@@ -525,7 +525,7 @@ All ({allCount})
     <span
       className={`text-xs px-2 py-1 rounded-full font-medium ${
         patient.caseStatus === "finished"
-          ? "bg-blue-100 text-blue-700"
+          ? "bg-teal-100 text-teal-700"
           : patient.caseStatus === "retainer"
           ? "bg-purple-100 text-purple-700"
           : patient.caseStatus === "cancelled"
@@ -568,7 +568,7 @@ All ({allCount})
       className={`h-2 rounded-full ${
         totalPaid >= totalFee
           ? "bg-green-500"
-          : "bg-blue-500"
+          : "bg-teal-500"
       }`}
       style={{
         width: `${
@@ -590,7 +590,7 @@ All ({allCount})
 
   <Link
     href={`/patient/${patient.id}`}
-    className="w-9 h-9 rounded-xl border border-blue-200 flex items-center justify-center text-blue-600 hover:bg-blue-50 transition"
+    className="w-9 h-9 rounded-xl border border-teal-200 flex items-center justify-center text-teal-600 hover:bg-teal-50 transition"
     title="Profile"
   >
     <UserRound size={18} />

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Sidebar from "../components/Sidebar";
+import DateInput from "../components/DateInput";
 import { formatDateDMY } from "../lib/date";
 
 type Patient = {
@@ -168,12 +169,7 @@ export default function RetainersPage() {
                               {appointmentMode === "Manual" && (
                                 <div>
                                   <label className="block text-xs font-semibold mb-1">Date</label>
-                                  <input
-                                    type="date"
-                                    value={manualDate}
-                                    onChange={(e) => setManualDate(e.target.value)}
-                                    className="w-full border p-2 rounded text-sm"
-                                  />
+                                  <DateInput value={manualDate} onChange={setManualDate} className="" />
                                 </div>
                               )}
                               <div>

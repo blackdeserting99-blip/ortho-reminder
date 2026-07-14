@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+// Use the original SVG for visible sidebar branding
 import {
   Home,
   Users,
@@ -15,12 +16,19 @@ import {
 export default function Sidebar() {
   const pathname = usePathname();
 
-  const linkClass = (href: string) =>
-    `flex items-center gap-3 px-4 py-3 rounded-3xl transition-all duration-200 ${
-      pathname === href || pathname.startsWith(href + "/")
-        ? "bg-white/10 text-white shadow-sm"
-        : "text-slate-300 hover:text-white hover:bg-slate-800/80"
+  const linkClass = (href: string) => {
+    const isPatientRoute = /^\/patient(\/|$)/.test(pathname || "");
+    const isActive =
+      pathname === href ||
+      pathname.startsWith(href + "/") ||
+      (href === "/patients" && isPatientRoute);
+
+    return `flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-all duration-200 ${
+      isActive
+        ? "bg-white/90 text-cyan-900 shadow-sm"
+        : "text-white/90 hover:text-white hover:bg-white/15"
     }`;
+  };
 
   const menuItems = [
     { href: "/", label: "Dashboard", icon: Home },
@@ -34,21 +42,10 @@ export default function Sidebar() {
   ];
 
   return (
-    <aside className="group fixed bottom-0 left-0 right-0 h-16 z-50 w-full md:sticky md:top-0 md:h-screen md:w-20 md:hover:w-72 md:self-start bg-slate-950 text-white shadow-2xl flex flex-col md:flex-col border-b border-slate-900 md:border-b-0 md:border-r overflow-hidden transition-[width] duration-300 ease-in-out">
-      <div className="hidden md:block p-4 md:p-6 border-b border-slate-900">
-        <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-3xl bg-blue-500 text-2xl shadow-lg">
-            🦷
-          </div>
-          <div className="hidden md:block h-12 overflow-hidden">
-            <div className="h-full max-w-0 group-hover:max-w-[180px] transition-[max-width] duration-300 ease-in-out opacity-0 group-hover:opacity-100 overflow-hidden">
-              <h1 className="text-2xl font-semibold tracking-tight">Ortho Practice</h1>
-            </div>
-          </div>
-        </div>
-      </div>
+    <aside className="group fixed bottom-0 left-0 right-0 h-16 z-50 w-full md:sticky md:top-24 md:h-screen md:w-20 md:hover:w-72 md:self-start bg-[linear-gradient(135deg,_#0f766e_0%,_#14b8a6_45%,_#2dd4bf_100%)] text-white shadow-2xl flex flex-col md:flex-col border-b border-teal-200/60 md:border-b-0 md:border-r overflow-hidden transition-[width] duration-300 ease-in-out">
+      <div className="h-3 md:h-4 w-full bg-[linear-gradient(90deg,_rgba(255,255,255,0.18),_rgba(255,255,255,0.02),_rgba(255,255,255,0.18))]" />
 
-      <nav className="flex-1 flex md:flex-col flex-row items-center md:items-start px-2 md:px-4 py-2 md:py-5 gap-2 overflow-x-auto md:overflow-y-auto">
+      <nav className="flex-1 flex md:flex-col flex-row items-center md:items-start px-2 md:px-3 py-2 md:py-3 gap-1.5 overflow-x-auto md:overflow-y-auto">
         {menuItems.map((item) => {
           const Icon = item.icon;
           return (

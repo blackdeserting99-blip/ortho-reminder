@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Sidebar from "../../components/Sidebar";
+import DateInput from "../../components/DateInput";
 
 export default function EditPatientPage() {
   const router = useRouter();
@@ -80,7 +81,7 @@ setBracketType(patient.bracketType || "");
             address,
             age: age ? Number(age) : undefined,
             treatment,
-            bracketType,
+            bracketType: treatment === "Fixed Braces" ? bracketType : undefined,
             appointmentDate,
             appointmentTime,
             firstAppointment,
@@ -202,12 +203,7 @@ setBracketType(patient.bracketType || "");
           <div className="mt-8 grid gap-6 md:grid-cols-2">
             <div>
               <label className="block mb-2 text-sm font-medium text-slate-700">Appointment Date</label>
-              <input
-                type="date"
-                value={appointmentDate}
-                onChange={(e) => setAppointmentDate(e.target.value)}
-                className="w-full border p-3 rounded"
-              />
+              <DateInput value={appointmentDate} onChange={setAppointmentDate} className="" />
             </div>
             <div>
               <label className="block mb-2 text-sm font-medium text-slate-700">Appointment Time</label>

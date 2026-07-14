@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useId, useRef } from "react";
 
 type DateInputProps = {
   value: string;
@@ -21,50 +21,50 @@ export default function DateInput({
   max,
   id,
 }: DateInputProps) {
-  const nativeInputRef = useRef<HTMLInputElement | null>(null);
+  const generatedId = useId();
+  const inputId = id || generatedId;
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   const openPicker = () => {
-    const input = nativeInputRef.current;
-    if (!input) return;
-
-    input.focus();
-
-    if (typeof input.showPicker === "function") {
-      input.showPicker();
-      return;
+    const el = inputRef.current;
+    if (!el) return;
+    // Try to use the new showPicker API when available (Chrome)
+    try {
+      // @ts-ignore
+      if (typeof el.showPicker === "function") {
+        // @ts-ignore
+        el.showPicker();
+        return;
+      }
+    } catch (e) {
+      // ignore
     }
 
-    input.click();
+    // Fallback to focusing the input which should open the native UI on some platforms
+    el.focus();
   };
 
   return (
-    <div className="relative w-full">
+    <div
+      onClick={openPicker}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openPicker(); }}
+      className={`w-full rounded-xl border border-slate-300 bg-white px-4 py-3 shadow-sm transition duration-200 hover:border-teal-500 hover:shadow-md focus-within:border-teal-500 focus-within:ring-2 focus-within:ring-teal-200 ${className}`}
+    >
       <input
-        id={id}
-        type="text"
-        value={value}
-        readOnly
-        onClick={openPicker}
-        onFocus={openPicker}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            openPicker();
-          }
-        }}
-        placeholder={placeholder}
-        className={`w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm ${className}`}
-      />
-      <input
-        ref={nativeInputRef}
+        id={inputId}
+        ref={inputRef}
         type="date"
         value={value}
         min={min}
         max={max}
         onChange={(event) => onChange(event.target.value)}
-        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-        aria-hidden="true"
+        placeholder={placeholder}
+        className="block h-10 w-full cursor-pointer border-0 bg-transparent p-0 text-slate-900 outline-none"
+        onClick={(e) => e.stopPropagation()}
       />
     </div>
   );
 }
+

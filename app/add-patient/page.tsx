@@ -6,6 +6,14 @@ import { formatDateDMY } from "../lib/date";
 import { useRouter } from "next/navigation";
 import Sidebar from "../components/Sidebar";
 import DateInput from "../components/DateInput";
+import {
+  Patient,
+  loadPatients,
+  savePatients,
+  normalizeDateIso,
+  hasAppointmentConflict,
+  validatePatientRecord,
+} from "../lib/patient";
 
 export default function AddPatientPage() {
   const router = useRouter();
@@ -99,35 +107,34 @@ const [plannedNotes, setPlannedNotes] = useState("");
 const [showNotes, setShowNotes] =
   useState(false);
 
-const [totalFee, setTotalFee] =
-  useState("");
+const [totalFee, setTotalFee] = useState("");
   const [conflictWarning, setConflictWarning] = useState("");
   const [timeConflictMessage, setTimeConflictMessage] = useState("");
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   const getSelectedDate = () => {
-    if (appointmentMode === "Manual") return appointmentDate;
+    if (appointmentMode === "Manual") return normalizeDateIso(appointmentDate);
 
-    const days = parseInt(appointmentMode);
+    const days = parseInt(appointmentMode, 10);
     const futureDate = new Date();
     futureDate.setDate(futureDate.getDate() + days);
-    return futureDate.toISOString().split("T")[0];
+    return normalizeDateIso(futureDate.toISOString().split("T")[0]);
   };
 
   const selectedDate = getSelectedDate();
   const isFriday = selectedDate && new Date(selectedDate).getDay() === 5;
 
   useEffect(() => {
-    const patients = JSON.parse(
-      localStorage.getItem("patients") || "[]"
-    );
-
+    const patients = loadPatients();
     if (!selectedDate || !appointmentTime) {
       setTimeConflictMessage("");
       return;
     }
 
-    const conflict = patients.some((p: any) =>
-      p.appointmentDate === selectedDate && p.appointmentTime === appointmentTime
+    const conflict = hasAppointmentConflict(
+      patients,
+      selectedDate,
+      appointmentTime
     );
 
     if (conflict) {
@@ -157,51 +164,21 @@ const [totalFee, setTotalFee] =
   ];
 
   const savePatient = () => {
-    const existingPatients = JSON.parse(
-      localStorage.getItem("patients") || "[]"
-    );
+    const existingPatients = loadPatients();
 
-    let finalDate = appointmentDate;
-
-    if (appointmentMode !== "Manual") {
-      const days = parseInt(appointmentMode);
-
-      const futureDate = new Date();
-
-      futureDate.setDate(
-        futureDate.getDate() + days
-      );
-
-      finalDate =
-        futureDate.toLocaleDateString("en-CA");
-    }
-
+    const finalDate = selectedDate;
     const finalTreatment =
-      treatmentType ===
-      "Myofunctional Appliance"
+      treatmentType === "Myofunctional Appliance"
         ? treatment
         : treatmentType;
 
-    // conflict check: same date & time
-    const conflict = existingPatients.some((p: any) =>
-      p.appointmentDate === finalDate && p.appointmentTime === appointmentTime
-    );
-
-    if (conflict) {
-      setConflictWarning(
-        `Warning: Another patient already has an appointment on ${formatDateDMY(finalDate)} at ${appointmentTime}.`
-      );
-    } else {
-      setConflictWarning("");
-    }
-
-    const newPatient = {
+    const newPatient: Patient = {
       id: Date.now(),
-      name,
-      phone,
-      address,
+      name: name.trim(),
+      phone: phone.trim(),
+      address: address.trim() || undefined,
       age: age ? Number(age) : undefined,
-      occupation: occupation || undefined,
+      occupation: occupation.trim() || undefined,
       treatment: finalTreatment,
       treatmentCategory: treatmentType,
       bracketType: treatmentType === "Fixed Braces" ? bracketType : undefined,
@@ -210,14 +187,14 @@ const [totalFee, setTotalFee] =
       appointmentDate: finalDate,
       appointmentTime,
       firstAppointment,
-      notes,
-      plannedNotes: plannedNotesEnabled ? plannedNotes : "",
+      notes: notes.trim(),
+      plannedNotes: plannedNotesEnabled ? plannedNotes.trim() : "",
       totalFee: Number(totalFee) || 0,
       totalPaid: 0,
       elasticEnabled: false,
       elasticType: "",
       tadsNote: "",
-      appointmentStatus: "pending",
+      caseStatus: "active",
       myofunctionalType:
         treatmentType === "Myofunctional Appliance"
           ? finalTreatment
@@ -240,13 +217,30 @@ const [totalFee, setTotalFee] =
       visits: [],
     };
 
-    existingPatients.push(newPatient);
+    const validation = validatePatientRecord(newPatient, existingPatients);
+    if (!validation.valid) {
+      setValidationErrors(validation.errors);
+      return;
+    }
 
-    localStorage.setItem(
-      "patients",
-      JSON.stringify(existingPatients)
+    const conflict = hasAppointmentConflict(
+      existingPatients,
+      finalDate,
+      appointmentTime
     );
 
+    if (conflict) {
+      setConflictWarning(
+        `Warning: Another patient already has an appointment on ${formatDateDMY(finalDate)} at ${appointmentTime}.`
+      );
+      return;
+    }
+
+    setConflictWarning("");
+    setValidationErrors([]);
+
+    existingPatients.push(newPatient);
+    savePatients(existingPatients);
     localStorage.removeItem("newPatientCaseSheetDraft");
     router.push("/patients");
   };
@@ -255,7 +249,7 @@ const [totalFee, setTotalFee] =
     <div className="flex flex-col md:flex-row min-h-screen bg-gray-100">
       <Sidebar />
       <main className="flex-1 p-6 md:p-8 w-full">
-      <h1 className="text-4xl font-bold text-blue-700 mb-8">
+      <h1 className="text-4xl font-bold text-teal-700 mb-8">
         New Patient
       </h1>
 
@@ -269,7 +263,7 @@ const [totalFee, setTotalFee] =
           <div className="flex flex-col gap-3 sm:items-end">
             <Link
               href="/case-sheet"
-              className="inline-flex items-center justify-center rounded-full bg-blue-600 px-5 py-3 text-sm font-medium text-white shadow-sm hover:bg-blue-700"
+              className="inline-flex items-center justify-center rounded-full bg-teal-600 px-5 py-3 text-sm font-medium text-white shadow-sm hover:bg-teal-700"
             >
               Open case sheet page
             </Link>
@@ -278,8 +272,23 @@ const [totalFee, setTotalFee] =
             </p>
           </div>
         </div>
+        {validationErrors.length > 0 && (
+          <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700">
+            <p className="font-semibold">Please fix the following:</p>
+            <ul className="mt-2 list-disc pl-5 text-sm">
+              {validationErrors.map((error) => (
+                <li key={error}>{error}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {conflictWarning && (
+          <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-800">
+            {conflictWarning}
+          </div>
+        )}
         {caseSheet && (
-          <div className="mb-4 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-slate-700">
+          <div className="mb-4 rounded-2xl border border-teal-200 bg-teal-50 p-4 text-slate-700">
             <p className="font-medium">Case sheet draft loaded.</p>
             <p className="text-sm">Continue on this page to save the new patient, or edit the draft on the case sheet page.</p>
           </div>
@@ -517,7 +526,7 @@ const [totalFee, setTotalFee] =
                     }
                     className={`px-3 py-2 rounded-lg border ${
                       myofunctionalMode === "daily"
-                        ? "border-blue-600 bg-blue-50 text-blue-700"
+                        ? "border-teal-600 bg-teal-50 text-teal-700"
                         : "border-slate-300 bg-white text-slate-700"
                     }`}
                   >
@@ -530,7 +539,7 @@ const [totalFee, setTotalFee] =
                     }
                     className={`px-3 py-2 rounded-lg border ${
                       myofunctionalMode === "weekly"
-                        ? "border-blue-600 bg-blue-50 text-blue-700"
+                        ? "border-teal-600 bg-teal-50 text-teal-700"
                         : "border-slate-300 bg-white text-slate-700"
                     }`}
                   >
@@ -634,7 +643,7 @@ const [totalFee, setTotalFee] =
                           }}
                           className={`rounded-lg border px-3 py-2 text-sm text-slate-700 ${
                             myofunctionalWeeklyDays.includes(day)
-                              ? "border-blue-600 bg-blue-50"
+                              ? "border-teal-600 bg-teal-50"
                               : "border-slate-300 bg-white"
                           }`}
                         >
@@ -696,7 +705,7 @@ const [totalFee, setTotalFee] =
           )}
 
           <div className="mb-6">
-            <div className="bg-blue-50 border rounded-lg p-3">
+            <div className="bg-teal-50 border rounded-lg p-3">
               <strong>Selected Date:</strong>{" "}
 
               {selectedDate || "-"}
@@ -852,7 +861,7 @@ const [totalFee, setTotalFee] =
 
         <button
           onClick={savePatient}
-          className="bg-blue-600 text-white px-6 py-3 rounded-lg"
+          className="bg-teal-600 text-white px-6 py-3 rounded-lg"
         >
           Save Patient
         </button>

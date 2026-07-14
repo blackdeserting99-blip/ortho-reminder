@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Sidebar from "./components/Sidebar";
+import DateInput from "./components/DateInput";
 import { formatDateDMY } from "./lib/date";
 
 type Patient = {
@@ -43,6 +44,26 @@ type Patient = {
         useState("");
       const [overdueNotesSearch, setOverdueNotesSearch] =
         useState("");
+      const [expandedSections, setExpandedSections] = useState<Record<"today" | "upcoming" | "overdue", boolean>>({
+        today: true,
+        upcoming: true,
+        overdue: true,
+      });
+      const todaySectionRef = useRef<HTMLDivElement | null>(null);
+      const upcomingSectionRef = useRef<HTMLDivElement | null>(null);
+      const overdueSectionRef = useRef<HTMLDivElement | null>(null);
+
+      const scrollToSection = (section: "today" | "upcoming" | "overdue") => {
+        setExpandedSections((prev) => ({ ...prev, [section]: true }));
+        const target =
+          section === "today"
+            ? todaySectionRef.current
+            : section === "upcoming"
+              ? upcomingSectionRef.current
+              : overdueSectionRef.current;
+
+        target?.scrollIntoView({ behavior: "smooth", block: "start" });
+      };
       useEffect(() => {
         const patients = JSON.parse(
           localStorage.getItem("patients") || "[]"
@@ -196,25 +217,14 @@ type Patient = {
 
     <Sidebar />
 
-    <main className="flex-1 min-h-screen bg-gray-100 p-6 md:p-8 text-black">
-        
-
-<div className="mb-10">
-  <h1 className="text-3xl font-bold text-gray-900">
-    Practice Overview
-  </h1>
-
-  <p className="text-gray-500 mt-2">
-    Review the current patient schedule and upcoming activity.
-  </p>
-</div>
-<div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+    <main className="flex-1 min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(45,212,191,0.16),_transparent_36%),linear-gradient(135deg,_#f4fcfb_0%,_#eef9f7_100%)] p-4 md:p-6 text-slate-800">
+<div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
   <Link
   href="/patients"
-  className="bg-white p-6 rounded-2xl shadow-sm block hover:bg-gray-50 transition"
+  className="bg-gradient-to-br from-white via-cyan-50 to-teal-50 p-4 rounded-2xl shadow-sm border border-cyan-100 block hover:shadow-md transition"
 >
-  <div className="flex items-center gap-3 mb-4">
-    <div className="text-3xl">👥</div>
+  <div className="flex items-center gap-3 mb-3">
+    <div className="text-2xl">👥</div>
 
     <div>
       <h2 className="font-semibold">
@@ -227,13 +237,17 @@ type Patient = {
     </div>
   </div>
 
-  <p className="text-5xl font-bold text-blue-700">
+  <p className="text-4xl font-bold text-teal-700">
     {patientCount}
   </p>
   </Link>
-              <div className="bg-white p-6 rounded-2xl shadow-sm">
+              <button
+                type="button"
+                onClick={() => scrollToSection("today")}
+                className="bg-gradient-to-br from-white via-cyan-50 to-teal-50 p-4 rounded-2xl shadow-sm border border-cyan-100 text-left hover:shadow-md transition"
+              >
          <div className="flex items-center gap-3 mb-3">
-  <div className="text-3xl">📅</div>
+  <div className="text-2xl">📅</div>
 
   <div>
 <h2 className="text-xl font-semibold text-gray-900">
@@ -245,13 +259,17 @@ type Patient = {
     </p>
   </div>
 </div>
-                <p className="text-5xl font-bold mt-1 text-blue-700">
+                <p className="text-4xl font-bold mt-1 text-teal-700">
                   {todayPatients.length}
                 </p>
-              </div>
-<div className="bg-white p-6 rounded-2xl shadow-sm">
+              </button>
+<button
+  type="button"
+  onClick={() => scrollToSection("upcoming")}
+  className="bg-gradient-to-br from-white via-cyan-50 to-teal-50 p-4 rounded-2xl shadow-sm border border-cyan-100 text-left hover:shadow-md transition"
+>
   <div className="flex items-center gap-3 mb-3">
-<div className="text-3xl">⏳</div>
+<div className="text-2xl">⏳</div>
     <div>
 <h2 className="text-xl font-semibold text-gray-900">
           Upcoming
@@ -263,13 +281,17 @@ type Patient = {
     </div>
   </div>
 
-  <p className="text-5xl font-bold text-orange-600">
+  <p className="text-4xl font-bold text-orange-600">
     {upcomingPatients.length}
   </p>
-</div>
-    <div className="bg-white p-6 rounded-2xl shadow-sm">
+</button>
+    <button
+      type="button"
+      onClick={() => scrollToSection("overdue")}
+      className="bg-gradient-to-br from-white via-cyan-50 to-teal-50 p-4 rounded-2xl shadow-sm border border-cyan-100 text-left hover:shadow-md transition"
+    >
   <div className="flex items-center gap-3 mb-3">
-<div className="text-3xl">🚨</div>
+<div className="text-2xl">🚨</div>
     <div>
 <h2 className="text-xl font-semibold text-gray-900">    
       Overdue
@@ -281,14 +303,14 @@ type Patient = {
     </div>
   </div>
 
-  <p className="text-5xl font-bold text-red-600">
+  <p className="text-4xl font-bold text-red-600">
     {overduePatients.length}
   </p>
-</div>
+</button>
 
             </div>
-<div className="space-y-8">
-<div className="bg-white rounded-2xl shadow-sm p-6">
+<div className="space-y-4">
+<div ref={todaySectionRef} className="bg-gradient-to-br from-white via-cyan-50 to-teal-50 rounded-2xl shadow-sm border border-cyan-100 p-5 md:p-6">
     <div className="flex items-center justify-between mb-6">
  <div className="flex items-center gap-3">
   <div className="text-3xl">📅</div>
@@ -303,11 +325,20 @@ type Patient = {
     </p>
   </div>
 </div>
-  <span className="bg-blue-100 text-blue-600 px-3 py-2 rounded-full text-base font-bold">
-    {todayPatients.length}
-  </span>
+  <div className="flex items-center gap-2">
+    <span className="bg-teal-100 text-teal-600 px-3 py-2 rounded-full text-base font-bold">
+      {todayPatients.length}
+    </span>
+    <button
+      type="button"
+      onClick={() => setExpandedSections((prev) => ({ ...prev, today: !prev.today }))}
+      className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"
+    >
+      {expandedSections.today ? "Hide" : "Show"}
+    </button>
+  </div>
 </div>
-      {showToday && (
+      {expandedSections.today && (
           <>
             <div className="mt-4">
               <label className="text-sm font-medium text-gray-700 mb-2 block">
@@ -318,7 +349,7 @@ type Patient = {
                 value={todayNotesSearch}
                 onChange={(e) => setTodayNotesSearch(e.target.value)}
                 placeholder="Search notes only"
-                className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm focus:border-blue-300 focus:ring-2 focus:ring-blue-200"
+                className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm focus:border-teal-300 focus:ring-2 focus:ring-teal-200"
               />
             </div>
 
@@ -365,7 +396,7 @@ type Patient = {
                           <td className="py-4 px-4">
                             <Link
                               href={`/patient/${patient.id}`}
-                              className="font-semibold text-gray-900 hover:text-blue-600"
+                              className="font-semibold text-gray-900 hover:text-teal-600"
                             >
                               {patient.name}
                             </Link>
@@ -405,7 +436,7 @@ type Patient = {
                             </div>
                           </td>
                           <td className="py-4 px-4">
-                            <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-medium">
+                            <span className="bg-teal-100 text-teal-700 px-3 py-1 rounded-full text-sm font-medium">
                               Today
                             </span>
                           </td>
@@ -436,7 +467,7 @@ type Patient = {
       )}
 
             </div>
-           <div className="bg-white rounded-2xl shadow-sm p-6">
+           <div ref={upcomingSectionRef} className="bg-gradient-to-br from-white via-cyan-50 to-teal-50 rounded-2xl shadow-sm border border-cyan-100 p-5 md:p-6">
    <div className="flex items-center justify-between mb-6">
   <div className="flex items-center gap-3 mb-3">
 <div className="text-3xl">⏳</div>
@@ -451,11 +482,22 @@ type Patient = {
   </div>
 </div>
 
-  <span className="bg-orange-100 text-orange-600 px-3 py-2 rounded-full text-base font-bold">
-    {upcomingPatients.length}
-  </span>
+  <div className="flex items-center gap-2">
+    <span className="bg-orange-100 text-orange-600 px-3 py-2 rounded-full text-base font-bold">
+      {upcomingPatients.length}
+    </span>
+    <button
+      type="button"
+      onClick={() => setExpandedSections((prev) => ({ ...prev, upcoming: !prev.upcoming }))}
+      className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"
+    >
+      {expandedSections.upcoming ? "Hide" : "Show"}
+    </button>
+  </div>
 </div>
 
+{expandedSections.upcoming && (
+  <>
 <p className="text-sm text-gray-500 mt-1">
     {upcomingMode === "Manual"
       ? "Select a specific date to filter upcoming patients."
@@ -487,11 +529,10 @@ type Patient = {
         <label className="text-sm font-medium text-gray-700 mb-2 block">
           Search upcoming by date
         </label>
-        <input
-          type="date"
+        <DateInput
           value={upcomingDateSearch}
-          onChange={(e) => setUpcomingDateSearch(e.target.value)}
-          className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm focus:border-orange-300 focus:ring-2 focus:ring-orange-200"
+          onChange={setUpcomingDateSearch}
+          className="rounded-2xl"
         />
       </div>
     )}
@@ -554,7 +595,7 @@ type Patient = {
                           <td className="py-4 px-4">
                             <Link
                               href={`/patient/${patient.id}`}
-                              className="font-semibold text-gray-900 hover:text-blue-600"
+                              className="font-semibold text-gray-900 hover:text-teal-600"
                             >
                               {patient.name}
                             </Link>
@@ -603,12 +644,12 @@ type Patient = {
                 </table>
               </div>
             )}
-
-
+          </>
+        )}
       </div>
       
       
-<div className="bg-white rounded-2xl shadow-sm p-6 mt-8">
+<div ref={overdueSectionRef} className="bg-white rounded-2xl shadow-sm p-6 mt-8">
       <div className="flex items-center justify-between mb-6">
   <div>
 <div className="flex items-center gap-3 mb-3">
@@ -628,11 +669,22 @@ type Patient = {
     </p>
   </div>
 
-  <span className="bg-red-100 text-red-600 px-3 py-2 rounded-full text-base font-bold">
-    {overduePatients.length}
-  </span>
+  <div className="flex items-center gap-2">
+    <span className="bg-red-100 text-red-600 px-3 py-2 rounded-full text-base font-bold">
+      {overduePatients.length}
+    </span>
+    <button
+      type="button"
+      onClick={() => setExpandedSections((prev) => ({ ...prev, overdue: !prev.overdue }))}
+      className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"
+    >
+      {expandedSections.overdue ? "Hide" : "Show"}
+    </button>
+  </div>
 </div>
 
+{expandedSections.overdue && (
+  <>
   <div className="mt-4">
     <label className="text-sm font-medium text-gray-700 mb-2 block">
       Search overdue notes
@@ -701,7 +753,7 @@ type Patient = {
               <td className="py-4 px-4">
                 <Link
                   href={`/patient/${patient.id}`}
-                  className="font-semibold text-gray-900 hover:text-blue-600"
+                  className="font-semibold text-gray-900 hover:text-teal-600"
                 >
                   {patient.name}
                 </Link>
@@ -787,6 +839,8 @@ type Patient = {
 </tbody>
 </table>
 </div>
+)}
+  </>
 )}
 </div>
 

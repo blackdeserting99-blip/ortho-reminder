@@ -117,7 +117,7 @@ export default function ArchivePage() {
 
                     <Link
                       href={`/patient/${patient.id}`}
-                      className="bg-blue-600 text-white px-3 py-1 rounded"
+                      className="bg-teal-600 text-white px-3 py-1 rounded"
                     >
                       View Record
                     </Link>

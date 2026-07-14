@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import Sidebar from "../components/Sidebar";
+import DateInput from "../components/DateInput";
+import PrintableCaseSheet from "./PrintableCaseSheet";
 
 type EruptionStatus = Record<string, "present" | "not-present">;
 type AttachedPhoto = { id: string; name: string; dataUrl: string };
@@ -94,13 +96,8 @@ const initialDraft = {
   gender: "",
   examDate: todayDate,
   homeAddress: "",
-  homePhone: "",
+  phone: "",
   occupation: "",
-  officePhone: "",
-  mobile: "",
-  guardianName: "",
-  guardianOccupation: "",
-  guardianOffice: "",
   medicalHistory: "",
   chiefComplaint: "",
   pastTreatment: "no",
@@ -172,6 +169,9 @@ const eruptionQuadrants = [
   },
 ];
 
+const overjetOptions = ["0", "1", "2", "3", "4", "5", ">5"];
+const overbiteOptions = ["0", "1", "2", "3", "4", "5", ">5"];
+
 function getRelationNumberOptions(relationClass: string) {
   const positiveOptions = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
   const negativeOptions = ["0", "-1", "-2", "-3", "-4", "-5", "-6", "-7", "-8", "-9", "-10"];
@@ -223,11 +223,8 @@ function serializeDraft(draft: CaseSheetDraft) {
   sections.push(`Gender: ${draft.gender}`);
   sections.push(`Date of Exam: ${draft.examDate}`);
   sections.push(`Residence: ${draft.homeAddress}`);
-  sections.push(`Phone Number: ${draft.mobile || draft.homePhone}`);
+  sections.push(`Phone Number: ${draft.phone}`);
   sections.push(`Occupation: ${draft.occupation}`);
-  sections.push(`Guardian: ${draft.guardianName}`);
-  sections.push(`Guardian Occupation: ${draft.guardianOccupation}`);
-  sections.push(`Guardian Office: ${draft.guardianOffice}`);
 
   sections.push("\nMEDICAL HISTORY");
   sections.push(draft.medicalHistory || "-");
@@ -242,14 +239,11 @@ function serializeDraft(draft: CaseSheetDraft) {
   }
 
   sections.push("\nCLINICAL EXAMINATION");
-  sections.push("Extra Oral:");
   sections.push(`Profile - Maxilla: ${draft.extraOralProfileMaxilla || "-"}`);
   sections.push(`Profile - Mandible: ${draft.extraOralProfileMandible || "-"}`);
   sections.push(`Vertical facial height: ${draft.extraOralVerticalHeight || "-"}`);
   sections.push(`Facial deviation: ${draft.extraOralDeviation || "-"}`);
   sections.push(`Lip position: ${draft.extraOralLipPosition || "-"}`);
-
-  sections.push("\nIntra Oral:");
   sections.push(`Tongue size: ${draft.intraoralTongueSize || "-"}`);
   sections.push(`Tooth size to arch size: ${draft.intraoralToothArchRatio || "-"}`);
   sections.push(`Overjet: ${draft.overjet || "-"}`);
@@ -392,112 +386,326 @@ export default function CaseSheetPage() {
     setDraft((prev) => ({ ...prev, attachments: prev.attachments.filter((photo) => photo.id !== photoId) }));
   };
 
-  const overjetOptions = useMemo(() => getRelationNumberOptions(draft.molarRelationClass), [draft.molarRelationClass]);
-  const overbiteOptions = useMemo(() => getRelationNumberOptions(draft.molarRelationClass), [draft.molarRelationClass]);
+  const handleDownloadPdf = async () => {
+      function loadScript(src: string) {
+        return new Promise<void>((resolve, reject) => {
+          const existing = document.querySelector(`script[src='${src}']`);
+          if (existing) return resolve();
+          const s = document.createElement("script");
+          s.src = src;
+          s.async = true;
+          s.onload = () => resolve();
+          s.onerror = (e) => reject(e);
+          document.head.appendChild(s);
+        });
+      }
 
-  return (
-    <div className="flex flex-col md:flex-row min-h-screen bg-gray-100">
-      <Sidebar />
-      <main className="flex-1 p-6 md:p-8 w-full">
-        <div className="max-w-6xl mx-auto">
-          <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="text-4xl font-bold text-slate-900">Orthodontic Case Sheet</h1>
-              <p className="mt-2 text-slate-600">This version is structured around the clinical exam flow you described, including extra-oral, intra-oral, crossbite, eruption chart, and habit findings.</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <Link href="/add-patient" className="rounded-full bg-emerald-600 px-5 py-3 text-sm font-medium text-white hover:bg-emerald-700">
-                Continue to Patient Page
-              </Link>
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
-              >
-                Print / Save as PDF
-              </button>
-              <button
-                type="button"
-                onClick={resetDraft}
-                className="rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
-              >
-                Clear Draft
-              </button>
+      try {
+        await loadScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js");
+        await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
+
+        const wrapper = document.createElement("div");
+        wrapper.style.position = "absolute";
+        wrapper.style.left = "0";
+        wrapper.style.top = "0";
+        wrapper.style.width = "794px";
+        wrapper.style.height = "auto";
+        wrapper.style.overflow = "visible";
+        wrapper.style.visibility = "visible";
+        wrapper.style.opacity = "1";
+        wrapper.style.pointerEvents = "none";
+        wrapper.style.zIndex = "-9999";
+        // Avoid using CSS transforms here — they create containing blocks
+        // which can break `position: fixed` on other elements (e.g. the header).
+        // Move the wrapper offscreen via `left` instead.
+        wrapper.style.left = "-20000px";
+        wrapper.style.background = "#ffffff";
+
+        wrapper.innerHTML = generatePrintableHtml(draft);
+
+        document.body.appendChild(wrapper);
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+        const layoutPageWidthMm = 210 - 20;
+        const layoutPageHeightMm = 297 - 20;
+        const layoutPxPerMm = wrapper.scrollWidth / layoutPageWidthMm;
+        const layoutPageHeightPx = Math.floor(layoutPageHeightMm * layoutPxPerMm);
+
+        const eruptionSection = wrapper.querySelector<HTMLElement>(".eruption-section");
+        if (eruptionSection) {
+          const offsetTop = eruptionSection.offsetTop;
+          const remainder = offsetTop % layoutPageHeightPx;
+          if (remainder + eruptionSection.offsetHeight > layoutPageHeightPx) {
+            const gap = layoutPageHeightPx - remainder;
+            eruptionSection.style.marginTop = `${gap}px`;
+          }
+        }
+
+        const canvas = await (window as any).html2canvas(wrapper, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: "#ffffff",
+          width: wrapper.scrollWidth,
+          height: wrapper.scrollHeight,
+          windowWidth: wrapper.scrollWidth,
+          windowHeight: wrapper.scrollHeight,
+        });
+
+        const imgData = canvas.toDataURL("image/jpeg", 0.98);
+        const { jsPDF } = (window as any).jspdf;
+        const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        const margin = 10;
+        const pdfWidth = pageWidth - margin * 2;
+        const imgProps = pdf.getImageProperties(imgData);
+        const exportPxPerMm = imgProps.width / pdfWidth;
+        const exportPageHeightPx = Math.floor((pageHeight - margin * 2) * exportPxPerMm);
+        const pageCount = Math.ceil(canvas.height / exportPageHeightPx);
+
+        for (let page = 0; page < pageCount; page += 1) {
+          if (page > 0) {
+            pdf.addPage();
+          }
+
+          const sliceCanvas = document.createElement("canvas");
+          sliceCanvas.width = canvas.width;
+          sliceCanvas.height = Math.min(exportPageHeightPx, canvas.height - page * exportPageHeightPx);
+          const ctx = sliceCanvas.getContext("2d");
+          if (ctx) {
+            ctx.drawImage(canvas, 0, -page * exportPageHeightPx);
+          }
+
+          const pageImg = sliceCanvas.toDataURL("image/jpeg", 0.98);
+          const pageImgHeight = sliceCanvas.height / exportPxPerMm;
+          pdf.addImage(pageImg, "JPEG", margin, margin, pdfWidth, pageImgHeight);
+        }
+
+        pdf.save("case-sheet.pdf");
+        wrapper.remove();
+      } catch (err) {
+        console.error("Failed to generate PDF:", err);
+        const htmlFallback = `<!doctype html><html><body><pre>${escapeHtml(serializeDraft(draft))}</pre></body></html>`;
+        const wfb = window.open("", "_blank", "noopener,noreferrer,width=900,height=1100");
+        if (!wfb) return;
+        wfb.document.open();
+        wfb.document.write(htmlFallback);
+        wfb.document.close();
+      }
+    };
+
+    function generatePrintableHtml(draft: any) {
+      const field = (label: string, value: string) =>
+        `<div class="field"><span>${escapeHtml(label)}</span><span>${escapeHtml(value || "-")}</span></div>`;
+
+      const relationText = (pattern: string, classValue: string, leftValue: string, rightValue: string) =>
+        escapeHtml(formatRelationSummary(pattern, classValue, leftValue, rightValue));
+
+      const eruptions = eruptionQuadrants
+        .map(
+          (quadrant) => `
+            <div class="eruption-card">
+              <div class="eruption-label">${escapeHtml(quadrant.label)}</div>
+              <div class="eruption-row number-row">
+                ${quadrant.numbers
+                  .map((number) => `<div class="eruption-number">${escapeHtml(number)}</div>`)
+                  .join("")}
+              </div>
+              <div class="eruption-row status-row">
+                ${quadrant.numbers
+                  .map((number) => {
+                    const key = `${quadrant.key}-${number}`;
+                    const status = draft.eruptionStatus?.[key] || "not-present";
+                    return `<div class="eruption-cell ${status === "present" ? "present" : "not-present"}">${status === "present" ? "✔" : "✕"}</div>`;
+                  })
+                  .join("")}
+              </div>
+            </div>`
+        )
+        .join("");
+
+      return `
+        <style>
+          body{font-family:Inter,system-ui,sans-serif;color:#111;background:#fff;padding:12mm;margin:0}
+          .print-page{width:210mm;max-width:100%;box-sizing:border-box;margin:0 auto}
+          .print-title{font-size:1.25rem;font-weight:800;letter-spacing:.08em;text-align:center;margin-bottom:1.1rem;color:#111}
+          .meta-row{margin-bottom:1rem;padding:.9rem 1rem;border:1px solid #cbd5e1;border-radius:.75rem;background:#f8fafc}
+          .section{margin-bottom:1rem;padding:1rem;border:1px solid #e2e8f0;border-radius:.75rem;background:#fff}
+          .heading{font-size:1rem;font-weight:700;margin-bottom:.75rem;border-bottom:1px solid #cbd5e1;padding-bottom:.35rem;color:#111}
+          .grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.6rem 1rem}
+          .field{display:flex;justify-content:space-between;gap:1rem;font-size:.88rem;line-height:1.35;align-items:flex-start;padding:.3rem 0}
+          .field span:first-child{font-weight:600;width:40%;min-width:6rem;color:#1f2937}
+          .field span:last-child{flex:1;text-align:right;word-break:break-word;color:#111}
+          .eruption-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.6rem}
+          .eruption-card{border:1px solid #cbd5e1;border-radius:.55rem;padding:.5rem;background:#fff}
+          .eruption-label{font-size:.78rem;font-weight:700;text-transform:uppercase;margin-bottom:.3rem;color:#111}
+          .eruption-row{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:.2rem}
+          .eruption-number,.eruption-cell{display:flex;align-items:center;justify-content:center;min-height:1rem;padding:.2rem;border:1px solid #cbd5e1;border-radius:999px;font-size:.72rem;background:#f8fafc;white-space:nowrap}
+          .present{color:#16a34a;font-weight:700}
+          .not-present{color:#dc2626;font-weight:700}
+        </style>
+        <div class="print-page">
+          <div class="print-title">ORTHODONTIC CASE SHEET</div>
+          <div class="meta-row">
+            ${field("Exam Date", draft.examDate)}
+          </div>
+          <div class="section">
+            <div class="heading">Patient Details</div>
+            <div class="grid-2">
+              ${field("Name", draft.name)}
+              ${field("Age", draft.age)}
+              ${field("Gender", draft.gender)}
+              ${field("Address", draft.homeAddress)}
+              ${field("Phone", draft.mobile || draft.phone || draft.homePhone)}
+              ${field("Occupation", draft.occupation)}
             </div>
           </div>
-
-          <div className="mb-6 rounded-3xl border border-slate-200 bg-slate-50 p-5 text-slate-700">
-            <div className="flex flex-col gap-1 sm:flex-row sm:justify-between sm:items-center">
-              <p className="text-sm">Draft is saved automatically as you type.</p>
-              {savedAt ? <p className="text-sm text-slate-500">Last saved at {savedAt}</p> : <p className="text-sm text-slate-500">Loading draft…</p>}
+          <div class="section">
+            <div class="heading">History</div>
+            ${field("Medical history", draft.medicalHistory)}
+            ${field("Chief complaint", draft.chiefComplaint)}
+            ${field(
+              "Past orthodontic treatment",
+              draft.pastTreatment === "yes" ? `Yes, removed ${draft.treatmentRemovedDate || "-"}` : "No"
+            )}
+          </div>
+          <div class="section">
+            <div class="heading">Clinical Examination</div>
+            <div class="grid-2">
+              ${field("Profile maxilla", draft.extraOralProfileMaxilla)}
+              ${field("Profile mandible", draft.extraOralProfileMandible)}
+              ${field("Vertical height", draft.extraOralVerticalHeight)}
+              ${field("Deviation", draft.extraOralDeviation)}
+              ${field("Lip position", draft.extraOralLipPosition)}
+              ${field("Tongue size", draft.intraoralTongueSize)}
+              ${field("Arch ratio", draft.intraoralToothArchRatio)}
+              ${field("Overjet", draft.overjet)}
+              ${field("Overbite", draft.overbite)}
+              ${field("AP relation", relationText(draft.apRelationPattern, draft.apRelationClass, draft.apRelationLeft, draft.apRelationRight))}
+              ${field("Canine relation", relationText(draft.canineRelationPattern, draft.canineRelationClass, draft.canineRelationLeft, draft.canineRelationRight))}
+              ${field("Molar relation", relationText(draft.molarRelationPattern, draft.molarRelationClass, draft.molarRelationLeft, draft.molarRelationRight))}
             </div>
           </div>
+          <div class="section">
+            <div class="heading">Crossbite</div>
+            <div class="grid-2">
+              ${field("Type", draft.crossbiteType)}
+              ${field("Pattern", draft.crossbitePattern)}
+              ${field("Side", draft.crossbiteSide)}
+              ${field("Teeth", draft.crossbiteTeethCount)}
+            </div>
+          </div>
+          <div class="section eruption-section">
+            <div class="heading">Eruption Chart</div>
+            <div class="eruption-grid">
+              ${eruptions}
+            </div>
+          </div>
+          <div class="section">
+            <div class="heading">Other Dental Findings</div>
+            <div class="grid-2">
+              ${field("Supernumerary", draft.supernumeraryTeeth)}
+              ${field("Missing teeth", draft.congenitallyMissingTeeth)}
+              ${field("Impacted teeth", draft.impactedTeeth)}
+            </div>
+          </div>
+          <div class="section">
+            <div class="heading">Habits</div>
+            ${field("Habit summary", getHabitSummary(draft))}
+          </div>
+          <div class="section">
+            <div class="heading">Treatment Plan</div>
+            ${field("Plan", draft.treatmentPlan)}
+          </div>
+        </div>`;
+    }
 
-          <div className="space-y-8">
-            <section id="patient-registration" className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="text-xl font-semibold text-slate-900 mb-4">Patient Information</h2>
-              <div className="grid gap-4 lg:grid-cols-3">
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-slate-700">Patient Name</span>
-                  <input value={draft.name} onChange={(e) => update("name", e.target.value)} className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-900" />
-                </label>
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-slate-700">Age</span>
-                  <input value={draft.age} onChange={(e) => update("age", e.target.value)} className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-900" />
-                </label>
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-slate-700">Gender</span>
-                  <select value={draft.gender} onChange={(e) => update("gender", e.target.value)} className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-900">
-                    <option value="">Select</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                  </select>
-                </label>
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-slate-700">Date of Exam</span>
-                  <input type="date" value={draft.examDate} onChange={(e) => update("examDate", e.target.value)} className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-900" />
-                </label>
-                <label className="space-y-2 lg:col-span-2">
-                  <span className="text-sm font-medium text-slate-700">Residence</span>
-                  <input value={draft.homeAddress} onChange={(e) => update("homeAddress", e.target.value)} className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-900" />
-                </label>
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-slate-700">Phone Number</span>
-                  <input value={draft.mobile || draft.homePhone} onChange={(e) => update("mobile", e.target.value)} className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-900" />
-                </label>
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-slate-700">Occupation</span>
-                  <input value={draft.occupation} onChange={(e) => update("occupation", e.target.value)} className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-900" />
-                </label>
-              </div>
-            </section>
+    function escapeHtml(text: string) {
+      return String(text)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
 
-            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="text-xl font-semibold text-slate-900 mb-4">History</h2>
-              <div className="space-y-4">
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-slate-700">Medical History</span>
-                  <textarea value={draft.medicalHistory} onChange={(e) => update("medicalHistory", e.target.value)} rows={3} className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-900" placeholder="Any relevant medical history, allergies, or systemic conditions" />
-                </label>
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-slate-700">Chief Complaint</span>
-                  <textarea value={draft.chiefComplaint} onChange={(e) => update("chiefComplaint", e.target.value)} rows={3} className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-900" />
-                </label>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <label className="space-y-2">
-                    <span className="text-sm font-medium text-slate-700">Past Orthodontic Treatment</span>
-                    <select value={draft.pastTreatment} onChange={(e) => update("pastTreatment", e.target.value)} className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-900">
-                      <option value="no">No</option>
-                      <option value="yes">Yes</option>
-                    </select>
-                  </label>
-                  <label className="space-y-2">
-                    <span className="text-sm font-medium text-slate-700">Date Removed</span>
-                    <input type="date" value={draft.treatmentRemovedDate} onChange={(e) => update("treatmentRemovedDate", e.target.value)} className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-900" />
-                  </label>
-                </div>
-              </div>
-            </section>
+    function getHabitSummary(draft: any) {
+      const items = [
+        draft.habitThumb && "Thumb sucking",
+        draft.habitLip && "Lip habit",
+        draft.habitTongue && "Tongue habit",
+        draft.habitMouth && "Mouth breathing",
+        draft.habitNail && "Nail biting",
+        draft.habitOther && `Other: ${draft.habitOther}`,
+      ].filter(Boolean);
+      return items.length > 0 ? items.join(", ") : "None";
+    }
+
+    return (
+      <>
+        <main className="mx-auto max-w-5xl space-y-6 px-4 sm:px-6 lg:px-8">
+          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-xl font-semibold text-slate-900 mb-4">Patient Information</h2>
+            <div className="grid gap-4 lg:grid-cols-3">
+              <label className="space-y-2">
+                <span className="text-sm font-medium text-slate-700">Patient Name</span>
+                <input value={draft.name} onChange={(e) => update("name", e.target.value)} className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-900" placeholder="Full name" />
+              </label>
+              <label className="space-y-2">
+                <span className="text-sm font-medium text-slate-700">Age</span>
+                <input value={draft.age} onChange={(e) => update("age", e.target.value)} className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-900" placeholder="Age" />
+              </label>
+              <label className="space-y-2">
+                <span className="text-sm font-medium text-slate-700">Gender</span>
+                <select value={draft.gender} onChange={(e) => update("gender", e.target.value)} className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-900">
+                  <option value="">Select</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+              </label>
+              <label className="space-y-2">
+                <span className="text-sm font-medium text-slate-700">Date of Exam</span>
+                <DateInput value={draft.examDate} onChange={(v) => update("examDate", v)} className="" />
+              </label>
+              <label className="space-y-2">
+                <span className="text-sm font-medium text-slate-700">Residence</span>
+                <input value={draft.homeAddress} onChange={(e) => update("homeAddress", e.target.value)} className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-900" placeholder="Address" />
+              </label>
+              <label className="space-y-2">
+                <span className="text-sm font-medium text-slate-700">Phone</span>
+                <input value={draft.phone} onChange={(e) => update("phone", e.target.value)} type="tel" className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-900" placeholder="Phone number" />
+              </label>
+              <label className="space-y-2">
+                <span className="text-sm font-medium text-slate-700">Occupation</span>
+                <input value={draft.occupation} onChange={(e) => update("occupation", e.target.value)} className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-900" placeholder="Occupation" />
+              </label>
+              <label className="space-y-2 lg:col-span-3">
+                <span className="text-sm font-medium text-slate-700">Medical History</span>
+                <textarea value={draft.medicalHistory} onChange={(e) => update("medicalHistory", e.target.value)} rows={3} className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-900" placeholder="Medical history details" />
+              </label>
+              <label className="space-y-2 lg:col-span-3">
+                <span className="text-sm font-medium text-slate-700">Chief Complaint</span>
+                <textarea value={draft.chiefComplaint} onChange={(e) => update("chiefComplaint", e.target.value)} rows={3} className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-900" placeholder="Chief complaint" />
+              </label>
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="grid gap-4 sm:grid-cols-2">
+            <label className="space-y-2">
+              <span className="text-sm font-medium text-slate-700">Past Orthodontic Treatment</span>
+              <select value={draft.pastTreatment} onChange={(e) => update("pastTreatment", e.target.value)} className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-900">
+                <option value="no">No</option>
+                <option value="yes">Yes</option>
+              </select>
+            </label>
+            <label className="space-y-2">
+                <span className="text-sm font-medium text-slate-700">Date Removed</span>
+                <DateInput value={draft.treatmentRemovedDate} onChange={(v) => update("treatmentRemovedDate", v)} className="" />
+              </label>
+          </div>
+        </section>
 
             <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="text-xl font-semibold text-slate-900 mb-4">Clinical Examination</h2>
@@ -683,7 +891,7 @@ export default function CaseSheetPage() {
 
               <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <p className="text-sm font-semibold text-slate-800 mb-3">Eruption chart</p>
-                <div className="relative overflow-x-auto rounded-2xl border border-slate-200 bg-white p-4">
+                <div id="eruption-chart-ui" className="relative overflow-x-auto rounded-2xl border border-slate-200 bg-white p-4">
                   <div className="pointer-events-none absolute inset-x-12 top-1/2 h-1 bg-slate-900"></div>
                   <div className="pointer-events-none absolute left-1/2 inset-y-12 w-1 bg-slate-900"></div>
                   <div className="grid min-w-[720px] gap-4 lg:grid-cols-2">
@@ -901,14 +1109,29 @@ export default function CaseSheetPage() {
                 <textarea value={draft.treatmentPlan} onChange={(e) => update("treatmentPlan", e.target.value)} rows={5} className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-900" placeholder="Write the proposed orthodontic treatment plan here." />
               </label>
             </section>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="rounded-full bg-slate-900 px-6 py-3 text-sm font-medium text-white hover:bg-slate-800"
+              >
+                Print Case Sheet
+              </button>
+              <button
+                type="button"
+                onClick={handleDownloadPdf}
+                className="rounded-full border border-slate-300 bg-white px-6 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Download PDF
+              </button>
+            </div>
             <div className="mt-8 flex justify-center">
               <Link href="/add-patient" className="rounded-full bg-emerald-600 px-6 py-3 text-sm font-medium text-white hover:bg-emerald-700">
                 Continue to Patient Page
               </Link>
             </div>
-          </div>
-        </div>
       </main>
-    </div>
+      <PrintableCaseSheet draft={draft} />
+    </>
   );
 }
