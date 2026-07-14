@@ -302,86 +302,25 @@ export default function EditVisitPage() {
 
           </label>
 
-          {elasticEnabled && (
-            <select
-              value={elasticType}
-              onChange={(e) =>
-                setElasticType(
-                  e.target.value
-                )
+ {elasticEnabled && (
+  <select
+    value={elasticType}
+    onChange={(e) => setElasticType(e.target.value)}
+    className="w-full border p-3 rounded"
+  >
+    <option>Class II</option>
+    <option>Class III</option>
+    <option>Cross</option>
+    <option>Box</option>
+    <option>Triangle</option>
+    <option>Midline</option>
+    <option>Vertical</option>
+  </select>
+)}
 
-                <div className="mb-6">
-                  <label className="flex items-center gap-3 font-semibold mb-4">
-
-                    <input
-                      type="checkbox"
-                      checked={elasticEnabled}
-                      onChange={(e) =>
-                        setElasticEnabled(
-                          e.target.checked
-                        )
-                      }
-                    />
-
-                    Patient Using Elastics
-
-                  </label>
-
-                  {elasticEnabled && (
-                    <select
-                      value={elasticType}
-                      onChange={(e) =>
-                        setElasticType(
-                          e.target.value
-                        )
-                      }
-                      className="w-full border p-3 rounded"
-                    >
-                      <option>Class II</option>
-                      <option>Class III</option>
-                      <option>Cross</option>
-                      <option>Box</option>
-                      <option>Triangle</option>
-                      <option>Midline</option>
-                      <option>Vertical</option>
-                    </select>
-                  )}
-
-                </div>
-
-                <div className="mb-6">
-                  <label className="flex items-center gap-2 font-semibold mb-2">
-                    <input
-                      type="checkbox"
-                      checked={additionalEnabled}
-                      onChange={(e) => setAdditionalEnabled(e.target.checked)}
-                    />
-                    Additional payment
-                  </label>
-
-                  {additionalEnabled && (
-                    <div className="mt-3 space-y-2">
-                      <div>
-                        <label className="block mb-1 text-sm">Additional fees</label>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            value={additionalAmount}
-                            onChange={(e) => {
-                              const digits = e.target.value.replace(/\D/g, "");
-                              setAdditionalAmount(digits);
-                            }}
-                            placeholder="0"
-                            className="flex-1 border p-3 rounded"
-                          />
-                          <span className="font-semibold text-slate-700">IQD</span>
-                        </div>
-                        <p className="text-xs text-slate-500 mt-1">This amount will be added to total paid.</p>
-                      </div>
-                      <div>
-                        <label className="block mb-1 text-sm">Reason for additional fee</label>
-                        <input type="text" value={additionalReason} onChange={(e) => setAdditionalReason(e.target.value)} className="w-full border p-2 rounded" />
-                      </div>
-                    </div>
-                  )}
-                </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}

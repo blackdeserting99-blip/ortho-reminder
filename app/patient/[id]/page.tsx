@@ -35,9 +35,6 @@ type Visit = {
   plannedElasticGauge?: string;
   plannedElasticSize?: string;
   plannedElasticOther?: string;
-  additionalPayment?: number;
-  additionalPaid?: boolean;
-  additionalReason?: string;
 };
 
 type AttachedPhoto = {

@@ -51,6 +51,7 @@ export type Patient = {
   plannedNotes?: string;
   totalFee?: number;
   totalPaid?: number;
+  retainerFee?: number;
   elasticEnabled?: boolean;
   elasticType?: string;
   tadsNote?: string;
@@ -62,6 +63,11 @@ export type Patient = {
     count: number;
     dailyOption?: string;
     weeklyDays?: string[];
+  };
+  clearAlignersPlan?: {
+    total: number;
+    given: number;
+    wearDays: number;
   };
 };
 
