@@ -44,6 +44,9 @@ type Patient = {
         useState("");
       const [overdueNotesSearch, setOverdueNotesSearch] =
         useState("");
+      const [todayClinicSearch, setTodayClinicSearch] = useState("");
+      const [upcomingClinicSearch, setUpcomingClinicSearch] = useState("");
+      const [overdueClinicSearch, setOverdueClinicSearch] = useState("");
       const [expandedSections, setExpandedSections] = useState<Record<"today" | "upcoming" | "overdue", boolean>>({
         today: true,
         upcoming: true,
@@ -184,9 +187,14 @@ type Patient = {
         return latestVisit.plannedNotes || getInitialPlannedNotes(patient);
       };
 
-      const filteredTodayPatients = todayNotesSearch.trim()
-        ? todayPatients.filter((patient) => noteMatches(patient, todayNotesSearch))
-        : todayPatients;
+      const clinicMatches = (patient: any, query: string) => {
+        const q = query.trim().toLowerCase();
+        if (!q) return true;
+        return (patient.clinicName || "").toLowerCase().includes(q);
+      };
+
+      const filteredTodayPatients = (todayNotesSearch.trim() ? todayPatients.filter((patient) => noteMatches(patient, todayNotesSearch)) : todayPatients)
+        .filter((p) => clinicMatches(p, todayClinicSearch));
 
       const filteredUpcomingPatients = upcomingPatients.filter((patient) => {
         const matchesDate = upcomingMode === "Manual" && upcomingDateSearch.trim()
@@ -195,12 +203,12 @@ type Patient = {
         const matchesNotes = upcomingNotesSearch.trim()
           ? noteMatches(patient, upcomingNotesSearch)
           : true;
-        return matchesDate && matchesNotes;
+        const matchesClinic = upcomingClinicSearch.trim() ? (patient.clinicName || "").toLowerCase().includes(upcomingClinicSearch.trim().toLowerCase()) : true;
+        return matchesDate && matchesNotes && matchesClinic;
       });
 
-      const filteredOverduePatients = overdueNotesSearch.trim()
-        ? overduePatients.filter((patient) => noteMatches(patient, overdueNotesSearch))
-        : overduePatients;
+      const filteredOverduePatients = (overdueNotesSearch.trim() ? overduePatients.filter((patient) => noteMatches(patient, overdueNotesSearch)) : overduePatients)
+        .filter((p) => (overdueClinicSearch.trim() ? (p.clinicName || "").toLowerCase().includes(overdueClinicSearch.trim().toLowerCase()) : true));
 
       const formatTreatment = (patient: any) => {
         if (patient.treatment === "Fixed Braces" && patient.bracketType) {
@@ -349,6 +357,16 @@ type Patient = {
                 value={todayNotesSearch}
                 onChange={(e) => setTodayNotesSearch(e.target.value)}
                 placeholder="Search notes only"
+                className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm focus:border-teal-300 focus:ring-2 focus:ring-teal-200"
+              />
+            </div>
+            <div className="mt-3">
+              <label className="text-sm font-medium text-gray-700 mb-2 block">Filter by clinic</label>
+              <input
+                type="text"
+                value={todayClinicSearch}
+                onChange={(e) => setTodayClinicSearch(e.target.value)}
+                placeholder="Clinic name"
                 className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm focus:border-teal-300 focus:ring-2 focus:ring-teal-200"
               />
             </div>
@@ -548,6 +566,16 @@ type Patient = {
         className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm focus:border-orange-300 focus:ring-2 focus:ring-orange-200"
       />
     </div>
+    <div>
+      <label className="text-sm font-medium text-gray-700 mb-2 block">Filter by clinic</label>
+      <input
+        type="text"
+        value={upcomingClinicSearch}
+        onChange={(e) => setUpcomingClinicSearch(e.target.value)}
+        placeholder="Clinic name"
+        className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm focus:border-orange-300 focus:ring-2 focus:ring-orange-200"
+      />
+    </div>
   </div>
 
             {upcomingPatients.length === 0 ? (
@@ -694,6 +722,16 @@ type Patient = {
       value={overdueNotesSearch}
       onChange={(e) => setOverdueNotesSearch(e.target.value)}
       placeholder="Search notes only"
+      className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm focus:border-red-300 focus:ring-2 focus:ring-red-200"
+    />
+  </div>
+  <div className="mt-3">
+    <label className="text-sm font-medium text-gray-700 mb-2 block">Filter by clinic</label>
+    <input
+      type="text"
+      value={overdueClinicSearch}
+      onChange={(e) => setOverdueClinicSearch(e.target.value)}
+      placeholder="Clinic name"
       className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm focus:border-red-300 focus:ring-2 focus:ring-red-200"
     />
   </div>

@@ -71,6 +71,8 @@ export default function CalendarPage() {
           id: p.id,
           name: p.name,
           time: p.appointmentTime || "TBD",
+          clinicName: (p as any).clinicName,
+          clinicColor: (p as any).clinicColor,
         }))
         .sort((a: { time: string }, b: { time: string }) => {
           // Sort by time
@@ -202,14 +204,22 @@ export default function CalendarPage() {
                           <div className="text-sm text-slate-400">No appointments</div>
                         ) : (
                           <div className="space-y-2">
-                            {dayData.patients.map((patient: { id: number; name: string; time: string }) => (
+                            {dayData.patients.map((patient: any) => (
                               <Link
                                 key={patient.id}
                                 href={`/patient/${patient.id}`}
                                 className="block p-2 bg-teal-100 hover:bg-teal-200 rounded-lg transition group"
                               >
-                                <div className="text-xs font-semibold text-teal-900 group-hover:text-teal-700">
-                                  {patient.time}
+                                <div className="flex items-center justify-between">
+                                  <div className="text-xs font-semibold text-teal-900 group-hover:text-teal-700">
+                                    {patient.time}
+                                  </div>
+                                  {patient.clinicName && (
+                                    <div className="flex items-center gap-2 ml-3">
+                                      <span className="w-3 h-3 rounded-full" style={{ backgroundColor: patient.clinicColor || '#ddd' }} />
+                                      <span className="text-xs text-teal-900 truncate max-w-[120px]">{patient.clinicName}</span>
+                                    </div>
+                                  )}
                                 </div>
                                 <div className="text-sm font-semibold text-teal-800 group-hover:text-teal-600 truncate">
                                   {patient.name}

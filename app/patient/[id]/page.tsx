@@ -327,6 +327,12 @@ export default function PatientProfilePage() {
               <p className="text-lg font-semibold text-slate-900 mb-1">{patient.name}</p>
               <p className="text-slate-600 mb-1">📞 {patient.phone}</p>
               <p className="text-slate-600 mb-1">{patient.address || "Address not provided"}</p>
+              {patient.clinicName && (
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: patient.clinicColor || '#ddd' }} />
+                  <span className="text-sm text-slate-700 font-medium">{patient.clinicName}</span>
+                </div>
+              )}
               <p className="text-slate-600 text-sm">Age: {patient.age ?? "Not provided"}</p>
             </div>
             <div className="flex gap-2 flex-wrap justify-end">

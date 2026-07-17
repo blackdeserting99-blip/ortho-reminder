@@ -10,7 +10,16 @@ export default function EditPatientPage() {
   const params = useParams();
 
   const [name, setName] = useState("");
-const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState("");
+
+  const formatPhoneInput = (value: string) => {
+    const digits = value.replace(/\D/g, "");
+    if (!digits) return "";
+    if (digits.length <= 3) return digits;
+    if (digits.length <= 6) return `${digits.slice(0,3)} ${digits.slice(3)}`;
+    if (digits.length <= 10) return `${digits.slice(0,3)} ${digits.slice(3,6)} ${digits.slice(6)}`;
+    return `${digits.slice(0,3)} ${digits.slice(3,6)} ${digits.slice(6,10)} ${digits.slice(10)}`;
+  };
 const [address, setAddress] = useState("");
 const [age, setAge] = useState("");
 const [treatment, setTreatment] = useState("");
@@ -134,10 +143,12 @@ setBracketType(patient.bracketType || "");
                 <div>
                   <label className="block mb-2 text-sm font-medium text-slate-700">Contact Number</label>
                   <input
-                    type="text"
+                    type="tel"
+                    inputMode="tel"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    onChange={(e) => setPhone(formatPhoneInput(e.target.value))}
                     className="w-full border p-3 rounded"
+                    placeholder="e.g., 0770 123 4567"
                   />
                 </div>
               </div>

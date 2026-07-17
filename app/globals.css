@@ -116,6 +116,13 @@ select {
   }
 }
 
+/* Ensure main content leaves space for the left sidebar on larger screens */
+@media (min-width: 768px) {
+  main {
+    margin-left: 5rem; /* matches md:w-20 (80px) collapsed sidebar */
+  }
+}
+
 input,
 textarea,
 select {

@@ -13,6 +13,7 @@ import {
   normalizeDateIso,
   hasAppointmentConflict,
   validatePatientRecord,
+  CLINIC_COLORS,
 } from "../lib/patient";
 
 export default function AddPatientPage() {
@@ -20,9 +21,21 @@ export default function AddPatientPage() {
 
 const [name, setName] = useState("");
 const [phone, setPhone] = useState("");
+
+const formatPhoneInput = (value: string) => {
+  const digits = value.replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return `${digits.slice(0,3)} ${digits.slice(3)}`;
+  if (digits.length <= 10) return `${digits.slice(0,3)} ${digits.slice(3,6)} ${digits.slice(6)}`;
+  return `${digits.slice(0,3)} ${digits.slice(3,6)} ${digits.slice(6,10)} ${digits.slice(10)}`;
+};
 const [address, setAddress] = useState("");
 const [age, setAge] = useState("");
 const [occupation, setOccupation] = useState("");
+const [clinicEnabled, setClinicEnabled] = useState(false);
+const [clinicName, setClinicName] = useState("");
+const [clinicColor, setClinicColor] = useState(CLINIC_COLORS[0]);
   const [treatmentType, setTreatmentType] =
     useState("Fixed Braces");
 
@@ -202,6 +215,8 @@ const [totalFee, setTotalFee] = useState("");
       id: Date.now(),
       name: name.trim(),
       phone: phone.trim(),
+      clinicName: clinicEnabled ? clinicName.trim() || undefined : undefined,
+      clinicColor: clinicEnabled ? clinicColor : undefined,
       address: address.trim() || undefined,
       age: age ? Number(age) : undefined,
       occupation: occupation.trim() || undefined,
@@ -350,13 +365,12 @@ const [totalFee, setTotalFee] = useState("");
           </label>
 
           <input
-            type="text"
+            type="tel"
+            inputMode="tel"
             value={phone}
-            onChange={(e) =>
-              setPhone(e.target.value)
-            }
+            onChange={(e) => setPhone(formatPhoneInput(e.target.value))}
             className="w-full border p-3 rounded"
-            placeholder="Enter patient contact number"
+            placeholder="e.g., 0770 123 4567"
           />
         </div>
 <div className="mb-4">
@@ -407,6 +421,51 @@ const [totalFee, setTotalFee] = useState("");
     className="w-full border p-3 rounded"
     placeholder="Patient occupation"
   />
+</div>
+
+<div className="mb-4">
+  <label className="flex items-center gap-2">
+    <input
+      type="checkbox"
+      checked={clinicEnabled}
+      onChange={(e) => setClinicEnabled(e.target.checked)}
+    />
+    Choose Clinic
+  </label>
+
+  {clinicEnabled && (
+    <div className="mt-3 space-y-3">
+      <div>
+        <label className="block mb-2">Clinic Name</label>
+        <input
+          type="text"
+          value={clinicName}
+          onChange={(e) => setClinicName(e.target.value)}
+          className="w-full border p-3 rounded"
+          placeholder="Clinic name"
+        />
+      </div>
+
+      <div>
+        <label className="block mb-2">Color Coding</label>
+        <div className="flex items-center gap-2 flex-wrap">
+          {CLINIC_COLORS.map((c) => {
+            const selected = c === clinicColor;
+            return (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setClinicColor(c)}
+                title={c}
+                className={`w-8 h-8 rounded-full ${selected ? 'ring-2 ring-offset-1 ring-teal-500' : 'border border-slate-200'}`}
+                style={{ backgroundColor: c }}
+              />
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  )}
 </div>
 
         <div className="mb-4">

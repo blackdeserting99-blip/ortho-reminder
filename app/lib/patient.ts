@@ -36,6 +36,8 @@ export type Patient = {
   id: number;
   name: string;
   phone: string;
+  clinicName?: string;
+  clinicColor?: string;
   address?: string;
   age?: number;
   occupation?: string;
@@ -72,6 +74,19 @@ export type Patient = {
 };
 
 const STORAGE_KEY = "patients";
+
+export const CLINIC_COLORS = [
+  "#ef4444",
+  "#f97316",
+  "#f59e0b",
+  "#eab308",
+  "#84cc16",
+  "#10b981",
+  "#06b6d4",
+  "#3b82f6",
+  "#8b5cf6",
+  "#ec4899",
+];
 
 export function loadPatients(): Patient[] {
   if (typeof window === "undefined") return [];

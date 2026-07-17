@@ -27,6 +27,8 @@ type Patient = {
   id: number;
   name: string;
   phone: string;
+  clinicName?: string;
+  clinicColor?: string;
   treatment: string;
   treatmentCategory?: string;
   bracketType?: string;
@@ -52,10 +54,17 @@ export default function PatientsPage() {
   const today = new Date().toLocaleDateString("en-CA");
   const [patients, setPatients] = useState<Patient[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [clinicSearch, setClinicSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [treatmentCategory, setTreatmentCategory] = useState("all");
   const [dateMode, setDateMode] = useState("newest");
   const [manualDate, setManualDate] = useState(today);
+
+  // Apply clinic-name filter before other list filters
+  const clinicFiltered = patients.filter((p) => {
+    if (!clinicSearch || !clinicSearch.trim()) return true;
+    return (p.clinicName || "").toLowerCase().includes(clinicSearch.trim().toLowerCase());
+  });
 
   useEffect(() => {
     const savedPatients = JSON.parse(
@@ -151,7 +160,7 @@ const getNextVisitRange = (appointmentDate: string) => {
   return "far";
 };
 
-const filteredPatients = patients
+const filteredPatients = clinicFiltered
   .filter((patient) => {
     if (patient.caseStatus === "archived" || patient.caseStatus === "finished" || patient.caseStatus === "retainer") {
       return false;
@@ -220,10 +229,12 @@ const todayAppointments = filteredPatients.filter(
 const overduePatients = filteredPatients.filter(
   (p) => new Date(p.appointmentDate) < new Date()
 ).length;
-const allCount = patients.filter(
+
+// Compute summary counts respecting clinic filter
+const allCount = clinicFiltered.filter(
   (p) => p.caseStatus !== "archived" && p.caseStatus !== "finished" && p.caseStatus !== "retainer"
 ).length;
-const todayCount = patients.filter(
+const todayCount = clinicFiltered.filter(
   (p) =>
     p.caseStatus !== "archived" &&
     p.caseStatus !== "finished" &&
@@ -231,7 +242,7 @@ const todayCount = patients.filter(
     p.appointmentDate === today
 ).length;
 
-const upcomingCount = patients.filter(
+const upcomingCount = clinicFiltered.filter(
   (p) =>
     p.caseStatus !== "archived" &&
     p.caseStatus !== "finished" &&
@@ -239,7 +250,7 @@ const upcomingCount = patients.filter(
     p.appointmentDate > today
 ).length;
 
-const overdueCount = patients.filter(
+const overdueCount = clinicFiltered.filter(
   (p) =>
     p.caseStatus !== "archived" &&
     p.caseStatus !== "finished" &&
@@ -309,6 +320,18 @@ const overdueCount = patients.filter(
         onChange={(e) => setSearchTerm(e.target.value)}
         className="w-full mb-6 p-4 bg-white border border-gray-200 rounded-3xl text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
       />
+      <div className="mb-6 flex gap-2 items-center">
+        <input
+          type="text"
+          placeholder="Filter by clinic name..."
+          value={clinicSearch}
+          onChange={(e) => setClinicSearch(e.target.value)}
+          className="w-full p-3 bg-white border border-gray-200 rounded-3xl text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+        />
+        {clinicSearch && (
+          <button onClick={() => setClinicSearch("")} className="px-4 py-2 bg-slate-200 rounded-lg">Clear</button>
+        )}
+      </div>
       <div className="flex flex-wrap gap-2 mb-6">
 
 <button
@@ -355,6 +378,21 @@ All ({allCount})
 </button>
 
 </div>
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-slate-700 mb-2">Clinic filter</label>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            placeholder="Filter by clinic name..."
+            value={clinicSearch}
+            onChange={(e) => setClinicSearch(e.target.value)}
+            className="w-full p-3 bg-white border border-gray-200 rounded-3xl text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+          />
+          {clinicSearch && (
+            <button onClick={() => setClinicSearch("")} className="px-4 py-2 bg-slate-200 rounded-lg">Clear</button>
+          )}
+        </div>
+      </div>
       <div className="flex flex-wrap gap-4 mb-6">
         <div className="min-w-[220px] flex-1">
           <label className="block text-sm font-medium text-slate-700 mb-2">Treatment category</label>
@@ -504,6 +542,13 @@ All ({allCount})
 
       <div className="text-xs text-gray-500 mt-1">
         📞 {patient.phone}
+
+          {patient.clinicName && (
+            <div className="text-xs text-gray-500 mt-1 flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full" style={{ backgroundColor: patient.clinicColor || '#ddd' }} />
+              <span>{patient.clinicName}</span>
+            </div>
+          )}
       </div>
 
     </div>
