@@ -1,0 +1,163 @@
+{
+  "version": 3,
+  "pages404": true,
+  "caseSensitive": false,
+  "basePath": "",
+  "redirects": [
+    {
+      "source": "/:path+/",
+      "destination": "/:path+",
+      "internal": true,
+      "statusCode": 308,
+      "regex": "^(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))/$"
+    }
+  ],
+  "headers": [],
+  "rewrites": {
+    "beforeFiles": [],
+    "afterFiles": [],
+    "fallback": []
+  },
+  "dynamicRoutes": [
+    {
+      "page": "/edit-patient/[id]",
+      "regex": "^/edit\\-patient/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/edit\\-patient/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/edit-visit/[patientId]/[visitId]",
+      "regex": "^/edit\\-visit/([^/]+?)/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPpatientId": "nxtPpatientId",
+        "nxtPvisitId": "nxtPvisitId"
+      },
+      "namedRegex": "^/edit\\-visit/(?<nxtPpatientId>[^/]+?)/(?<nxtPvisitId>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/finish-case/[id]",
+      "regex": "^/finish\\-case/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/finish\\-case/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/missed-appointment/[id]",
+      "regex": "^/missed\\-appointment/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/missed\\-appointment/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/new-appointment/[id]",
+      "regex": "^/new\\-appointment/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/new\\-appointment/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/patient/[id]",
+      "regex": "^/patient/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/patient/(?<nxtPid>[^/]+?)(?:/)?$"
+    }
+  ],
+  "staticRoutes": [
+    {
+      "page": "/",
+      "regex": "^/(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/(?:/)?$"
+    },
+    {
+      "page": "/_not-found",
+      "regex": "^/_not\\-found(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_not\\-found(?:/)?$"
+    },
+    {
+      "page": "/about",
+      "regex": "^/about(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/about(?:/)?$"
+    },
+    {
+      "page": "/add-patient",
+      "regex": "^/add\\-patient(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/add\\-patient(?:/)?$"
+    },
+    {
+      "page": "/archive",
+      "regex": "^/archive(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/archive(?:/)?$"
+    },
+    {
+      "page": "/calendar",
+      "regex": "^/calendar(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/calendar(?:/)?$"
+    },
+    {
+      "page": "/case-sheet",
+      "regex": "^/case\\-sheet(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/case\\-sheet(?:/)?$"
+    },
+    {
+      "page": "/favicon.ico",
+      "regex": "^/favicon\\.ico(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/favicon\\.ico(?:/)?$"
+    },
+    {
+      "page": "/finished-cases",
+      "regex": "^/finished\\-cases(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/finished\\-cases(?:/)?$"
+    },
+    {
+      "page": "/patients",
+      "regex": "^/patients(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/patients(?:/)?$"
+    },
+    {
+      "page": "/retainers",
+      "regex": "^/retainers(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/retainers(?:/)?$"
+    },
+    {
+      "page": "/support",
+      "regex": "^/support(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/support(?:/)?$"
+    }
+  ],
+  "dataRoutes": [],
+  "rsc": {
+    "header": "rsc",
+    "varyHeader": "rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch",
+    "prefetchHeader": "next-router-prefetch",
+    "didPostponeHeader": "x-nextjs-postponed",
+    "contentTypeHeader": "text/x-component",
+    "suffix": ".rsc",
+    "prefetchSuffix": ".prefetch.rsc",
+    "prefetchSegmentHeader": "next-router-segment-prefetch",
+    "prefetchSegmentSuffix": ".segment.rsc",
+    "prefetchSegmentDirSuffix": ".segments"
+  },
+  "rewriteHeaders": {
+    "pathHeader": "x-nextjs-rewritten-path",
+    "queryHeader": "x-nextjs-rewritten-query"
+  }
+}
