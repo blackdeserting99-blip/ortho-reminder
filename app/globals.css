@@ -123,6 +123,13 @@ select {
   }
 }
 
+/* Ensure mobile content stays above the fixed bottom navigation */
+@media (max-width: 767px) {
+  main {
+    padding-bottom: 5rem;
+  }
+}
+
 input,
 textarea,
 select {

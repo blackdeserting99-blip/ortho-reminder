@@ -42,7 +42,7 @@ export default function Sidebar() {
   ];
 
   return (
-    <aside className="group fixed bottom-0 left-0 right-0 h-16 z-50 w-full md:fixed md:top-20 md:left-0 md:h-[calc(100%-5rem)] md:w-20 md:hover:w-72 bg-[linear-gradient(135deg,_#0f766e_0%,_#14b8a6_45%,_#2dd4bf_100%)] text-white shadow-2xl flex flex-col md:flex-col border-b border-teal-200/60 md:border-b-0 md:border-r overflow-hidden transition-[width] duration-300 ease-in-out">
+    <aside className="group fixed bottom-0 left-0 right-0 z-50 h-16 w-full md:top-20 md:bottom-auto md:left-0 md:right-auto md:h-[calc(100%-5rem)] md:w-20 md:hover:w-72 bg-[linear-gradient(135deg,_#0f766e_0%,_#14b8a6_45%,_#2dd4bf_100%)] text-white shadow-2xl flex flex-col md:flex-col border-b border-teal-200/60 md:border-b-0 md:border-r overflow-hidden transition-[width] duration-300 ease-in-out">
       <div className="h-3 md:h-4 w-full bg-[linear-gradient(90deg,_rgba(255,255,255,0.18),_rgba(255,255,255,0.02),_rgba(255,255,255,0.18))]" />
 
       <div className="hidden md:flex items-center justify-center py-5">
@@ -59,7 +59,7 @@ export default function Sidebar() {
           return (
             <Link key={item.href} href={item.href} className={`${linkClass(item.href)} justify-center md:justify-start`}>
               <Icon size={18} className="shrink-0" />
-              <span className="hidden md:inline-flex opacity-0 group-hover:opacity-100 transition-opacity duration-300 ease-in-out text-sm font-medium ml-2">{item.label}</span>
+              <span className="inline-flex transition-opacity duration-150 ease-in-out text-sm font-medium ml-2">{item.label}</span>
             </Link>
           );
         })}
