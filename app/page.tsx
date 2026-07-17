@@ -14,7 +14,8 @@ type Patient = {
         bracketType?: string;
         appointmentDate: string;
         appointmentTime?: string;
-
+clinicName?: string;
+clinicColor?: string;
         totalFee?: number;
         totalPaid?: number;
         visits?: any[];

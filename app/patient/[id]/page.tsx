@@ -53,6 +53,8 @@ type Patient = {
   age?: number;
   appointmentDate: string;
   appointmentTime?: string;
+  clinicName?: string;
+clinicColor?: string;
   caseStatus?: "active" | "retainer" | "finished" | "cancelled" | "archived";
   notes?: string;
   totalFee?: number;
