@@ -47,13 +47,19 @@ export default function CalendarPage() {
   };
 
   useEffect(() => {
-    const rawPatients = JSON.parse(localStorage.getItem("patients") || "[]");
-    const patients = rawPatients.map((p: any) => ({
-      ...p,
-      appointmentDate: normalizeAppointmentDate(p.appointmentDate),
-    }));
+    const loadPatients = async () => {
+      try {
+        const response = await fetch("/api/patients", { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error("Failed to load patients");
+        }
+        const rawPatients = await response.json();
+        const patients = rawPatients.map((p: any) => ({
+          ...p,
+          appointmentDate: normalizeAppointmentDate(p.appointmentDate),
+        }));
 
-    const { daysInMonth: totalDays, startingDayOfWeek, year, month } = getDaysInMonth(currentDate);
+        const { daysInMonth: totalDays, startingDayOfWeek, year, month } = getDaysInMonth(currentDate);
 
     const days: DayAppointments[] = [];
 
@@ -88,7 +94,13 @@ export default function CalendarPage() {
       });
     }
 
-    setDaysInMonth(days);
+        setDaysInMonth(days);
+      } catch {
+        setDaysInMonth([]);
+      }
+    };
+
+    loadPatients();
   }, [currentDate]);
 
   const convertTo24Hour = (time: string) => {
@@ -207,7 +219,7 @@ export default function CalendarPage() {
                             {dayData.patients.map((patient: any) => (
                               <Link
                                 key={patient.id}
-                                href={`/patient/${patient.id}`}
+                                href={`/patients/${patient.id}`}
                                 className="block p-2 bg-teal-100 hover:bg-teal-200 rounded-lg transition group"
                               >
                                 <div className="flex items-center justify-between">

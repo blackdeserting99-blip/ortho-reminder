@@ -67,25 +67,27 @@ export default function PatientsPage() {
   });
 
   useEffect(() => {
-    const savedPatients = JSON.parse(
-      localStorage.getItem("patients") || "[]"
-    );
-
-    // Auto-migrate existing patients to add bracketType if missing
-    const migratedPatients: Patient[] = savedPatients.map((patient: any) => {
-      const updated: any = { ...patient };
-      if (patient.treatment === "Fixed Braces" && !patient.bracketType) {
-        updated.bracketType = "MBT System";
+    const loadPatients = async () => {
+      try {
+        const response = await fetch("/api/patients", { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error("Failed to load patients");
+        }
+        const data = await response.json();
+        const migratedPatients: Patient[] = (data || []).map((patient: any) => {
+          const updated: any = { ...patient };
+          if (patient.treatment === "Fixed Braces" && !patient.bracketType) {
+            updated.bracketType = "MBT System";
+          }
+          return updated;
+        });
+        setPatients(migratedPatients);
+      } catch {
+        setPatients([]);
       }
-      return updated;
-    });
+    };
 
-    // Update localStorage if migration happened
-    if (JSON.stringify(savedPatients) !== JSON.stringify(migratedPatients)) {
-      localStorage.setItem("patients", JSON.stringify(migratedPatients));
-    }
-
-    setPatients(migratedPatients);
+    loadPatients();
   }, []);
 
 const [showDeletePatientModal, setShowDeletePatientModal] = useState(false);
@@ -97,32 +99,44 @@ const promptDeletePatient = (id: number) => {
   setShowDeletePatientModal(true);
 };
 
-const confirmDeletePatient = () => {
+const confirmDeletePatient = async () => {
   if (deletePatientId === null) return;
-  const updatedPatients = patients.filter((patient) => patient.id !== deletePatientId);
-  setPatients(updatedPatients);
-  localStorage.setItem("patients", JSON.stringify(updatedPatients));
+  try {
+    const response = await fetch(`/api/patients/${deletePatientId}`, { method: "DELETE" });
+    if (!response.ok) {
+      throw new Error("Delete failed");
+    }
+    const updatedPatients = patients.filter((patient) => patient.id !== deletePatientId);
+    setPatients(updatedPatients);
+  } catch {
+    // keep current UI intact and simply close the modal on failure
+  }
   setShowDeletePatientModal(false);
   setDeletePatientId(null);
 };
-const archivePatient = (id: number) => {
-  const updatedPatients = patients.map((patient) =>
-    patient.id === id
-      ? { ...patient, caseStatus: "archived" as const }
-      : patient
-  );
-
-  setPatients(updatedPatients);
-
-  localStorage.setItem(
-    "patients",
-    JSON.stringify(updatedPatients)
-  );
+const archivePatient = async (id: number) => {
+  try {
+    const response = await fetch(`/api/patients/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ caseStatus: "archived" }),
+    });
+    if (!response.ok) {
+      throw new Error("Archive failed");
+    }
+    const updatedPatients = patients.map((patient) =>
+      patient.id === id
+        ? { ...patient, caseStatus: "archived" as const }
+        : patient
+    );
+    setPatients(updatedPatients);
+  } catch {
+    // keep current UI intact
+  }
 };
 
 const exportPatients = () => {
-  const data =
-    localStorage.getItem("patients") || "[]";
+  const data = JSON.stringify(patients, null, 2);
 
   const blob = new Blob([data], {
     type: "application/json",
@@ -259,15 +273,15 @@ const overdueCount = clinicFiltered.filter(
 ).length;
   return (
     <>
-    <div className="flex flex-col md:flex-row min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(45,212,191,0.16),_transparent_36%),linear-gradient(135deg,_#f4fcfb_0%,_#eef9f7_100%)] px-4 py-6 sm:px-6 lg:px-8">
       <Sidebar />
-      <main className="flex-1 p-6 md:p-8 w-full">
+      <main className="mx-auto flex max-w-7xl flex-col gap-6">
 
-<h1 className="text-3xl font-bold text-slate-800 mb-8">
+<h1 className="text-3xl font-semibold text-slate-900">
           Patients
       </h1>
 
-      <div className="flex flex-wrap gap-4 mb-6">
+      <div className="flex flex-wrap gap-4 rounded-[24px] border border-slate-200/80 bg-white/80 p-4 shadow-sm backdrop-blur-xl">
         <Link
           href="/add-patient"
           className="bg-teal-600 text-white px-6 py-3 rounded-lg"
@@ -527,7 +541,7 @@ All ({allCount})
       <div className="flex items-center gap-2">
 
         <Link
-          href={`/patient/${patient.id}`}
+          href={`/patients/${patient.id}`}
           className="font-bold text-gray-900 hover:text-teal-600"
         >
           {patient.name}
@@ -634,7 +648,7 @@ All ({allCount})
 <div className="flex gap-2">
 
   <Link
-    href={`/patient/${patient.id}`}
+    href={`/patients/${patient.id}`}
     className="w-9 h-9 rounded-xl border border-teal-200 flex items-center justify-center text-teal-600 hover:bg-teal-50 transition"
     title="Profile"
   >

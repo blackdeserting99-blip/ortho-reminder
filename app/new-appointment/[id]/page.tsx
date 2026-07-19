@@ -46,6 +46,7 @@ type Patient = {
 export default function NewAppointmentPage() {
   const params = useParams();
   const router = useRouter();
+  const id = params?.id ?? "";
 
   const [patient, setPatient] =
     useState<Patient | null>(null);
@@ -55,7 +56,6 @@ export default function NewAppointmentPage() {
 
   const [appointmentDate, setAppointmentDate] =
     useState("");
-
   const [appointmentTime, setAppointmentTime] =
     useState("04:00 PM");
 
@@ -189,57 +189,39 @@ const [conflictWarning, setConflictWarning] =
 
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect */
-    const patients = JSON.parse(
-      localStorage.getItem("patients") || "[]"
-    );
+    const loadPatient = async () => {
+      try {
+const response = await fetch(`/api/patients/${id}`, { cache: "no-store", credentials: "same-origin" });
+        if (!response.ok) {
+          throw new Error("Patient not found");
+        }
+        const foundPatient = await response.json();
 
-    const foundPatient = patients.find(
-      (p: Patient) =>
-        p.id.toString() === params.id
-    );
+        if (foundPatient) {
+          setPatient(foundPatient);
 
-    if (foundPatient) {
-      setPatient(foundPatient);
+          setAppointmentDate("");
+          setAppointmentTime(foundPatient.appointmentTime || "04:00 PM");
+          setElasticEnabled(foundPatient.elasticEnabled || false);
+          setElasticType(foundPatient.elasticType || "Class II");
 
-      setAppointmentDate("");
+          const wireSystem = foundPatient.bracketType && foundPatient.bracketType.toLowerCase().includes("damon") ? "Damon" : "MBT/Roth";
 
-      setAppointmentTime(
-        foundPatient.appointmentTime ||
-          "04:00 PM"
-      );
+          setUpperWireSystem(wireSystem as "MBT/Roth" | "Damon");
+          setLowerWireSystem(wireSystem as "MBT/Roth" | "Damon");
+          setPlannedUpperWireSystem(wireSystem as "MBT/Roth" | "Damon");
+          setPlannedLowerWireSystem(wireSystem as "MBT/Roth" | "Damon");
+        }
+      } catch {
+        setPatient(null);
+      }
+    };
 
-      setElasticEnabled(
-        foundPatient.elasticEnabled || false
-      );
-
-      setElasticType(
-        foundPatient.elasticType ||
-          "Class II"
-      );
-
-      const wireSystem =
-        foundPatient.bracketType &&
-        foundPatient.bracketType
-          .toLowerCase()
-          .includes("damon")
-          ? "Damon"
-          : "MBT/Roth";
-
-      setUpperWireSystem(
-        wireSystem as "MBT/Roth" | "Damon"
-      );
-      setLowerWireSystem(
-        wireSystem as "MBT/Roth" | "Damon"
-      );
-      setPlannedUpperWireSystem(
-        wireSystem as "MBT/Roth" | "Damon"
-      );
-      setPlannedLowerWireSystem(
-        wireSystem as "MBT/Roth" | "Damon"
-      );
+    if (id) {
+      loadPatient();
     }
     /* eslint-enable react-hooks/set-state-in-effect */
-  }, [params.id]);
+  }, [id]);
 
   const getSelectedDate = () => {
     if (appointmentMode === "Manual") {
@@ -320,164 +302,121 @@ const [conflictWarning, setConflictWarning] =
 
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect */
-    const patients = JSON.parse(
-      localStorage.getItem("patients") || "[]"
-    );
+    const checkConflict = async () => {
+      if (!selectedDate || !appointmentTime) {
+        setTimeConflictMessage("");
+        return;
+      }
+      try {
+        const response = await fetch("/api/patients", { cache: "no-store", credentials: "same-origin" });
+        if (!response.ok) {
+          throw new Error("Failed to load patients");
+        }
+        const patients = await response.json();
+        const conflict = patients.some((p: Patient) => p.id.toString() !== id && p.appointmentDate === selectedDate && p.appointmentTime === appointmentTime);
 
-    if (!selectedDate || !appointmentTime) {
-      setTimeConflictMessage("");
-      return;
-    }
+        if (conflict) {
+          setTimeConflictMessage(`Warning: Another patient is scheduled on ${formatDateDMY(selectedDate)} at ${appointmentTime}.`);
+        } else {
+          setTimeConflictMessage("");
+        }
+      } catch {
+        setTimeConflictMessage("");
+      }
+    };
 
-    const conflict = patients.some(
-      (p: Patient) =>
-        p.id.toString() !== params.id &&
-        p.appointmentDate === selectedDate &&
-        p.appointmentTime === appointmentTime
-    );
-
-    if (conflict) {
-      setTimeConflictMessage(
-        `Warning: Another patient is scheduled on ${formatDateDMY(selectedDate)} at ${appointmentTime}.`
-      );
-    } else {
-      setTimeConflictMessage("");
-    }
+    checkConflict();
     /* eslint-enable react-hooks/set-state-in-effect */
-  }, [selectedDate, appointmentTime, params.id]);
+  }, [selectedDate, appointmentTime, id]);
 
-  const saveAppointment = () => {
-    const patients = JSON.parse(
-      localStorage.getItem("patients") || "[]"
-    );
-
+  const saveAppointment = async () => {
     const payment = Number(paymentReceived.replace(/,/g, "")) || 0;
     const additional = Number(additionalAmount.replace(/,/g, "")) || 0;
 
-    const conflict = patients.some(
-      (p: Patient) =>
-        p.id.toString() !== params.id &&
-        p.appointmentDate === selectedDate &&
-        p.appointmentTime === appointmentTime
-    );
+    try {
+      const response = await fetch("/api/patients", { cache: "no-store", credentials: "same-origin" });
+      if (!response.ok) {
+        throw new Error("Failed to load patients");
+      }
+      const patients = await response.json();
+      const conflict = patients.some((p: Patient) => p.id.toString() !== id && p.appointmentDate === selectedDate && p.appointmentTime === appointmentTime);
 
-    if (conflict) {
-      setConflictWarning(
-        `Warning: Another patient already has an appointment on ${formatDateDMY(selectedDate)} at ${appointmentTime}.`
-      );
-    } else {
+      if (conflict) {
+        setConflictWarning(`Warning: Another patient already has an appointment on ${formatDateDMY(selectedDate)} at ${appointmentTime}.`);
+        return;
+      }
+
       setConflictWarning("");
+
+      const patientResponse = await fetch(`/api/patients/${id}`, { cache: "no-store", credentials: "same-origin" });
+      if (!patientResponse.ok) {
+        throw new Error("Patient not found");
+      }
+      const existingPatient = await patientResponse.json();
+      const existingVisits = existingPatient.visits || [];
+      const today = new Date().toISOString().split("T")[0];
+      const initialPlannedNotes = existingVisits.length === 0 ? existingPatient.plannedNotes || "" : "";
+
+      const finalUpperWire = isFixedBraces ? formatWireLabel(upperWireSystem, upperWireType, upperWireGauge, upperWireOther, upperDamonWire, upperDamonWireOther) : "";
+      const finalLowerWire = isFixedBraces ? formatWireLabel(lowerWireSystem, lowerWireType, lowerWireGauge, lowerWireOther, lowerDamonWire, lowerDamonWireOther) : "";
+      const plannedUpperWire = isFixedBraces && plannedUpperArchEnabled ? formatWireLabel(plannedUpperWireSystem, plannedUpperWireType, plannedUpperWireGauge, plannedUpperWireOther, plannedUpperDamonWire, plannedUpperDamonWireOther) : "";
+      const plannedLowerWire = isFixedBraces && plannedLowerArchEnabled ? formatWireLabel(plannedLowerWireSystem, plannedLowerWireType, plannedLowerWireGauge, plannedLowerWireOther, plannedLowerDamonWire, plannedLowerDamonWireOther) : "";
+
+      const newVisit = {
+        date: today,
+        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        nextDate: selectedDate,
+        nextTime: appointmentTime,
+        payment,
+        additionalPayment: additionalEnabled ? additional : 0,
+        additionalPaid: additionalEnabled ? !!additionalCollected : false,
+        additionalReason: additionalEnabled ? additionalReason : "",
+        visitNotes,
+        plannedNotes: plannedNotes || initialPlannedNotes,
+        plannedUpperArch: plannedUpperWire,
+        plannedLowerArch: plannedLowerWire,
+        plannedElasticType: isFixedBraces && plannedElasticEnabled ? plannedElasticType : "",
+        plannedElasticGauge: isFixedBraces && plannedElasticEnabled ? plannedElasticGauge : "",
+        plannedElasticSize: isFixedBraces && plannedElasticEnabled ? plannedElasticSize : "",
+        plannedElasticOther: isFixedBraces && plannedElasticEnabled ? plannedElasticOther : "",
+        plannedTadsNote: isFixedBraces && plannedTadsEnabled ? plannedTadsNote : "",
+        upperWire: finalUpperWire,
+        lowerWire: finalLowerWire,
+        upperArch: finalUpperWire,
+        lowerArch: finalLowerWire,
+        elasticEnabled: isFixedBraces ? elasticEnabled : false,
+        elasticType: isFixedBraces && elasticEnabled ? elasticType : "",
+        elasticOther: isFixedBraces ? elasticOther : "",
+        elasticGauge: isFixedBraces ? (elasticEnabled ? elasticGauge : "") : "",
+        elasticSize: isFixedBraces ? (elasticEnabled ? elasticSize : "") : "",
+        tadsEnabled: isFixedBraces ? tadsEnabled : false,
+        tadsNote: isFixedBraces ? tadsNote : "",
+      };
+
+      const updateResponse = await fetch(`/api/patients/${id}`, {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          appointmentDate: selectedDate,
+          appointmentTime,
+          firstAppointment: false,
+          elasticEnabled,
+          elasticType: elasticEnabled ? elasticType : "",
+          totalPaid: (existingPatient.totalPaid || 0) + payment + (additionalCollected ? additional : 0),
+          plannedNotes: existingVisits.length === 0 ? "" : existingPatient.plannedNotes,
+          visits: [...existingVisits, newVisit],
+        }),
+      });
+      if (!updateResponse.ok) {
+        throw new Error("Update failed");
+      }
+    } catch {
+      setConflictWarning("Unable to save the appointment right now.");
+      return;
     }
 
-    const updatedPatients = patients.map(
-      (p: Patient) => {
-        if (p.id.toString() === params.id) {
-          const existingVisits = p.visits || [];
-          const today = new Date().toISOString().split("T")[0];
-          const initialPlannedNotes = existingVisits.length === 0 ? p.plannedNotes || "" : "";
-
-          const finalUpperWire = isFixedBraces
-            ? formatWireLabel(
-                upperWireSystem,
-                upperWireType,
-                upperWireGauge,
-                upperWireOther,
-                upperDamonWire,
-                upperDamonWireOther
-              )
-            : "";
-          const finalLowerWire = isFixedBraces
-            ? formatWireLabel(
-                lowerWireSystem,
-                lowerWireType,
-                lowerWireGauge,
-                lowerWireOther,
-                lowerDamonWire,
-                lowerDamonWireOther
-              )
-            : "";
-          const plannedUpperWire = isFixedBraces && plannedUpperArchEnabled
-            ? formatWireLabel(
-                plannedUpperWireSystem,
-                plannedUpperWireType,
-                plannedUpperWireGauge,
-                plannedUpperWireOther,
-                plannedUpperDamonWire,
-                plannedUpperDamonWireOther
-              )
-            : "";
-          const plannedLowerWire = isFixedBraces && plannedLowerArchEnabled
-            ? formatWireLabel(
-                plannedLowerWireSystem,
-                plannedLowerWireType,
-                plannedLowerWireGauge,
-                plannedLowerWireOther,
-                plannedLowerDamonWire,
-                plannedLowerDamonWireOther
-              )
-            : "";
-
-          const newVisit = {
-            date: today,
-            time: new Date().toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            }),
-            nextDate: selectedDate,
-            nextTime: appointmentTime,
-            payment,
-            additionalPayment: additionalEnabled ? additional : 0,
-            additionalPaid: additionalEnabled ? !!additionalCollected : false,
-            additionalReason: additionalEnabled ? additionalReason : "",
-            visitNotes,
-            plannedNotes: plannedNotes || initialPlannedNotes,
-            plannedUpperArch: plannedUpperWire,
-            plannedLowerArch: plannedLowerWire,
-            plannedElasticType: isFixedBraces && plannedElasticEnabled
-              ? plannedElasticType
-              : "",
-            plannedElasticGauge: isFixedBraces && plannedElasticEnabled ? plannedElasticGauge : "",
-            plannedElasticSize: isFixedBraces && plannedElasticEnabled ? plannedElasticSize : "",
-            plannedElasticOther: isFixedBraces && plannedElasticEnabled ? plannedElasticOther : "",
-            plannedTadsNote: isFixedBraces && plannedTadsEnabled
-              ? plannedTadsNote
-              : "",
-            upperWire: finalUpperWire,
-            lowerWire: finalLowerWire,
-            upperArch: finalUpperWire,
-            lowerArch: finalLowerWire,
-            elasticEnabled: isFixedBraces ? elasticEnabled : false,
-            elasticType: isFixedBraces && elasticEnabled ? elasticType : "",
-            elasticOther: isFixedBraces ? elasticOther : "",
-            elasticGauge: isFixedBraces ? (elasticEnabled ? elasticGauge : "") : "",
-            elasticSize: isFixedBraces ? (elasticEnabled ? elasticSize : "") : "",
-            tadsEnabled: isFixedBraces ? tadsEnabled : false,
-            tadsNote: isFixedBraces ? tadsNote : "",
-          };
-
-          return {
-            ...p,
-            appointmentDate: selectedDate,
-            appointmentTime,
-            firstAppointment: false,
-            elasticEnabled,
-            elasticType: elasticEnabled ? elasticType : "",
-            totalPaid: (p.totalPaid || 0) + payment + (additionalCollected ? additional : 0),
-            plannedNotes: existingVisits.length === 0 ? "" : p.plannedNotes,
-            visits: [...existingVisits, newVisit],
-          };
-        }
-
-        return p;
-      }
-    );
-
-    localStorage.setItem(
-      "patients",
-      JSON.stringify(updatedPatients)
-    );
-
-    router.push(`/patient/${params.id}`);
+    router.push(`/patients/${id}`);
   };
 
   if (!patient) {
@@ -1352,14 +1291,14 @@ const [conflictWarning, setConflictWarning] =
                 <div className="grid gap-3 sm:grid-cols-2">
                   <button
                     type="button"
-                    onClick={() => router.push(`/finish-case/${params.id}`)}
+                    onClick={() => router.push(`/finish-case/${id}`)}
                     className="w-full bg-green-600 text-white px-5 py-3 rounded-lg font-semibold hover:bg-green-700 transition"
                   >
                     Finish Case
                   </button>
                   <button
                     type="button"
-                    onClick={() => router.push(`/finish-case/${params.id}?mode=retainer`)}
+                    onClick={() => router.push(`/finish-case/${id}?mode=retainer`)}
                     className="w-full bg-purple-600 text-white px-5 py-3 rounded-lg font-semibold hover:bg-purple-700 transition"
                   >
                     Move to Retainer

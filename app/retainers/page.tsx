@@ -32,9 +32,21 @@ export default function RetainersPage() {
   const [appointmentTime, setAppointmentTime] = useState("04:00 PM");
 
   useEffect(() => {
-    const savedPatients = JSON.parse(localStorage.getItem("patients") || "[]");
-    const retainers = savedPatients.  filter((patient: Patient) => patient.caseStatus === "retainer");
-    setRetainerPatients(retainers);
+    const loadRetainers = async () => {
+      try {
+        const response = await fetch("/api/patients", { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error("Failed to load patients");
+        }
+        const savedPatients = await response.json();
+        const retainers = savedPatients.filter((patient: Patient) => patient.caseStatus === "retainer");
+        setRetainerPatients(retainers);
+      } catch {
+        setRetainerPatients([]);
+      }
+    };
+
+    loadRetainers();
   }, []);
 
   const getSelectedDate = () => {
@@ -48,14 +60,22 @@ export default function RetainersPage() {
     return futureDate.toISOString().split("T")[0];
   };
 
-  const updateRetainerPatient = (id: number, changes: Partial<Patient>) => {
-    const savedPatients = JSON.parse(localStorage.getItem("patients") || "[]");
-    const updatedPatients = savedPatients.map((patient: any) =>
-      patient.id === id ? { ...patient, ...changes } : patient
-    );
-    localStorage.setItem("patients", JSON.stringify(updatedPatients));
-    const retainers = updatedPatients.filter((patient: Patient) => patient.caseStatus === "retainer");
-    setRetainerPatients(retainers);
+  const updateRetainerPatient = async (id: number, changes: Partial<Patient>) => {
+    try {
+      const response = await fetch(`/api/patients/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(changes),
+      });
+      if (!response.ok) {
+        throw new Error("Update failed");
+      }
+      const updatedPatient = await response.json();
+      const retainers = retainerPatients.map((patient) => (patient.id === id ? { ...patient, ...updatedPatient } : patient));
+      setRetainerPatients(retainers);
+    } catch {
+      // keep UI intact on error
+    }
   };
 
   const saveAppointment = (patientId: number) => {
@@ -223,7 +243,7 @@ export default function RetainersPage() {
                         </td>
                         <td className="p-4 align-top">
                           <Link
-                            href={`/patient/${patient.id}`}
+                            href={`/patients/${patient.id}`}
                             className="inline-flex items-center justify-center rounded-2xl bg-purple-600 px-4 py-2 text-white transition hover:bg-purple-700"
                           >
                             View Record

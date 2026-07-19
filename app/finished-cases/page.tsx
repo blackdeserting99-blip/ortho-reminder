@@ -31,28 +31,39 @@ export default function FinishedCasesPage() {
   const [highlightId, setHighlightId] = useState<number | null>(null);
 
   useEffect(() => {
-    const patients = JSON.parse(localStorage.getItem("patients") || "[]");
+    const loadFinishedPatients = async () => {
+      try {
+        const response = await fetch("/api/patients", { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error("Failed to load patients");
+        }
+        const patients = await response.json();
+        setFinishedPatients(patients.filter((p: Patient) => p.caseStatus === "finished"));
 
-    setFinishedPatients(patients.filter((p: Patient) => p.caseStatus === "finished"));
+        // Handle focusing from external actions
+        const params = new URLSearchParams(window.location.search);
+        const focus = params.get("focus");
+        const mode = params.get("mode");
+        if (focus) {
+          const id = Number(focus);
+          setHighlightId(id);
+          if (mode === "finished") setShowFinished(true);
 
-    // Handle focusing from external actions
-    const params = new URLSearchParams(window.location.search);
-    const focus = params.get("focus");
-    const mode = params.get("mode");
-    if (focus) {
-      const id = Number(focus);
-      setHighlightId(id);
-      if (mode === "finished") setShowFinished(true);
+          // Scroll into view shortly after render
+          setTimeout(() => {
+            const el = document.getElementById(`patient-${id}`);
+            if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+          }, 250);
 
-      // Scroll into view shortly after render
-      setTimeout(() => {
-        const el = document.getElementById(`patient-${id}`);
-        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-      }, 250);
+          // Clear highlight after a short delay
+          setTimeout(() => setHighlightId(null), 3500);
+        }
+      } catch {
+        setFinishedPatients([]);
+      }
+    };
 
-      // Clear highlight after a short delay
-      setTimeout(() => setHighlightId(null), 3500);
-    }
+    loadFinishedPatients();
   }, []);
 
   const router = useRouter();
@@ -70,21 +81,28 @@ export default function FinishedCasesPage() {
     setShowUnfinishModal(true);
   };
 
-  const confirmUnfinish = () => {
+  const confirmUnfinish = async () => {
     const id = unfinishTargetId;
     if (!id) return;
-    const patients = JSON.parse(localStorage.getItem("patients") || "[]");
-    const updatedPatients = patients.map((p: any) =>
-      p.id === id ? { ...p, caseStatus: "active" } : p
-    );
-    localStorage.setItem("patients", JSON.stringify(updatedPatients));
-    setShowUnfinishModal(false);
-    if (unfinishScheduleNow) {
-      router.push(`/new-appointment/${id}?focus=current`);
-    } else {
-      setFinishedPatients(updatedPatients.filter((p: Patient) => p.caseStatus === "finished"));
-      setHighlightId(id);
-      setTimeout(() => setHighlightId(null), 1500);
+    try {
+      const response = await fetch(`/api/patients/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ caseStatus: "active" }),
+      });
+      if (!response.ok) {
+        throw new Error("Unfinish failed");
+      }
+      setShowUnfinishModal(false);
+      if (unfinishScheduleNow) {
+        router.push(`/new-appointment/${id}?focus=current`);
+      } else {
+        setFinishedPatients((prev) => prev.filter((p: Patient) => p.id !== id));
+        setHighlightId(id);
+        setTimeout(() => setHighlightId(null), 1500);
+      }
+    } catch {
+      setShowUnfinishModal(false);
     }
   };
 
@@ -129,7 +147,7 @@ export default function FinishedCasesPage() {
                       </div>
                       <div className="flex gap-2 flex-wrap">
                         <Link
-                          href={`/patient/${patient.id}`}
+                          href={`/patients/${patient.id}`}
                           className="bg-teal-600 text-white px-3 py-1 rounded"
                         >
                           View Record

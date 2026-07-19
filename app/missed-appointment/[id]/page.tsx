@@ -10,6 +10,8 @@ export default function MissedAppointmentPage() {
   const params = useParams();
   const router = useRouter();
 
+  const id = params?.id ?? "";
+
   const [reason, setReason] =
     useState("");
 
@@ -19,42 +21,24 @@ export default function MissedAppointmentPage() {
   const [newDate, setNewDate] =
     useState("");
 
-  const saveMissedAppointment = () => {
-    const patients = JSON.parse(
-      localStorage.getItem("patients") || "[]"
-    );
-
-    const updatedPatients = patients.map(
-      (patient: any) => {
-        if (
-          patient.id.toString() !==
-          params.id
-        ) {
-          return patient;
-        }
-
-        return {
-          ...patient,
-
-          appointmentStatus:
-            action === "cancel"
-              ? "cancelled"
-              : "pending",
-
-          appointmentDate:
-            action === "cancel"
-              ? ""
-              : newDate,
-
-          missedReason: reason,
-        };
+  const saveMissedAppointment = async () => {
+    try {
+      const response = await fetch(`/api/patients/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          caseStatus: action === "cancel" ? "cancelled" : "active",
+          appointmentDate: action === "cancel" ? "" : newDate,
+          appointmentTime: action === "cancel" ? "" : undefined,
+          notes: reason || undefined,
+        }),
+      });
+      if (!response.ok) {
+        throw new Error("Update failed");
       }
-    );
-
-    localStorage.setItem(
-      "patients",
-      JSON.stringify(updatedPatients)
-    );
+    } catch {
+      // keep current navigation behavior on error
+    }
 
     router.push("/");
   };

@@ -8,11 +8,67 @@
   --surface-soft: #eaf5f7;
   --border: #d7e4eb;
   --muted: #5b6b7a;
-  --primary: #2563eb;
-  --primary-soft: #dbeafe;
-  --primary-strong: #1d4ed8;
-  --accent: #2bb7b0;
-  --accent-soft: #def7f4;
+  --primary: #0f766e;
+  --primary-soft: #ecfdf8;
+  --primary-strong: #0d5d57;
+  --accent: #14b8a6;
+  --accent-soft: #e6fffb;
+  --accent-light: #2dd4bf;
+}
+
+.brand-gradient {
+  background: linear-gradient(135deg, #0f766e 0%, #14b8a6 45%, #2dd4bf 100%);
+}
+
+.brand-soft {
+  background-color: rgba(20, 184, 166, 0.12);
+  color: #0f766e;
+}
+
+.brand-border {
+  border-color: rgba(20, 184, 166, 0.24);
+}
+
+.bg-blue-600,
+.bg-blue-700,
+.bg-indigo-600,
+.hover\:bg-blue-700:hover,
+.hover\:bg-indigo-600:hover {
+  background-color: #0f766e !important;
+  background-image: linear-gradient(135deg, #0f766e 0%, #14b8a6 45%, #2dd4bf 100%) !important;
+}
+
+.hover\:bg-blue-700:hover,
+.hover\:bg-indigo-600:hover {
+  background-color: #0d5d57 !important;
+}
+
+.text-blue-600,
+.text-blue-700,
+.text-indigo-600,
+.text-purple-600,
+.text-purple-700 {
+  color: #0f766e !important;
+}
+
+.bg-purple-600,
+.bg-purple-700,
+.hover\:bg-purple-600:hover,
+.hover\:bg-purple-700:hover {
+  background-color: #14b8a6 !important;
+  background-image: linear-gradient(135deg, #14b8a6 0%, #2dd4bf 100%) !important;
+}
+
+.border-blue-500,
+.border-blue-600,
+.border-purple-500,
+.border-purple-600 {
+  border-color: #14b8a6 !important;
+}
+
+.ring-blue-500,
+.ring-purple-500 {
+  --tw-ring-color: rgba(20, 184, 166, 0.45) !important;
 }
 
 @theme inline {
@@ -150,7 +206,7 @@ input:focus,
 textarea:focus,
 select:focus,
 button:focus-visible {
-  outline: 2px solid rgba(37, 99, 235, 0.22);
+  outline: 2px solid rgba(20, 184, 166, 0.28);
   outline-offset: 4px;
 }
 

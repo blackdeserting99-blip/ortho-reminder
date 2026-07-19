@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
+import path from "path";
 
 const nextConfig: NextConfig = {
+  // Ensure output tracing root is set to this project root so Next's server
+  // bundles include vendor chunks (avoids missing './vendor-chunks/*' at runtime)
+  outputFileTracingRoot: path.resolve(__dirname),
   images: {
     unoptimized: true,
   },

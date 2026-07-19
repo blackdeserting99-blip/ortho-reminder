@@ -8,6 +8,7 @@ import DateInput from "../../components/DateInput";
 export default function EditPatientPage() {
   const router = useRouter();
   const params = useParams();
+  const id = params?.id ?? "";
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -37,84 +38,62 @@ const [bracketType, setBracketType] = useState("");
     useState("");
 
   useEffect(() => {
-    const patients = JSON.parse(
-      localStorage.getItem("patients") || "[]"
-    );
-
-    const patient = patients.find(
-      (p: any) =>
-        p.id.toString() === params.id
-    );
-
-    if (patient) {
-      setName(patient.name || "");
-setPhone(patient.phone || "");
-setAddress(patient.address || "");
-setAge(patient.age ? patient.age.toString() : "");
-setTreatment(patient.treatment || "");
-setBracketType(patient.bracketType || "");
-      setAppointmentDate(
-        patient.appointmentDate || ""
-      );
-      setAppointmentTime(
-        patient.appointmentTime || ""
-      );
-      setFirstAppointment(
-        patient.firstAppointment || false
-      );
-
-      setNotes(patient.notes || "");
-
-      setTotalFee(
-        patient.totalFee
-          ? patient.totalFee.toString()
-          : ""
-      );
-    }
-  }, [params.id]);
-
-  const saveChanges = () => {
-    const patients = JSON.parse(
-      localStorage.getItem("patients") || "[]"
-    );
-
-    const updatedPatients = patients.map(
-      (patient: any) => {
-        if (
-          patient.id.toString() === params.id
-        ) {
-          return {
-            ...patient,
-            name,
-            phone,
-            address,
-            age: age ? Number(age) : undefined,
-            treatment,
-            bracketType: treatment === "Fixed Braces" ? bracketType : undefined,
-            appointmentDate,
-            appointmentTime,
-            firstAppointment,
-            notes,
-
-            totalFee:
-              Number(
-                totalFee.replace(/,/g, "")
-              ) || 0,
-          };
+    const loadPatient = async () => {
+      try {
+        const response = await fetch(`/api/patients/${id}`, { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error("Patient not found");
         }
-
-        return patient;
+        const patient = await response.json();
+        if (patient) {
+          setName(patient.name || "");
+          setPhone(patient.phone || "");
+          setAddress(patient.address || "");
+          setAge(patient.age ? patient.age.toString() : "");
+          setTreatment(patient.treatment || "");
+          setBracketType(patient.bracketType || "");
+          setAppointmentDate(patient.appointmentDate || "");
+          setAppointmentTime(patient.appointmentTime || "");
+          setFirstAppointment(patient.firstAppointment || false);
+          setNotes(patient.notes || "");
+          setTotalFee(patient.totalFee ? patient.totalFee.toString() : "");
+        }
+      } catch {
+        // leave the form empty on failure
       }
-    );
+    };
 
-    localStorage.setItem(
-      "patients",
-      JSON.stringify(updatedPatients)
-    );
+    if (id) {
+      loadPatient();
+    }
+  }, [id]);
 
-    router.push(
-      `/patient/${params.id}`
-    );
+  const saveChanges = async () => {
+    try {
+      const response = await fetch(`/api/patients/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          phone,
+          address,
+          age: age ? Number(age) : undefined,
+          treatment,
+          bracketType: treatment === "Fixed Braces" ? bracketType : undefined,
+          appointmentDate,
+          appointmentTime,
+          firstAppointment,
+          notes,
+          totalFee: Number(totalFee.replace(/,/g, "")) || 0,
+        }),
+      });
+      if (!response.ok) {
+        throw new Error("Update failed");
+      }
+      router.push(`/patients/${id}`);
+    } catch {
+      // keep the existing form behavior on error
+    }
   };
 
   return (

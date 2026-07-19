@@ -69,18 +69,22 @@ clinicColor?: string;
         target?.scrollIntoView({ behavior: "smooth", block: "start" });
       };
       useEffect(() => {
-        const patients = JSON.parse(
-          localStorage.getItem("patients") || "[]"
-        );
+        const loadPatients = async () => {
+          try {
+            const response = await fetch("/api/patients", { cache: "no-store" });
+            if (!response.ok) {
+              throw new Error("Failed to load patients");
+            }
+            const patients = await response.json();
 
-        setPatientCount(
-          patients.filter(
-            (p: any) =>
-              p.caseStatus !== "archived" &&
-              p.caseStatus !== "finished" &&
-              p.caseStatus !== "retainer"
-          ).length
-        );
+            setPatientCount(
+              patients.filter(
+                (p: any) =>
+                  p.caseStatus !== "archived" &&
+                  p.caseStatus !== "finished" &&
+                  p.caseStatus !== "retainer"
+              ).length
+            );
 
         const today =
           new Date().toLocaleDateString("en-CA");
@@ -155,9 +159,18 @@ clinicColor?: string;
           b.appointmentDate
         )
       );
-      setTodayPatients(todaysAppointments);
-      setOverduePatients(overdueAppointments);
-      setUpcomingPatients(upcomingAppointments);
+            setTodayPatients(todaysAppointments);
+            setOverduePatients(overdueAppointments);
+            setUpcomingPatients(upcomingAppointments);
+          } catch {
+            setPatientCount(0);
+            setTodayPatients([]);
+            setOverduePatients([]);
+            setUpcomingPatients([]);
+          }
+        };
+
+        loadPatients();
       }, [upcomingMode]);
 
       const noteMatches = (patient: any, query: string) => {
@@ -222,34 +235,32 @@ clinicColor?: string;
         patient.visits?.[patient.visits.length - 1] || {};
 
  return (
-  <div className="min-h-screen flex flex-col md:flex-row">
-
+  <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(45,212,191,0.16),_transparent_36%),linear-gradient(135deg,_#f4fcfb_0%,_#eef9f7_100%)] px-4 py-6 sm:px-6 lg:px-8">
     <Sidebar />
+    <main className="mx-auto flex max-w-7xl flex-col gap-6">
+      <div className="rounded-[28px] border border-slate-200/80 bg-white/80 p-6 shadow-[0_18px_60px_rgba(15,23,42,0.07)] backdrop-blur-xl">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-teal-600">Practice Overview</p>
+            <h1 className="mt-2 text-3xl font-semibold text-slate-900">Dashboard</h1>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+            {new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+          </div>
+        </div>
+      </div>
 
-    <main className="flex-1 min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(45,212,191,0.16),_transparent_36%),linear-gradient(135deg,_#f4fcfb_0%,_#eef9f7_100%)] p-4 md:p-6 text-slate-800">
-<div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
-  <Link
-  href="/patients"
-  className="bg-gradient-to-br from-white via-cyan-50 to-teal-50 p-4 rounded-2xl shadow-sm border border-cyan-100 block hover:shadow-md transition"
->
-  <div className="flex items-center gap-3 mb-3">
-    <div className="text-2xl">👥</div>
-
-    <div>
-      <h2 className="font-semibold">
-        Patients
-      </h2>
-
-      <p className="text-sm text-gray-500">
-        Total patients
-      </p>
-    </div>
-  </div>
-
-  <p className="text-4xl font-bold text-teal-700">
-    {patientCount}
-  </p>
-  </Link>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <Link href="/patients" className="group rounded-[24px] border border-slate-200/80 bg-white/90 p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-teal-50 text-xl">👥</div>
+            <div>
+              <h2 className="font-semibold text-slate-900">Patients</h2>
+              <p className="text-sm text-slate-500">Total patients</p>
+            </div>
+          </div>
+          <p className="mt-5 text-4xl font-semibold text-teal-700">{patientCount}</p>
+        </Link>
               <button
                 type="button"
                 onClick={() => scrollToSection("today")}

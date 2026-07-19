@@ -66,6 +66,7 @@ clinicColor?: string;
 export default function PatientProfilePage() {
   const params = useParams();
   const router = useRouter();
+  const id = params?.id ?? "";
   const [patient, setPatient] = useState<Patient | null>(null);
   const [editingNotes, setEditingNotes] = useState(false);
   const [tempNotes, setTempNotes] = useState("");
@@ -79,17 +80,30 @@ export default function PatientProfilePage() {
   const [manualTime, setManualTime] = useState("");
 
   useEffect(() => {
-    const patients = JSON.parse(localStorage.getItem("patients") || "[]");
-    const foundPatient = patients.find((p: Patient) => p.id.toString() === params.id);
-    setPatient(foundPatient || null);
-    if (foundPatient) setTempNotes(foundPatient.notes || "");
-    if (foundPatient) setTempTreatment(foundPatient.treatment || "");
-    if (foundPatient) {
-      setManualDate(foundPatient.appointmentDate || "");
-      setManualTime(foundPatient.appointmentTime || "");
-      setAppointmentMode(foundPatient.appointmentDate ? "Manual" : "30 Days");
+    const loadPatient = async () => {
+      try {
+        const response = await fetch(`/api/patients/${id}`, { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error("Patient not found");
+        }
+        const foundPatient = await response.json();
+        setPatient(foundPatient || null);
+        if (foundPatient) {
+          setTempNotes(foundPatient.notes || "");
+          setTempTreatment(foundPatient.treatment || "");
+          setManualDate(foundPatient.appointmentDate || "");
+          setManualTime(foundPatient.appointmentTime || "");
+          setAppointmentMode(foundPatient.appointmentDate ? "Manual" : "30 Days");
+        }
+      } catch {
+        setPatient(null);
+      }
+    };
+
+    if (id) {
+      loadPatient();
     }
-  }, [params.id]);
+  }, [id]);
 
   const getSelectedDate = () => {
     if (appointmentMode === "Manual") return manualDate;
@@ -103,21 +117,37 @@ export default function PatientProfilePage() {
   const selectedDate = getSelectedDate();
   const isFriday = selectedDate && new Date(selectedDate).getDay() === 5;
 
-  const saveNotes = () => {
-    const patients = JSON.parse(localStorage.getItem("patients") || "[]");
-    const updatedPatients = patients.map((p: any) =>
-      p.id.toString() === params.id ? { ...p, notes: tempNotes } : p
-    );
-    localStorage.setItem("patients", JSON.stringify(updatedPatients));
-    setPatient((prev) => (prev ? { ...prev, notes: tempNotes } : null));
+  const saveNotes = async () => {
+    try {
+      const response = await fetch(`/api/patients/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes: tempNotes }),
+      });
+      if (!response.ok) {
+        throw new Error("Update failed");
+      }
+      setPatient((prev) => (prev ? { ...prev, notes: tempNotes } : null));
+    } catch {
+      // keep current view intact on error
+    }
     setEditingNotes(false);
   };
 
-  const saveTreatment = () => {
-    const patients = JSON.parse(localStorage.getItem("patients") || "[]");
-    const updatedPatients = patients.map((p: any) => (p.id.toString() === params.id ? { ...p, treatment: tempTreatment } : p));
-    localStorage.setItem("patients", JSON.stringify(updatedPatients));
-    setPatient((prev) => (prev ? { ...prev, treatment: tempTreatment } : null));
+  const saveTreatment = async () => {
+    try {
+      const response = await fetch(`/api/patients/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ treatment: tempTreatment }),
+      });
+      if (!response.ok) {
+        throw new Error("Update failed");
+      }
+      setPatient((prev) => (prev ? { ...prev, treatment: tempTreatment } : null));
+    } catch {
+      // keep current view intact on error
+    }
     setTreatmentActive(false);
   };
 
@@ -165,15 +195,24 @@ export default function PatientProfilePage() {
     receiptWindow.document.close();
   };
 
-  const saveManualAppointment = () => {
+  const saveManualAppointment = async () => {
     if (!selectedDate) {
       alert("Please choose a date");
       return;
     }
-    const patients = JSON.parse(localStorage.getItem("patients") || "[]");
-    const updatedPatients = patients.map((p: any) => (p.id.toString() === params.id ? { ...p, appointmentDate: selectedDate, appointmentTime: manualTime } : p));
-    localStorage.setItem("patients", JSON.stringify(updatedPatients));
-    setPatient((prev) => (prev ? { ...prev, appointmentDate: selectedDate, appointmentTime: manualTime } : null));
+    try {
+      const response = await fetch(`/api/patients/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appointmentDate: selectedDate, appointmentTime: manualTime }),
+      });
+      if (!response.ok) {
+        throw new Error("Update failed");
+      }
+      setPatient((prev) => (prev ? { ...prev, appointmentDate: selectedDate, appointmentTime: manualTime } : null));
+    } catch {
+      // keep current view intact on error
+    }
     setEditingAppt(false);
   };
 
@@ -194,22 +233,27 @@ export default function PatientProfilePage() {
     );
   };
 
-  const deleteVisit = (visitIndex: number) => {
-    // kept for backward compatibility; actual deletion is handled by modal confirm
-    const patients = JSON.parse(localStorage.getItem("patients") || "[]");
-    const updatedPatients = patients.map((p: any) => {
-      if (p.id.toString() !== params.id) return p;
-      const visits = [...(p.visits || [])];
-      const deletedPayment = visits[visitIndex]?.payment || 0;
-      visits.splice(visitIndex, 1);
-      return {
-        ...p,
-        visits,
-        totalPaid: (p.totalPaid || 0) - deletedPayment,
-      };
-    });
-    localStorage.setItem("patients", JSON.stringify(updatedPatients));
-    window.location.reload();
+  const deleteVisit = async (visitIndex: number) => {
+    if (!patient) return;
+    const visits = [...(patient.visits || [])];
+    const deletedPayment = visits[visitIndex]?.payment || 0;
+    visits.splice(visitIndex, 1);
+    try {
+      const response = await fetch(`/api/patients/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          visits,
+          totalPaid: Math.max((patient.totalPaid || 0) - deletedPayment, 0),
+        }),
+      });
+      if (!response.ok) {
+        throw new Error("Update failed");
+      }
+      setPatient((prev) => (prev ? { ...prev, visits, totalPaid: Math.max((prev.totalPaid || 0) - deletedPayment, 0) } : null));
+    } catch {
+      // keep current view intact on error
+    }
   };
 
   // Modal state for deleting a visit
@@ -234,31 +278,47 @@ export default function PatientProfilePage() {
   const [modalDate, setModalDate] = useState("");
   const [modalTime, setModalTime] = useState("");
 
-  const handleUnfinishFromModal = () => {
-    const patients = JSON.parse(localStorage.getItem("patients") || "[]");
-    const updatedPatients = patients.map((p: any) => (p.id === patient!.id ? { ...p, caseStatus: "active" } : p));
-    localStorage.setItem("patients", JSON.stringify(updatedPatients));
-    setShowFinishedModal(false);
-    if (modalScheduleNow) {
-      // persist the chosen date/time if provided
-      if (modalDate) {
-        const patients2 = JSON.parse(localStorage.getItem("patients") || "[]");
-        const updatedPatients2 = patients2.map((p: any) => (p.id === patient!.id ? { ...p, appointmentDate: modalDate, appointmentTime: modalTime } : p));
-        localStorage.setItem("patients", JSON.stringify(updatedPatients2));
+  const handleUnfinishFromModal = async () => {
+    if (!patient) return;
+    try {
+      const response = await fetch(`/api/patients/${patient.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          caseStatus: "active",
+          ...(modalDate ? { appointmentDate: modalDate, appointmentTime: modalTime } : {}),
+        }),
+      });
+      if (!response.ok) {
+        throw new Error("Update failed");
       }
-      router.push(`/new-appointment/${patient!.id}?focus=current`);
-    } else {
-      // refresh current view
-      router.refresh();
+      setShowFinishedModal(false);
+      if (modalScheduleNow) {
+        router.push(`/new-appointment/${patient.id}?focus=current`);
+      } else {
+        router.refresh();
+      }
+    } catch {
+      setShowFinishedModal(false);
     }
   };
 
-  const handleArchiveFromModal = () => {
-    const patients = JSON.parse(localStorage.getItem("patients") || "[]");
-    const updatedPatients = patients.map((p: any) => (p.id === patient!.id ? { ...p, previousCaseStatus: p.caseStatus, caseStatus: "archived" } : p));
-    localStorage.setItem("patients", JSON.stringify(updatedPatients));
-    setShowFinishedModal(false);
-    router.push(`/archive`);
+  const handleArchiveFromModal = async () => {
+    if (!patient) return;
+    try {
+      const response = await fetch(`/api/patients/${patient.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ caseStatus: "archived" }),
+      });
+      if (!response.ok) {
+        throw new Error("Update failed");
+      }
+      setShowFinishedModal(false);
+      router.push(`/archive`);
+    } catch {
+      setShowFinishedModal(false);
+    }
   };
 
   if (!patient) {

@@ -8,8 +8,6 @@ import Sidebar from "../components/Sidebar";
 import DateInput from "../components/DateInput";
 import {
   Patient,
-  loadPatients,
-  savePatients,
   normalizeDateIso,
   hasAppointmentConflict,
   validatePatientRecord,
@@ -164,25 +162,37 @@ const [totalFee, setTotalFee] = useState("");
   const isFriday = selectedDate && new Date(selectedDate).getDay() === 5;
 
   useEffect(() => {
-    const patients = loadPatients();
-    if (!selectedDate || !appointmentTime) {
-      setTimeConflictMessage("");
-      return;
-    }
+    const loadExistingPatients = async () => {
+      try {
+        const response = await fetch("/api/patients", { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error("Failed to load patients");
+        }
+        const patients = await response.json();
+        if (!selectedDate || !appointmentTime) {
+          setTimeConflictMessage("");
+          return;
+        }
 
-    const conflict = hasAppointmentConflict(
-      patients,
-      selectedDate,
-      appointmentTime
-    );
+        const conflict = hasAppointmentConflict(
+          patients,
+          selectedDate,
+          appointmentTime
+        );
 
-    if (conflict) {
-      setTimeConflictMessage(
-        `Warning: Another patient is scheduled on ${formatDateDMY(selectedDate)} at ${appointmentTime}.`
-      );
-    } else {
-      setTimeConflictMessage("");
-    }
+        if (conflict) {
+          setTimeConflictMessage(
+            `Warning: Another patient is scheduled on ${formatDateDMY(selectedDate)} at ${appointmentTime}.`
+          );
+        } else {
+          setTimeConflictMessage("");
+        }
+      } catch {
+        setTimeConflictMessage("");
+      }
+    };
+
+    loadExistingPatients();
   }, [selectedDate, appointmentTime]);
 
   const fixedAppliances = [
@@ -202,8 +212,17 @@ const [totalFee, setTotalFee] = useState("");
     "Activator",
   ];
 
-  const savePatient = () => {
-    const existingPatients = loadPatients();
+  const savePatient = async () => {
+    const existingPatients = [] as Patient[];
+    try {
+      const response = await fetch("/api/patients", { cache: "no-store" });
+      if (response.ok) {
+        const data = await response.json();
+        existingPatients.push(...(Array.isArray(data) ? data : []));
+      }
+    } catch {
+      // ignore and continue with empty list
+    }
 
     const finalDate = selectedDate;
     const finalTreatment =
@@ -283,16 +302,56 @@ const [totalFee, setTotalFee] = useState("");
       setConflictWarning(
         `Warning: Another patient already has an appointment on ${formatDateDMY(finalDate)} at ${appointmentTime}.`
       );
-      return;
+      // Do not block patient creation for appointment conflicts; warn only.
     }
 
     setConflictWarning("");
     setValidationErrors([]);
 
-    existingPatients.push(newPatient);
-    savePatients(existingPatients);
-    localStorage.removeItem("newPatientCaseSheetDraft");
-    router.push("/patients");
+    try {
+      const response = await fetch("/api/patients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...newPatient,
+          id: undefined,
+          createdAt: undefined,
+          updatedAt: undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        // Try to show server-provided error details for debugging and clearer UX.
+        let msg = "Unable to save the patient right now.";
+        try {
+          const data = await response.json();
+          if (data && data.error) msg = data.error;
+          else if (data && data.details) msg = JSON.stringify(data.details);
+        } catch (e) {
+          // ignore JSON parse errors
+        }
+        setValidationErrors([msg]);
+        return;
+      }
+
+      // Read created patient from server and navigate to its profile.
+      const created = await response.json().catch(() => null);
+      // Debug: log the created object and the id we will navigate to
+      try {
+        console.log('[DEBUG][client add-patient] server created response:', created);
+        console.log('[DEBUG][client add-patient] navigating to id:', created?.id);
+      } catch (e) {
+        // ignore
+      }
+      localStorage.removeItem("newPatientCaseSheetDraft");
+      if (created && created.id) {
+        router.push(`/patients/${created.id}`);
+      } else {
+        router.push("/patients");
+      }
+    } catch (error: any) {
+      setValidationErrors([error?.message || "Unable to save the patient right now."]);
+    }
   };
 
   return (

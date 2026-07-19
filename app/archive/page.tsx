@@ -25,36 +25,38 @@ export default function ArchivePage() {
   const [patients, setPatients] = useState<Patient[]>([]);
   const router = useRouter();
 
-  const restorePatient = (id: number) => {
-    const allPatients = JSON.parse(localStorage.getItem("patients") || "[]");
-
-    const updatedPatients = allPatients.map((p: any) => {
-      if (p.id !== id) return p;
-      const restoredStatus = p.previousCaseStatus || "active";
-      const updated = { ...p, caseStatus: restoredStatus } as any;
-      if (updated.previousCaseStatus) delete updated.previousCaseStatus;
-      return updated;
-    });
-
-    localStorage.setItem("patients", JSON.stringify(updatedPatients));
-
-    // Refresh archive list
-    setPatients(updatedPatients.filter((p: any) => p.caseStatus === "archived"));
-
-    // Navigate to restored patient's profile so user sees the correct status
-    router.push(`/patient/${id}`);
+  const restorePatient = async (id: number) => {
+    try {
+      const response = await fetch(`/api/patients/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ caseStatus: "active" }),
+      });
+      if (!response.ok) {
+        throw new Error("Restore failed");
+      }
+      router.push(`/patients/${id}`);
+    } catch {
+      // keep current behavior on failure
+    }
   };
+
   useEffect(() => {
-    const savedPatients = JSON.parse(
-      localStorage.getItem("patients") || "[]"
-    );
+    const loadArchivedPatients = async () => {
+      try {
+        const response = await fetch("/api/patients", { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error("Failed to load patients");
+        }
+        const savedPatients = await response.json();
+        const archivedPatients = savedPatients.filter((p: Patient) => p.caseStatus === "archived");
+        setPatients(archivedPatients);
+      } catch {
+        setPatients([]);
+      }
+    };
 
-    const archivedPatients = savedPatients.filter(
-      (p: Patient) =>
-        p.caseStatus === "archived"
-    );
-
-    setPatients(archivedPatients);
+    loadArchivedPatients();
   }, []);
 
   return (
@@ -116,7 +118,7 @@ export default function ArchivePage() {
                   <td className="p-4">
 
                     <Link
-                      href={`/patient/${patient.id}`}
+                      href={`/patients/${patient.id}`}
                       className="bg-teal-600 text-white px-3 py-1 rounded"
                     >
                       View Record

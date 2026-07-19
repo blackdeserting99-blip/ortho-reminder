@@ -41,10 +41,10 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full bg-slate-50 text-slate-900 antialiased">
+      <body className="min-h-full bg-[radial-gradient(circle_at_top_left,_rgba(20,184,166,0.14),_transparent_38%),linear-gradient(135deg,_#f4f7fb_0%,_#eef5fb_100%)] text-slate-900 antialiased">
         <div className="min-h-full">
           <Navbar />
-          <div className="min-h-screen">{children}</div>
+          <div className="min-h-screen pt-18 md:pl-20">{children}</div>
         </div>
       </body>
     </html>

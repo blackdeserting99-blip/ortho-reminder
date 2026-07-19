@@ -18,31 +18,23 @@ export default function FinishCasePage() {
   const [retainerTime, setRetainerTime] = useState("09:00 AM");
   const [retainerFee, setRetainerFee] = useState("");
 
-  const finishCase = () => {
-    const patients = JSON.parse(
-      localStorage.getItem("patients") || "[]"
-    );
-
-    const updatedPatients = patients.map(
-      (p: any) =>
-p.id.toString() === patientId
-                ? {
-              ...p,
-              caseStatus: "finished",
-              appointmentDate: "",
-              appointmentTime: "",
-            }
-          : p
-    );
-
- localStorage.setItem(
-  "patients",
-  JSON.stringify(updatedPatients)
-);
-    setMessage("Case marked as finished.");
-    setTimeout(() => router.push(`/finished-cases?focus=${patientId}&mode=finished`), 700);
+  const finishCase = async () => {
+    try {
+      const response = await fetch(`/api/patients/${patientId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ caseStatus: "finished", appointmentDate: "", appointmentTime: "" }),
+      });
+      if (!response.ok) {
+        throw new Error("Update failed");
+      }
+      setMessage("Case marked as finished.");
+      setTimeout(() => router.push(`/finished-cases?focus=${patientId}&mode=finished`), 700);
+    } catch {
+      setMessage("Unable to update the case right now.");
+    }
 };
-  const moveToRetainer = () => {
+  const moveToRetainer = async () => {
     if (!retainerDate || !retainerTime) {
       alert(
         "Please select retainer date and time."
@@ -50,30 +42,25 @@ p.id.toString() === patientId
       return;
     }
 
-    const patients = JSON.parse(
-      localStorage.getItem("patients") || "[]"
-    );
-
-    const updatedPatients = patients.map(
-      (p: any) =>
-p.id.toString() === patientId
-                ? {
-              ...p,
-              caseStatus: "retainer",
-treatment: p.treatment,
-              appointmentDate: retainerDate,
-              appointmentTime: retainerTime,
-              retainerFee: Number(retainerFee) || 0,
-            }
-          : p
-    );
-
-    localStorage.setItem(
-      "patients",
-      JSON.stringify(updatedPatients)
-    );
-    setMessage("Retainer scheduled successfully.");
-    setTimeout(() => router.push(`/finished-cases?focus=${patientId}&mode=retainer`), 700);
+    try {
+      const response = await fetch(`/api/patients/${patientId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          caseStatus: "retainer",
+          appointmentDate: retainerDate,
+          appointmentTime: retainerTime,
+          retainerFee: Number(retainerFee) || 0,
+        }),
+      });
+      if (!response.ok) {
+        throw new Error("Update failed");
+      }
+      setMessage("Retainer scheduled successfully.");
+      setTimeout(() => router.push(`/finished-cases?focus=${patientId}&mode=retainer`), 700);
+    } catch {
+      setMessage("Unable to update the case right now.");
+    }
   };
 
   return (

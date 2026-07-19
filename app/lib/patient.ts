@@ -153,31 +153,9 @@ export function validatePatientRecord(
   existingPatients: Patient[] = []
 ) {
   const errors: string[] = [];
+  // Only require patient name for creation. All other fields are optional.
   if (!patient.name?.trim()) {
     errors.push("Patient name is required.");
-  }
-  if (!patient.phone?.trim()) {
-    errors.push("Contact number is required.");
-  }
-  if (!patient.appointmentDate?.trim()) {
-    errors.push("Appointment date is required.");
-  }
-  if (!patient.appointmentTime?.trim()) {
-    errors.push("Appointment time is required.");
-  }
-
-  const normalizedName = patient.name?.trim().toLowerCase() || "";
-  const normalizedPhone = patient.phone?.trim();
-  if (
-    normalizedName &&
-    normalizedPhone &&
-    existingPatients.some(
-      (existing) =>
-        existing.name.trim().toLowerCase() === normalizedName &&
-        existing.phone.trim() === normalizedPhone
-    )
-  ) {
-    errors.push("A patient with the same name and phone already exists.");
   }
 
   return { valid: errors.length === 0, errors };
