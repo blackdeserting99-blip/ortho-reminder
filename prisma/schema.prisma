@@ -7,63 +7,267 @@ datasource db {
   provider = "postgresql"
 }
 
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  RESCHEDULED
+  COMPLETED
+  CANCELED
+  NO_SHOW
+}
+
+enum MediaType {
+  PHOTO
+  XRAY
+  CBCT
+  STL
+  PDF
+  VIDEO
+  OTHER
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  BANK_TRANSFER
+  UPI
+  INSURANCE
+  OTHER
+}
+
+enum TreatmentStatus {
+  PLANNED
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ON_HOLD
+  CANCELED
+}
+
+enum WhatsAppStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
 model User {
-  id           String    @id @default(cuid())
+  id           String      @id @default(cuid())
   name         String?
-  email        String    @unique
+  email        String      @unique
   passwordHash String
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  clinics      Clinic[]
+  patients     Patient[]
+  createdClinics Clinic[]  @relation("ClinicCreatedBy")
+  updatedClinics Clinic[]  @relation("ClinicUpdatedBy")
+  createdPatients Patient[] @relation("PatientCreatedBy")
+  updatedPatients Patient[] @relation("PatientUpdatedBy")
+  createdVisits   Visit[]   @relation("VisitCreatedBy")
+  updatedVisits   Visit[]   @relation("VisitUpdatedBy")
+  createdAppointments Appointment[] @relation("AppointmentCreatedBy")
+  updatedAppointments Appointment[] @relation("AppointmentUpdatedBy")
+  createdPayments Payment[] @relation("PaymentCreatedBy")
+  updatedPayments Payment[] @relation("PaymentUpdatedBy")
+  createdMedias   Media[]   @relation("MediaCreatedBy")
+  updatedMedias   Media[]   @relation("MediaUpdatedBy")
+}
+
+model Clinic {
+  id           Int       @id @default(autoincrement())
+  ownerId      String
+  name         String
+  address      String?
+  phone        String?
+  notes        String?
+  metadata     Json?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+  createdById  String?
+  updatedById  String?
+
+  owner        User      @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   patients     Patient[]
+  createdBy    User?     @relation("ClinicCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy    User?     @relation("ClinicUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([ownerId])
 }
 
 model Patient {
-  id                   Int           @id @default(autoincrement())
+  id                   Int            @id @default(autoincrement())
   userId               String
+  clinicId             Int?
   name                 String
   phone                String
-  clinicName           String?
-  clinicColor          String?
   address              String?
-  age                  Int?
+  dateOfBirth          DateTime?
+  gender               Gender?
   occupation           String?
-  treatment            String
+  treatmentStatus      TreatmentStatus @default(PLANNED)
   treatmentCategory    String?
   bracketType          String?
   caseSheet            String?
-  attachments          Json?
-  appointmentDate      String
-  appointmentTime      String?
-  firstAppointment     Boolean       @default(false)
+  firstAppointment     Boolean        @default(false)
   notes                String?
   plannedNotes         String?
   totalFee             Float?
-  totalPaid            Float?
   retainerFee          Float?
-  elasticEnabled       Boolean       @default(false)
+  elasticEnabled       Boolean        @default(false)
   elasticType          String?
   tadsNote             String?
-  caseStatus           String?
-  visits               Json?
   myofunctionalType    String?
   myofunctionalProgram Json?
   clearAlignersPlan    Json?
-  createdAt            DateTime      @default(now())
-  updatedAt            DateTime      @updatedAt
+  medicalHistory       Json?
+  treatmentPrediction  Json?
+  metadata             Json?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+  deletedAt            DateTime?
+  createdById          String?
+  updatedById          String?
+
+  user                 User           @relation(fields: [userId], references: [id], onDelete: Restrict)
+  clinic               Clinic?        @relation(fields: [clinicId], references: [id], onDelete: SetNull)
   appointments         Appointment[]
-  user                 User          @relation(fields: [userId], references: [id])
+  visits               Visit[]
+  payments             Payment[]
+  patientFiles         PatientFile[]
+  createdBy            User?          @relation("PatientCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy            User?          @relation("PatientUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([clinicId])
+}
+
+model PatientFile {
+  id            Int       @id @default(autoincrement())
+  patientId     Int
+  type          String
+  title         String
+  url           String
+  fileName      String
+  mimeType      String
+  fileSize      Int
+  uploadedAt    DateTime
+  metadata      Json?
+
+  patient       Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
 }
 
 model Appointment {
-  id              Int      @id @default(autoincrement())
+  id              Int              @id @default(autoincrement())
   patientId       Int
-  appointmentDate String
-  appointmentTime String?
-  status          String   @default("scheduled")
+  scheduledAt     DateTime
+  status          AppointmentStatus @default(SCHEDULED)
   type            String?
   notes           String?
-  reminderSent    Boolean  @default(false)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  patient         Patient  @relation(fields: [patientId], references: [id])
+  reminderStatus  WhatsAppStatus    @default(PENDING)
+  reminderNote    String?
+  reminderSentAt  DateTime?
+  metadata        Json?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  deletedAt       DateTime?
+  createdById     String?
+  updatedById     String?
+
+  patient         Patient          @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  visits          Visit[]          @relation("AppointmentVisit")
+  createdBy       User?            @relation("AppointmentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy       User?            @relation("AppointmentUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([patientId])
+  @@index([scheduledAt])
+}
+
+model Visit {
+  id                  Int       @id @default(autoincrement())
+  patientId           Int
+  appointmentId       Int?
+  visitDate           DateTime
+  visitType           String?
+  diagnosis           String?
+  treatmentNotes      String?
+  upperArch           String?
+  lowerArch           String?
+  wireType            String?
+  elastics            String?
+  tads                String?
+  plannedTreatment    String?
+  paymentCollected    Decimal?       @db.Decimal(14, 2)
+  nextAppointment     DateTime?
+  chairTime           Int?
+  status              TreatmentStatus @default(ACTIVE)
+  cephalometricAnalysis Json?
+  treatmentPrediction  Json?
+  metadata             Json?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  deletedAt            DateTime?
+  createdById          String?
+  updatedById          String?
+
+  patient             Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  appointment         Appointment? @relation("AppointmentVisit", fields: [appointmentId], references: [id], onDelete: SetNull)
+  medias              Media[]
+  payments            Payment[]
+  createdBy           User?     @relation("VisitCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy           User?     @relation("VisitUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([patientId])
+  @@index([visitDate])
+}
+
+model Media {
+  id            Int       @id @default(autoincrement())
+  visitId       Int
+  type          MediaType
+  url           String
+  fileName      String?
+  mimeType      String?
+  fileSize      Int?
+  caption       String?
+  notes         String?
+  metadata      Json?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  createdById   String?
+  updatedById   String?
+
+  visit         Visit     @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  createdBy     User?     @relation("MediaCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy     User?     @relation("MediaUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+}
+
+model Payment {
+  id            Int           @id @default(autoincrement())
+  patientId     Int
+  visitId       Int?
+  method        PaymentMethod
+  amount        Decimal       @db.Decimal(14, 2)
+  currency      String
+  date          DateTime
+  note          String?
+  reference     String?
+  metadata      Json?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  createdById   String?
+  updatedById   String?
+
+  patient       Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  visit         Visit?        @relation(fields: [visitId], references: [id], onDelete: SetNull)
+  createdBy     User?         @relation("PaymentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy     User?         @relation("PaymentUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([patientId])
 }
