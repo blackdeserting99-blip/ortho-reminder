@@ -197,7 +197,7 @@ export function buildWhatsAppBotMessage(
   const patientName = (patient.name || "").trim() || "مراجعنا العزيز";
   const clinicName = (patient.clinicName || "").trim() || "العيادة";
 
-  if (reminderType === "sameDay") {
+  if (reminderType === "sameDay" || reminderType === "3days") {
     return `السلام عليكم ${patientName} 🌹
 
 نود تذكيركم بأن لديكم موعد في عيادة ${clinicName}.
