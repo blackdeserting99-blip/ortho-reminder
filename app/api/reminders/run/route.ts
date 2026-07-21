@@ -308,7 +308,7 @@ export async function POST(request: Request) {
             take: 5,
           },
           clinic: {
-            select: { phone: true },
+            select: { phone: true, name: true },
           },
         },
       },
@@ -421,6 +421,8 @@ export async function POST(request: Request) {
 
     const patientMessage = buildWhatsAppBotMessage(
       {
+        name: appointment.patient.name,
+        clinicName: appointment.patient.clinic?.name || "العيادة",
         phone: patientPhone,
         appointmentDate: appointment.scheduledAt.toISOString(),
         appointmentTime: formatLocalTime(appointment.scheduledAt),

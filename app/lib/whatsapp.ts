@@ -3,6 +3,8 @@ import { formatDateDMY } from "./date";
 export type WhatsAppReminderType = "3days" | "sameDay" | "general";
 
 export type WhatsAppReminderPatient = {
+  name?: string;
+  clinicName?: string;
   phone: string;
   appointmentDate: string;
   appointmentTime?: string;
@@ -192,6 +194,23 @@ export function buildWhatsAppBotMessage(
 ) {
   const appointmentDate = formatDateDMY(patient.appointmentDate);
   const appointmentTime = patient.appointmentTime || "غير محددة";
+  const patientName = (patient.name || "").trim() || "مراجعنا العزيز";
+  const clinicName = (patient.clinicName || "").trim() || "العيادة";
+
+  if (reminderType === "sameDay") {
+    return `السلام عليكم ${patientName} 🌹
+
+نود تذكيركم بأن لديكم موعد في عيادة ${clinicName}.
+
+📅 التاريخ: ${appointmentDate}
+🕒 الوقت: ${appointmentTime}
+
+يرجى الحضور قبل الموعد بـ 10 دقائق.
+
+في حال الرغبة بتغيير الموعد يرجى التواصل معنا.
+
+نتمنى لكم يوماً سعيداً 💙`;
+  }
 
   const whenText =
     reminderType === "3days"
