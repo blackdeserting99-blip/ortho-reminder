@@ -277,20 +277,29 @@ export function buildElasticsStartedPatientMessage(input: {
   const patientName = (input.patientName || "").trim() || "مراجعنا العزيز";
   const doctorName = (input.doctorName || "").trim() || "Doctor";
   const elasticType = (input.elasticType || "").trim();
-  const elasticLine = elasticType ? `\nنوع الإيلاستك: ${elasticType}` : "";
+
+  // Visits usually store elastics as: "Class II (Medium 3/16)".
+  // For this template we only show the size/gauge part inside parentheses.
+  const parenthesized = elasticType.match(/\(([^)]+)\)/)?.[1]?.trim() || "";
+  const elasticSizeText = parenthesized || elasticType || "غير محدد";
 
   return `السلام عليكم ${patientName} 🌹
 
-تم اليوم تركيب الإيلاستك ضمن خطة العلاج.${elasticLine}
+يرجى الالتزام بارتداء المطاطات حسب تعليمات الطبيب، حيث إن الالتزام بها يعد جزءاً أساسياً من نجاح العلاج وتقليل مدته.
 
-يرجى الالتزام بالتعليمات التالية:
-✅ ارتداء الإيلاستك بشكل مستمر.
-✅ تبديل الإيلاستك مرة كل 24 ساعة.
-✅ إزالته فقط أثناء الأكل وتنظيف الأسنان إذا أوصى الطبيب بذلك.
+📏 مقاس المطاط:
+${elasticSizeText}
 
-⚠️ في حال انقطاع الإيلاستك أو حدوث ألم غير طبيعي، يرجى التواصل مع العيادة مباشرة.
+تعليمات مهمة:
+✅ قم بتبديل المطاطات يومياً للحفاظ على قوة الشد المطلوبة.
+✅ انزع المطاطات فقط عند تناول الطعام أو تنظيف الأسنان، ثم أعد تركيبها مباشرة.
+✅ احتفظ دائماً بمطاطات إضافية معك في حال انقطاع أو فقدان أحدها.
 
-شكراً لالتزامكم، ونتمنى لكم علاجاً ناجحاً 🌹
+⚠️ عدم الالتزام بارتداء المطاطات قد يؤدي إلى تأخير العلاج أو عدم الوصول إلى النتيجة المطلوبة.
+
+في حال نفاد المطاطات أو وجود أي استفسار، يرجى التواصل مع العيادة.
+
+شكراً لثقتكم بنا، ونتمنى لكم علاجاً ناجحاً 🌹
 
 ${doctorName}`;
 }
