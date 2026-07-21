@@ -5,7 +5,6 @@ import { prisma } from "@/app/lib/prisma";
 import {
   buildRetainerYearOnePatientMessage,
   buildWhatsAppBotMessage,
-  getReminderType,
   sendWhatsAppText,
   type WhatsAppReminderType,
 } from "@/app/lib/whatsapp";
@@ -23,6 +22,8 @@ type ReminderMap = Record<string, boolean>;
 type MetadataObject = Record<string, unknown>;
 
 const APPOINTMENT_STATUSES = ["SCHEDULED", "CONFIRMED", "RESCHEDULED"] as const;
+
+const DEFAULT_REMINDER_TIME_ZONE = "Asia/Baghdad";
 
 function toDateOnly(date: Date) {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
@@ -73,6 +74,67 @@ function readAlignerDaysPerTray(metadata: unknown): number {
   }
 
   return Math.floor(value);
+}
+
+function getReminderTimeZone() {
+  const configured = process.env.REMINDER_TIME_ZONE || DEFAULT_REMINDER_TIME_ZONE;
+  try {
+    Intl.DateTimeFormat("en-US", { timeZone: configured }).format(new Date());
+    return configured;
+  } catch {
+    return DEFAULT_REMINDER_TIME_ZONE;
+  }
+}
+
+function getDatePartsInTimeZone(date: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+
+  const year = Number(parts.find((part) => part.type === "year")?.value || "0");
+  const month = Number(parts.find((part) => part.type === "month")?.value || "0");
+  const day = Number(parts.find((part) => part.type === "day")?.value || "0");
+
+  return { year, month, day };
+}
+
+function getDiffDaysInTimeZone(from: Date, to: Date, timeZone: string) {
+  const fromParts = getDatePartsInTimeZone(from, timeZone);
+  const toParts = getDatePartsInTimeZone(to, timeZone);
+
+  const fromUtc = Date.UTC(fromParts.year, fromParts.month - 1, fromParts.day);
+  const toUtc = Date.UTC(toParts.year, toParts.month - 1, toParts.day);
+
+  return Math.round((toUtc - fromUtc) / (1000 * 60 * 60 * 24));
+}
+
+function getHourInTimeZone(date: Date, timeZone: string) {
+  const hourText = new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    hour: "2-digit",
+    hour12: false,
+  }).format(date);
+
+  const parsed = Number(hourText);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function getReminderTypeAtTimeZone(
+  appointmentDate: Date,
+  baseDate: Date,
+  timeZone: string
+): WhatsAppReminderType | null {
+  const diffDays = getDiffDaysInTimeZone(baseDate, appointmentDate, timeZone);
+  if (diffDays === 3) {
+    return "3days";
+  }
+  if (diffDays === 0) {
+    return "sameDay";
+  }
+  return null;
 }
 
 function readCaseStatus(metadata: unknown): string {
@@ -137,7 +199,7 @@ function getDiffDays(from: Date, to: Date) {
 }
 
 function allowSameDayNow(baseDate: Date) {
-  return baseDate.getUTCHours() === getMorningHour();
+  return getHourInTimeZone(baseDate, getReminderTimeZone()) === getMorningHour();
 }
 
 function canSendReminder(
@@ -315,14 +377,14 @@ export async function POST(request: Request) {
   const baseDate = parsed.data.baseDate
     ? new Date(parsed.data.baseDate)
     : new Date();
+  const reminderTimeZone = getReminderTimeZone();
 
   if (Number.isNaN(baseDate.getTime())) {
     return NextResponse.json({ error: "Invalid baseDate" }, { status: 400 });
   }
 
-  const start = toDateOnly(baseDate);
-  const end = new Date(start);
-  end.setUTCDate(end.getUTCDate() + 4);
+  const start = toDateOnly(new Date(baseDate.getTime() - 24 * 60 * 60 * 1000));
+  const end = toDateOnly(new Date(baseDate.getTime() + 6 * 24 * 60 * 60 * 1000));
 
   const appointments = await prisma.appointment.findMany({
     where: {
@@ -404,7 +466,11 @@ export async function POST(request: Request) {
       continue;
     }
 
-    const daysSinceRetainerStart = getDiffDays(retainerStartedAt, baseDate);
+    const daysSinceRetainerStart = getDiffDaysInTimeZone(
+      retainerStartedAt,
+      baseDate,
+      reminderTimeZone
+    );
     if (daysSinceRetainerStart !== 365) {
       summary.retainerYearOneSkippedNotDue += 1;
       continue;
@@ -460,7 +526,7 @@ export async function POST(request: Request) {
 
   for (const appointment of appointments) {
     const leadDays = getAlignerPrepLeadDays();
-    const diffDays = getDiffDays(baseDate, appointment.scheduledAt);
+    const diffDays = getDiffDaysInTimeZone(baseDate, appointment.scheduledAt, reminderTimeZone);
 
     const upcomingPatch = hasUpcomingAlignerPatch(appointment.patient);
     const shouldRunPatchPrepAlert =
@@ -512,7 +578,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const type = reminderType || getReminderType(appointment.scheduledAt.toISOString(), baseDate);
+    const type = reminderType || getReminderTypeAtTimeZone(appointment.scheduledAt, baseDate, reminderTimeZone);
 
     if (!type) {
       summary.skippedNoReminderType += 1;

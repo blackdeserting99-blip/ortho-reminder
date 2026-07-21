@@ -1,8 +1,17 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"main": ".open-next/worker.js",
+	"main": "worker.ts",
 	"name": "ortho-reminder",
 	"compatibility_date": "2026-07-14",
+	"triggers": {
+		"crons": [
+			"0 4 * * *"
+		]
+	},
+	"vars": {
+		"REMINDER_TIME_ZONE": "Asia/Baghdad",
+		"REMINDER_MORNING_HOUR": "7"
+	},
 	"compatibility_flags": [
 		"nodejs_compat",
 		"global_fetch_strictly_public"
