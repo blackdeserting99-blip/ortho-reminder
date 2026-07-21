@@ -1,3 +1,0 @@
-export const production = {"NEXTAUTH_SECRET":"23f8d79d24dc0359afe9548d5897eae5a5083548ce2df9c7e263728131f2191f","DATABASE_URL":"postgresql://neondb_owner:npg_M5PJnpdroe9L@ep-summer-moon-avf91ipg.c-11.us-east-1.aws.neon.tech/neondb?sslmode=require"};
-export const development = {"NEXTAUTH_SECRET":"23f8d79d24dc0359afe9548d5897eae5a5083548ce2df9c7e263728131f2191f","DATABASE_URL":"postgresql://neondb_owner:npg_M5PJnpdroe9L@ep-summer-moon-avf91ipg.c-11.us-east-1.aws.neon.tech/neondb?sslmode=require"};
-export const test = {"NEXTAUTH_SECRET":"23f8d79d24dc0359afe9548d5897eae5a5083548ce2df9c7e263728131f2191f","DATABASE_URL":"postgresql://neondb_owner:npg_M5PJnpdroe9L@ep-summer-moon-avf91ipg.c-11.us-east-1.aws.neon.tech/neondb?sslmode=require"};
