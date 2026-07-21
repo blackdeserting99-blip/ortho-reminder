@@ -4,7 +4,37 @@ import path from "path";
 import { getCurrentUser } from "@/app/lib/auth";
 import { prisma } from "@/app/lib/prisma";
 
-const ALLOWED_FILE_TYPES = ["PHOTO", "XRAY", "SCAN", "PDF", "STL", "OTHER"];
+const ALLOWED_FILE_TYPES = ["PHOTO", "XRAY", "SCAN", "PDF", "STL", "VIDEO", "OTHER"];
+
+const mapMediaType = (fileType: string, fileName: string) => {
+  if (fileType === "PHOTO") return "PHOTO";
+  if (fileType === "XRAY") return "XRAY";
+  if (fileType === "PDF") return "PDF";
+  if (fileType === "STL") return "STL";
+  if (fileType === "VIDEO") return "VIDEO";
+  if (fileType === "SCAN" && fileName.toLowerCase().endsWith(".stl")) {
+    return "STL";
+  }
+  return "OTHER";
+};
+
+const toLegacyShape = (media: any) => {
+  const metadata = media.metadata && typeof media.metadata === "object" ? media.metadata : {};
+  const storagePath = String(media.url || "").replace(/^\//, "");
+  return {
+    id: media.id,
+    visitId: media.visitId,
+    filename: media.fileName || path.basename(storagePath),
+    originalName: String((metadata as any).originalName || media.fileName || path.basename(storagePath)),
+    storagePath,
+    mimeType: media.mimeType || "application/octet-stream",
+    fileSize: media.fileSize || 0,
+    fileType: String((metadata as any).fileType || media.type || "OTHER"),
+    category: String((metadata as any).category || "Other"),
+    uploadedBy: String((metadata as any).uploadedBy || "Unknown"),
+    uploadedAt: media.createdAt instanceof Date ? media.createdAt.toISOString() : String(media.createdAt),
+  };
+};
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string; visitId: string }> }) {
   const user = await getCurrentUser();
@@ -22,14 +52,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
   const visit = await prisma.visit.findFirst({
     where: { id: visitIdNumber, patient: { userId: user.id, id: patientId } },
-    include: { visitMedia: true },
+    include: { medias: true },
   });
 
   if (!visit) {
     return NextResponse.json({ error: "Visit not found" }, { status: 404 });
   }
 
-  return NextResponse.json(visit.visitMedia);
+  return NextResponse.json(visit.medias.map(toLegacyShape));
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string; visitId: string }> }) {
@@ -79,21 +109,24 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const absolutePath = path.join(process.cwd(), "public", storagePath);
     fs.writeFileSync(absolutePath, buffer);
 
-    const media = await prisma.visitMedia.create({
+    const media = await prisma.media.create({
       data: {
         visitId: visitIdNumber,
-        filename: safeName,
-        originalName: rawFile.name,
-        storagePath,
+        type: mapMediaType(fileTypeValue, rawFile.name) as any,
+        url: storagePath,
+        fileName: safeName,
         mimeType: rawFile.type,
         fileSize: buffer.length,
-        fileType: fileTypeValue,
-        category,
-        uploadedBy,
+        metadata: {
+          fileType: fileTypeValue,
+          category,
+          uploadedBy,
+          originalName: rawFile.name,
+        },
       },
     });
 
-    createdMedia.push(media);
+    createdMedia.push(toLegacyShape(media));
   }
 
   return NextResponse.json(createdMedia, { status: 201 });

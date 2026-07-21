@@ -202,6 +202,10 @@ model Visit {
   wireType            String?
   elastics            String?
   tads                String?
+  plannedUpperArch    String?
+  plannedLowerArch    String?
+  plannedElasticType  String?
+  plannedTadsNote     String?
   plannedTreatment    String?
   paymentCollected    Decimal?       @db.Decimal(14, 2)
   nextAppointment     DateTime?

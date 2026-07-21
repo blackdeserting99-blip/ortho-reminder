@@ -1,10 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Sidebar from "../../components/Sidebar";
 import DateInput from "../../components/DateInput";
 import { formatDateDMY } from "../../lib/date";
+import OrthoPhotoChart, {
+  ORTHO_PHOTO_UPLOAD_SLOTS,
+  type OrthoPhotoSlotKey,
+} from "../../components/OrthoPhotoChart";
 
 type Visit = {
   date: string;
@@ -26,6 +30,7 @@ type Patient = {
   id: number;
   name: string;
   phone: string;
+  age?: number;
   treatment: string;
   appointmentDate: string;
   appointmentTime?: string;
@@ -38,10 +43,25 @@ type Patient = {
   elasticType?: string;
 
   totalFee?: number;
-  totalPaid?: number;
 
   visits?: Visit[];
 };
+
+type VisitPhotoUpload = {
+  file: File;
+  previewUrl: string;
+  name: string;
+};
+
+type VisitSupportingUpload = {
+  id: string;
+  file: File;
+  name: string;
+  category: string;
+};
+
+const XRAY_CATEGORY_OPTIONS = ["OPG", "Lateral Ceph", "PA Ceph", "CBCT", "Other"];
+const SCAN_CATEGORY_OPTIONS = ["Upper STL", "Lower STL", "Digital Scan", "Other"];
 
 export default function NewAppointmentPage() {
   const params = useParams();
@@ -185,7 +205,21 @@ const [plannedTadsNote, setPlannedTadsNote] =
 
 const [conflictWarning, setConflictWarning] =
   useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const isSavingRef = useRef(false);
   const [timeConflictMessage, setTimeConflictMessage] = useState("");
+  const [visitPhotos, setVisitPhotos] = useState<
+    Partial<Record<OrthoPhotoSlotKey, VisitPhotoUpload>>
+  >({});
+  const [visitPhotosEnabled, setVisitPhotosEnabled] = useState(false);
+  const [visitXrays, setVisitXrays] = useState<VisitSupportingUpload[]>([]);
+  const [visitXraysEnabled, setVisitXraysEnabled] = useState(false);
+  const [visitScans, setVisitScans] = useState<VisitSupportingUpload[]>([]);
+  const [visitScansEnabled, setVisitScansEnabled] = useState(false);
+  const [xrayCategory, setXrayCategory] = useState(XRAY_CATEGORY_OPTIONS[0]);
+  const [scanCategory, setScanCategory] = useState(SCAN_CATEGORY_OPTIONS[0]);
+  const xrayInputRef = useRef<HTMLInputElement | null>(null);
+  const scanInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect */
@@ -201,7 +235,7 @@ const response = await fetch(`/api/patients/${id}`, { cache: "no-store", credent
           setPatient(foundPatient);
 
           setAppointmentDate("");
-          setAppointmentTime(foundPatient.appointmentTime || "04:00 PM");
+          setAppointmentTime("04:00 PM");
           setElasticEnabled(foundPatient.elasticEnabled || false);
           setElasticType(foundPatient.elasticType || "Class II");
 
@@ -280,8 +314,11 @@ const response = await fetch(`/api/patients/${id}`, { cache: "no-store", credent
   const selectedDate =
     getSelectedDate();
 
+  const resolvedTreatment =
+    patient?.treatment || patient?.treatmentCategory || "";
+
   const isFixedBraces =
-    patient?.treatment === "Fixed Braces";
+    resolvedTreatment === "Fixed Braces";
 
   const isFriday =
     selectedDate &&
@@ -329,7 +366,112 @@ const response = await fetch(`/api/patients/${id}`, { cache: "no-store", credent
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [selectedDate, appointmentTime, id]);
 
+  const handleVisitPhotoSelect = (slotKey: OrthoPhotoSlotKey, file: File) => {
+    setVisitPhotos((prev) => {
+      if (prev[slotKey]?.previewUrl) {
+        URL.revokeObjectURL(prev[slotKey]!.previewUrl);
+      }
+
+      return {
+        ...prev,
+        [slotKey]: {
+          file,
+          previewUrl: URL.createObjectURL(file),
+          name: file.name,
+        },
+      };
+    });
+  };
+
+  const removeVisitPhoto = (slotKey: OrthoPhotoSlotKey) => {
+    setVisitPhotos((prev) => {
+      if (prev[slotKey]?.previewUrl) {
+        URL.revokeObjectURL(prev[slotKey]!.previewUrl);
+      }
+
+      const next = { ...prev };
+      delete next[slotKey];
+      return next;
+    });
+  };
+
+  const visitPhotosForChart = Object.entries(visitPhotos).reduce<
+    Partial<Record<OrthoPhotoSlotKey, { name: string; previewUrl: string }>>
+  >((acc, [slotKey, value]) => {
+    if (!value) {
+      return acc;
+    }
+
+    acc[slotKey as OrthoPhotoSlotKey] = {
+      name: value.name,
+      previewUrl: value.previewUrl,
+    };
+    return acc;
+  }, {});
+
+  const addSupportingFiles = (
+    kind: "xray" | "scan",
+    files: FileList | null,
+    category: string
+  ) => {
+    if (!files || files.length === 0) {
+      return;
+    }
+
+    const mapped = Array.from(files).map((file) => ({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      file,
+      name: file.name,
+      category,
+    }));
+
+    if (kind === "xray") {
+      setVisitXrays((prev) => [...prev, ...mapped]);
+      if (xrayInputRef.current) {
+        xrayInputRef.current.value = "";
+      }
+      return;
+    }
+
+    setVisitScans((prev) => [...prev, ...mapped]);
+    if (scanInputRef.current) {
+      scanInputRef.current.value = "";
+    }
+  };
+
+  const removeSupportingFile = (kind: "xray" | "scan", uploadId: string) => {
+    if (kind === "xray") {
+      setVisitXrays((prev) => prev.filter((item) => item.id !== uploadId));
+      return;
+    }
+
+    setVisitScans((prev) => prev.filter((item) => item.id !== uploadId));
+  };
+
+  const buildElasticLabel = (
+    enabled: boolean,
+    type: string,
+    other: string,
+    gauge: string,
+    size: string
+  ) => {
+    if (!enabled) return null;
+
+    if (type === "Other") {
+      return other.trim() || "Other";
+    }
+
+    const details = [gauge, size].filter(Boolean).join(" ");
+    return details ? `${type} (${details})` : type;
+  };
+
   const saveAppointment = async () => {
+    if (isSavingRef.current || isSaving) {
+      return;
+    }
+
+    isSavingRef.current = true;
+    setIsSaving(true);
     const payment = Number(paymentReceived.replace(/,/g, "")) || 0;
     const additional = Number(additionalAmount.replace(/,/g, "")) || 0;
 
@@ -357,63 +499,199 @@ const response = await fetch(`/api/patients/${id}`, { cache: "no-store", credent
       const today = new Date().toISOString().split("T")[0];
       const initialPlannedNotes = existingVisits.length === 0 ? existingPatient.plannedNotes || "" : "";
 
-      const finalUpperWire = isFixedBraces ? formatWireLabel(upperWireSystem, upperWireType, upperWireGauge, upperWireOther, upperDamonWire, upperDamonWireOther) : "";
-      const finalLowerWire = isFixedBraces ? formatWireLabel(lowerWireSystem, lowerWireType, lowerWireGauge, lowerWireOther, lowerDamonWire, lowerDamonWireOther) : "";
-      const plannedUpperWire = isFixedBraces && plannedUpperArchEnabled ? formatWireLabel(plannedUpperWireSystem, plannedUpperWireType, plannedUpperWireGauge, plannedUpperWireOther, plannedUpperDamonWire, plannedUpperDamonWireOther) : "";
-      const plannedLowerWire = isFixedBraces && plannedLowerArchEnabled ? formatWireLabel(plannedLowerWireSystem, plannedLowerWireType, plannedLowerWireGauge, plannedLowerWireOther, plannedLowerDamonWire, plannedLowerDamonWireOther) : "";
-
-      const newVisit = {
-        date: today,
-        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        nextDate: selectedDate,
-        nextTime: appointmentTime,
-        payment,
-        additionalPayment: additionalEnabled ? additional : 0,
-        additionalPaid: additionalEnabled ? !!additionalCollected : false,
-        additionalReason: additionalEnabled ? additionalReason : "",
-        visitNotes,
-        plannedNotes: plannedNotes || initialPlannedNotes,
-        plannedUpperArch: plannedUpperWire,
-        plannedLowerArch: plannedLowerWire,
-        plannedElasticType: isFixedBraces && plannedElasticEnabled ? plannedElasticType : "",
-        plannedElasticGauge: isFixedBraces && plannedElasticEnabled ? plannedElasticGauge : "",
-        plannedElasticSize: isFixedBraces && plannedElasticEnabled ? plannedElasticSize : "",
-        plannedElasticOther: isFixedBraces && plannedElasticEnabled ? plannedElasticOther : "",
-        plannedTadsNote: isFixedBraces && plannedTadsEnabled ? plannedTadsNote : "",
-        upperWire: finalUpperWire,
-        lowerWire: finalLowerWire,
-        upperArch: finalUpperWire,
-        lowerArch: finalLowerWire,
-        elasticEnabled: isFixedBraces ? elasticEnabled : false,
-        elasticType: isFixedBraces && elasticEnabled ? elasticType : "",
-        elasticOther: isFixedBraces ? elasticOther : "",
-        elasticGauge: isFixedBraces ? (elasticEnabled ? elasticGauge : "") : "",
-        elasticSize: isFixedBraces ? (elasticEnabled ? elasticSize : "") : "",
-        tadsEnabled: isFixedBraces ? tadsEnabled : false,
-        tadsNote: isFixedBraces ? tadsNote : "",
+      // Convert 12-hour time format to 24-hour for datetime
+      const convertTo24Hour = (time12h: string) => {
+        const [time, period] = time12h.trim().split(' ');
+        let [hours, minutes] = time.split(':').map(Number);
+        
+        if (period === 'PM' && hours !== 12) {
+          hours += 12;
+        } else if (period === 'AM' && hours === 12) {
+          hours = 0;
+        }
+        
+        return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
       };
 
-      const updateResponse = await fetch(`/api/patients/${id}`, {
+      const time24h = convertTo24Hour(appointmentTime);
+      const nextAppointmentISO = new Date(`${selectedDate}T${time24h}:00`).toISOString();
+
+      const finalUpperWire = upperArchEnabled
+        ? formatWireLabel(upperWireSystem, upperWireType, upperWireGauge, upperWireOther, upperDamonWire, upperDamonWireOther)
+        : "";
+      const finalLowerWire = lowerArchEnabled
+        ? formatWireLabel(lowerWireSystem, lowerWireType, lowerWireGauge, lowerWireOther, lowerDamonWire, lowerDamonWireOther)
+        : "";
+      const plannedUpperWire = plannedUpperArchEnabled ? formatWireLabel(plannedUpperWireSystem, plannedUpperWireType, plannedUpperWireGauge, plannedUpperWireOther, plannedUpperDamonWire, plannedUpperDamonWireOther) : "";
+      const plannedLowerWire = plannedLowerArchEnabled ? formatWireLabel(plannedLowerWireSystem, plannedLowerWireType, plannedLowerWireGauge, plannedLowerWireOther, plannedLowerDamonWire, plannedLowerDamonWireOther) : "";
+      const finalElastics = buildElasticLabel(
+        elasticEnabled,
+        elasticType,
+        elasticOther,
+        elasticGauge,
+        elasticSize
+      );
+      const plannedElastics = buildElasticLabel(
+        plannedElasticEnabled,
+        plannedElasticType,
+        plannedElasticOther,
+        plannedElasticGauge,
+        plannedElasticSize
+      );
+
+      const newVisit = {
+        visitDate: today,
+        visitType: "Consultation",
+        treatmentNotes: visitNotes,
+        plannedTreatment: plannedNotes || initialPlannedNotes,
+        upperArch: finalUpperWire,
+        lowerArch: finalLowerWire,
+        elastics: finalElastics,
+        tads: tadsEnabled ? tadsNote : null,
+        plannedUpperArch: plannedUpperWire || null,
+        plannedLowerArch: plannedLowerWire || null,
+        plannedElasticType: plannedElastics,
+        plannedTadsNote: plannedTadsEnabled ? plannedTadsNote : null,
+        paymentCollected: payment,
+        nextAppointment: nextAppointmentISO,
+      };
+
+      // First update the patient
+      const updatePatientResponse = await fetch(`/api/patients/${id}`, {
         method: "PATCH",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          appointmentDate: selectedDate,
-          appointmentTime,
           firstAppointment: false,
           elasticEnabled,
-          elasticType: elasticEnabled ? elasticType : "",
-          totalPaid: (existingPatient.totalPaid || 0) + payment + (additionalCollected ? additional : 0),
+          elasticType: finalElastics || "",
           plannedNotes: existingVisits.length === 0 ? "" : existingPatient.plannedNotes,
-          visits: [...existingVisits, newVisit],
         }),
       });
+      if (!updatePatientResponse.ok) {
+        throw new Error("Failed to update patient");
+      }
+
+      const appointmentDateTime = new Date(nextAppointmentISO);
+      const appointmentResponse = await fetch(`/api/patients/${id}/appointments`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scheduledAt: appointmentDateTime.toISOString(),
+          status: "SCHEDULED",
+          type: "Regular",
+          notes: visitNotes || "",
+        }),
+      });
+      if (!appointmentResponse.ok) {
+        throw new Error("Failed to create appointment");
+      }
+
+      // Then create the visit record for this appointment
+      const updateResponse = await fetch(`/api/patients/${id}/visits`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newVisit),
+      });
       if (!updateResponse.ok) {
+        const errorText = await updateResponse.text();
+        console.error("Visits update error:", errorText);
         throw new Error("Update failed");
       }
-    } catch {
-      setConflictWarning("Unable to save the appointment right now.");
+
+      const createdVisit = await updateResponse.json().catch(() => null);
+      if (createdVisit?.id) {
+        if (visitPhotosEnabled) {
+          const uploadTasks = ORTHO_PHOTO_UPLOAD_SLOTS
+            .map((slot) => {
+              const photo = visitPhotos[slot.key];
+              if (!photo) {
+                return null;
+              }
+
+              return async () => {
+                const formData = new FormData();
+                formData.append("files", photo.file);
+                formData.append("fileType", "PHOTO");
+                formData.append("category", slot.category);
+                formData.append("uploadedBy", patient?.name || "Orthodontist");
+
+                const mediaResponse = await fetch(
+                  `/api/patients/${id}/visits/${createdVisit.id}/media`,
+                  {
+                    method: "POST",
+                    credentials: "same-origin",
+                    body: formData,
+                  }
+                );
+
+                if (!mediaResponse.ok) {
+                  console.error("Visit photo upload failed for", slot.label);
+                }
+              };
+            })
+            .filter(Boolean) as Array<() => Promise<void>>;
+
+          for (const uploadTask of uploadTasks) {
+            await uploadTask();
+          }
+        }
+
+        if (visitXraysEnabled) {
+          for (const xray of visitXrays) {
+            const formData = new FormData();
+            formData.append("files", xray.file);
+            formData.append("fileType", "XRAY");
+            formData.append("category", xray.category);
+            formData.append("uploadedBy", patient?.name || "Orthodontist");
+
+            const mediaResponse = await fetch(
+              `/api/patients/${id}/visits/${createdVisit.id}/media`,
+              {
+                method: "POST",
+                credentials: "same-origin",
+                body: formData,
+              }
+            );
+
+            if (!mediaResponse.ok) {
+              console.error("Visit X-ray upload failed for", xray.name);
+            }
+          }
+        }
+
+        if (visitScansEnabled) {
+          for (const scan of visitScans) {
+            const formData = new FormData();
+            formData.append("files", scan.file);
+            formData.append("fileType", "SCAN");
+            formData.append("category", scan.category);
+            formData.append("uploadedBy", patient?.name || "Orthodontist");
+
+            const mediaResponse = await fetch(
+              `/api/patients/${id}/visits/${createdVisit.id}/media`,
+              {
+                method: "POST",
+                credentials: "same-origin",
+                body: formData,
+              }
+            );
+
+            if (!mediaResponse.ok) {
+              console.error("Visit scanner upload failed for", scan.name);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Appointment save error:", error);
+      setConflictWarning("Unable to save the appointment right now: " + (error instanceof Error ? error.message : String(error)));
       return;
+    } finally {
+      isSavingRef.current = false;
+      setIsSaving(false);
     }
 
     router.push(`/patients/${id}`);
@@ -450,8 +728,7 @@ const response = await fetch(`/api/patients/${id}`, { cache: "no-store", credent
                 Current Appointment
               </h2>
 
-            {isFixedBraces ? (
-              <>
+            <div>
                 <label className="flex items-center gap-3 font-semibold mb-3">
                   <input
                     type="checkbox"
@@ -825,75 +1102,181 @@ const response = await fetch(`/api/patients/${id}`, { cache: "no-store", credent
                     </div>
                   )}
                 </div>
-              </>
-            ) : (
-              <>
-                <div className="mb-4">
-                  <label className="block mb-2 font-semibold">
-                    Visit Notes
-                  </label>
-                  <textarea
-                    value={visitNotes}
-                    onChange={(e) => setVisitNotes(e.target.value)}
-                    rows={8}
-                    placeholder="What was done during this visit?"
-                    className="w-full border p-3 rounded"
-                  />
-                </div>
-                <div className="mb-4">
-                  <label className="block mb-2 font-semibold">
-                    Payment Received Today
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={paymentReceived ? Number(paymentReceived).toLocaleString() : ""}
-                      onChange={(e) => {
-                        const digits = e.target.value.replace(/\D/g, "");
-                        setPaymentReceived(digits);
-                      }}
-                      placeholder="0"
-                      className="flex-1 border p-3 rounded"
-                    />
-                    <span className="font-semibold text-slate-700">IQD</span>
-                  </div>
-                </div>
-                <div className="mb-4">
-                  <label className="flex items-center gap-2">
+
+                <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-4">
+                  <label className="flex items-center gap-2 text-lg font-semibold text-slate-800">
                     <input
                       type="checkbox"
-                      checked={additionalEnabled}
-                      onChange={(e) => setAdditionalEnabled(e.target.checked)}
+                      checked={visitPhotosEnabled}
+                      onChange={(e) => {
+                        const enabled = e.target.checked;
+                        setVisitPhotosEnabled(enabled);
+                        if (!enabled) {
+                          Object.values(visitPhotos).forEach((photo) => {
+                            if (photo?.previewUrl) {
+                              URL.revokeObjectURL(photo.previewUrl);
+                            }
+                          });
+                          setVisitPhotos({});
+                        }
+                      }}
                     />
-                    Additional payment
+                    Photos
                   </label>
-
-                  {additionalEnabled && (
-                    <div className="mt-3 space-y-2">
-                      <div>
-                        <label className="block mb-1 text-sm">Additional fees</label>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            value={additionalAmount ? Number(additionalAmount).toLocaleString() : ""}
-                            onChange={(e) => setAdditionalAmount(e.target.value.replace(/\D/g, ""))}
-                            placeholder="0"
-                            className="flex-1 border p-3 rounded"
-                          />
-                          <span className="font-semibold text-slate-700">IQD</span>
-                        </div>
-                        <p className="text-xs text-slate-500 mt-1">This is an additional fee and will not be added to the patient's total paid. It is recorded separately on the visit.</p>
-                      </div>
-                      <div>
-                        <label className="block mb-1 text-sm">Reason for additional fee</label>
-                        <input type="text" value={additionalReason} onChange={(e) => setAdditionalReason(e.target.value)} className="w-full border p-2 rounded" />
-                      </div>
+                  {visitPhotosEnabled && (
+                    <div className="mt-3">
+                      <OrthoPhotoChart
+                        photos={visitPhotosForChart}
+                        onSelectPhoto={handleVisitPhotoSelect}
+                        onRemovePhoto={removeVisitPhoto}
+                        patientName={patient.name}
+                        ageText={patient.age ? String(patient.age) : "-"}
+                        dentistText="Orthodontist"
+                        bracesText={patient.bracketType || patient.treatment || "-"}
+                        dateText={selectedDate || "-"}
+                      />
                     </div>
                   )}
                 </div>
-              </>
-            )}
 
+                <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-4">
+                  <label className="flex items-center gap-2 text-lg font-semibold text-slate-800">
+                    <input
+                      type="checkbox"
+                      checked={visitXraysEnabled}
+                      onChange={(e) => {
+                        const enabled = e.target.checked;
+                        setVisitXraysEnabled(enabled);
+                        if (!enabled) {
+                          setVisitXrays([]);
+                        }
+                      }}
+                    />
+                    X-rays
+                  </label>
+                  {visitXraysEnabled && (
+                    <>
+                      <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
+                        <select
+                          value={xrayCategory}
+                          onChange={(e) => setXrayCategory(e.target.value)}
+                          className="w-full border p-3 rounded sm:w-auto"
+                        >
+                          {XRAY_CATEGORY_OPTIONS.map((option) => (
+                            <option key={option} value={option}>{option}</option>
+                          ))}
+                        </select>
+                        <input
+                          ref={xrayInputRef}
+                          type="file"
+                          accept="image/*,.pdf"
+                          multiple
+                          className="hidden"
+                          onChange={(e) => addSupportingFiles("xray", e.target.files, xrayCategory)}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => xrayInputRef.current?.click()}
+                          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+                        >
+                          Add X-ray Files
+                        </button>
+                      </div>
+
+                      {visitXrays.length > 0 ? (
+                        <div className="mt-3 space-y-2">
+                          {visitXrays.map((item) => (
+                            <div key={item.id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                              <div>
+                                <p className="font-medium text-slate-800">{item.name}</p>
+                                <p className="text-xs text-slate-500">{item.category}</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => removeSupportingFile("xray", item.id)}
+                                className="rounded-lg border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="mt-3 text-sm text-slate-500">No X-ray files added.</p>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-4">
+                  <label className="flex items-center gap-2 text-lg font-semibold text-slate-800">
+                    <input
+                      type="checkbox"
+                      checked={visitScansEnabled}
+                      onChange={(e) => {
+                        const enabled = e.target.checked;
+                        setVisitScansEnabled(enabled);
+                        if (!enabled) {
+                          setVisitScans([]);
+                        }
+                      }}
+                    />
+                    Scanner / Digital Models
+                  </label>
+                  {visitScansEnabled && (
+                    <>
+                      <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
+                        <select
+                          value={scanCategory}
+                          onChange={(e) => setScanCategory(e.target.value)}
+                          className="w-full border p-3 rounded sm:w-auto"
+                        >
+                          {SCAN_CATEGORY_OPTIONS.map((option) => (
+                            <option key={option} value={option}>{option}</option>
+                          ))}
+                        </select>
+                        <input
+                          ref={scanInputRef}
+                          type="file"
+                          accept=".stl,image/*,.pdf"
+                          multiple
+                          className="hidden"
+                          onChange={(e) => addSupportingFiles("scan", e.target.files, scanCategory)}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => scanInputRef.current?.click()}
+                          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+                        >
+                          Add Scanner Files
+                        </button>
+                      </div>
+
+                      {visitScans.length > 0 ? (
+                        <div className="mt-3 space-y-2">
+                          {visitScans.map((item) => (
+                            <div key={item.id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                              <div>
+                                <p className="font-medium text-slate-800">{item.name}</p>
+                                <p className="text-xs text-slate-500">{item.category}</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => removeSupportingFile("scan", item.id)}
+                                className="rounded-lg border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="mt-3 text-sm text-slate-500">No scanner files added.</p>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
             </div>
 
             <div className="border rounded-xl p-5 bg-green-50">
@@ -903,19 +1286,18 @@ const response = await fetch(`/api/patients/${id}`, { cache: "no-store", credent
                 <h3 className="mb-3 text-lg font-semibold text-slate-800">Planned Visit Details</h3>
                 {/* description removed per request */}
 
-                {isFixedBraces ? (
-                  <div className="space-y-4">
-                    <label className="flex items-center gap-3 font-semibold">
-                      <input
-                        type="checkbox"
-                        checked={plannedUpperArchEnabled}
-                        onChange={(e) => setPlannedUpperArchEnabled(e.target.checked)}
-                      />
-                      Planned Upper Arch
-                    </label>
+                <div className="space-y-4">
+                  <label className="flex items-center gap-3 font-semibold">
+                    <input
+                      type="checkbox"
+                      checked={plannedUpperArchEnabled}
+                      onChange={(e) => setPlannedUpperArchEnabled(e.target.checked)}
+                    />
+                    Planned Upper Arch
+                  </label>
 
-                    {plannedUpperArchEnabled && (
-                      <div className="space-y-4 rounded-xl border border-slate-200 p-3">
+                  {plannedUpperArchEnabled && (
+                    <div className="space-y-4 rounded-xl border border-slate-200 p-3">
                         <div className="text-sm text-slate-700">
                           Wire system: {getWireSystemLabel(plannedUpperWireSystem, patient?.bracketType)}
                         </div>
@@ -1190,11 +1572,6 @@ const response = await fetch(`/api/patients/${id}`, { cache: "no-store", credent
                       />
                     )}
                   </div>
-                ) : (
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-                    No planned appliance options are needed for this case.
-                  </div>
-                )}
               </div>
 
               <div className="mb-4">
@@ -1279,9 +1656,10 @@ const response = await fetch(`/api/patients/${id}`, { cache: "no-store", credent
               <div className="mt-8 text-center">
                 <button
                   onClick={saveAppointment}
-                  className="bg-blue-600 text-white px-6 py-3 rounded-lg"
+                  disabled={isSaving}
+                  className="bg-blue-600 text-white px-6 py-3 rounded-lg disabled:cursor-not-allowed disabled:bg-blue-300"
                 >
-                  Save Appointment
+                  {isSaving ? "Saving..." : "Save Appointment"}
                 </button>
               </div>
 

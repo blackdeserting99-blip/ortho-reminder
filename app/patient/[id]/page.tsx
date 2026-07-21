@@ -48,6 +48,7 @@ type Patient = {
   name: string;
   phone: string;
   address?: string;
+  caseSheet?: string;
   treatment: string;
   bracketType?: string;
   age?: number;
@@ -154,37 +155,109 @@ export default function PatientProfilePage() {
   const printReceipt = () => {
     if (!patient) return;
 
-    const rows = (patient.visits || [])
-      .filter((visit) => visit.additionalPayment)
-      .map((visit) => {
-        const reason = visit.additionalReason ? ` — ${visit.additionalReason}` : "";
-        return `<div class="field"><span>${formatDateDMY(visit.date)}</span><span>${(visit.additionalPayment || 0).toLocaleString()} IQD${reason}</span></div>`;
-      })
-      .join("");
+    const doctorName = "Dr. Orthodontist";
+    const history = (patient.visits || [])
+      .filter((visit) => (visit.payment || 0) > 0 || (visit.additionalPayment || 0) > 0)
+      .sort((a, b) => (a.date || "").localeCompare(b.date || ""));
 
-    const html = `<!doctype html><html><head><title>Receipt</title><style>
-      body{font-family:Inter,system-ui,sans-serif;color:#111;margin:20px}
-      .title{font-size:24px;font-weight:700;margin-bottom:16px}
-      .field{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #ddd}
-      .section{margin-top:20px}
-      .section-title{font-weight:700;margin-bottom:12px}
-      .label{font-weight:600}
+    const totalRegularPaid = history.reduce((sum, visit) => sum + (visit.payment || 0), 0);
+
+    const rows = history.length
+      ? history
+          .map((visit, index) => {
+            const paid = visit.payment || 0;
+            const additional = visit.additionalPayment || 0;
+            const reason = visit.additionalReason?.trim() || "-";
+            const visitTotal = paid + additional;
+            return `
+              <tr>
+                <td>${index + 1}</td>
+                <td>${formatDateDMY(visit.date)}</td>
+                <td>${paid > 0 ? `${paid.toLocaleString()} IQD` : "-"}</td>
+                <td>${additional > 0 ? `${additional.toLocaleString()} IQD` : "-"}</td>
+                <td>${additional > 0 ? reason : "-"}</td>
+                <td>${visitTotal > 0 ? `${visitTotal.toLocaleString()} IQD` : "-"}</td>
+              </tr>
+            `;
+          })
+          .join("")
+      : `
+          <tr>
+            <td colspan="6" class="empty">No payment records yet.</td>
+          </tr>
+        `;
+
+    const html = `<!doctype html><html><head><title>Patient Bill</title><style>
+      *{box-sizing:border-box}
+      body{font-family:Segoe UI,Tahoma,Geneva,Verdana,sans-serif;color:#0f172a;margin:24px;background:#f8fafc}
+      .sheet{background:#fff;border:1px solid #e2e8f0;border-radius:18px;padding:24px;max-width:980px;margin:0 auto}
+      .top{display:flex;justify-content:space-between;gap:24px;align-items:flex-start;border-bottom:2px solid #0ea5a4;padding-bottom:16px}
+      .brand{font-size:30px;font-weight:800;color:#0f766e;letter-spacing:.5px}
+      .sub{font-size:12px;color:#475569;margin-top:6px}
+      .title{font-size:20px;font-weight:700;color:#0f172a;text-align:right}
+      .meta{margin-top:4px;font-size:12px;color:#334155;text-align:right}
+      .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px}
+      .card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px}
+      .label{font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:.08em}
+      .value{margin-top:4px;font-size:15px;font-weight:600;color:#0f172a}
+      table{width:100%;border-collapse:collapse;margin-top:20px}
+      th{background:#ecfeff;color:#0f766e;font-size:12px;text-transform:uppercase;letter-spacing:.06em;padding:10px;border:1px solid #bae6fd;text-align:left}
+      td{padding:10px;border:1px solid #e2e8f0;font-size:13px;color:#1e293b;vertical-align:top}
+      .empty{text-align:center;color:#64748b;padding:18px}
+      .summary{margin-top:18px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+      .sum{display:flex;justify-content:space-between;padding:10px 12px;border-radius:10px;background:#f8fafc;border:1px solid #e2e8f0;font-size:13px}
+      .sum strong{color:#0f172a}
+      .sum.total{background:#ecfdf5;border-color:#bbf7d0}
+      .sum.balance{background:#fef2f2;border-color:#fecaca}
+      .foot{margin-top:22px;font-size:12px;color:#64748b;text-align:center}
+      @media print{
+        body{background:#fff;margin:0}
+        .sheet{border:none;border-radius:0;max-width:none;padding:12px}
+      }
     </style></head><body>
-      <div class="title">Receipt</div>
-      <div class="section">
-        <div class="field"><span class="label">Receipt Date</span><span>${formatDateDMY(new Date().toISOString().split("T")[0])}</span></div>
-        <div class="field"><span class="label">Patient</span><span>${patient.name}</span></div>
-        <div class="field"><span class="label">Phone</span><span>${patient.phone}</span></div>
-        <div class="field"><span class="label">Case</span><span>${patient.treatment}</span></div>
+      <div class="sheet">
+        <div class="top">
+          <div>
+            <div class="brand">Orthodontic Bill</div>
+            <div class="sub">${patient.clinicName || "Orthodontic Clinic"}</div>
+          </div>
+          <div>
+            <div class="title">Billing Statement</div>
+            <div class="meta">Date: ${formatDateDMY(new Date().toISOString().split("T")[0])}</div>
+          </div>
+        </div>
+
+        <div class="grid">
+          <div class="card"><div class="label">Doctor</div><div class="value">${doctorName}</div></div>
+          <div class="card"><div class="label">Patient</div><div class="value">${patient.name}</div></div>
+          <div class="card"><div class="label">Phone</div><div class="value">${patient.phone}</div></div>
+          <div class="card"><div class="label">Case</div><div class="value">${patient.treatment}</div></div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Date</th>
+              <th>Paid</th>
+              <th>Additional Fee</th>
+              <th>Reason (If Any)</th>
+              <th>Total This Visit</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+
+        <div class="summary">
+          <div class="sum"><span>Total Fee</span><strong>${overallTotalFee.toLocaleString()} IQD</strong></div>
+          <div class="sum"><span>Regular Paid</span><strong>${totalRegularPaid.toLocaleString()} IQD</strong></div>
+          <div class="sum"><span>Additional Fees</span><strong>${additionalFeesTotal.toLocaleString()} IQD</strong></div>
+          <div class="sum total"><span>Overall Paid</span><strong>${totalPaid.toLocaleString()} IQD</strong></div>
+          <div class="sum balance" style="grid-column:1 / -1;"><span>Remaining Balance</span><strong>${remaining.toLocaleString()} IQD</strong></div>
+        </div>
+
+        <div class="foot">Generated from patient profile billing history.</div>
       </div>
-      <div class="section">
-        <div class="section-title">Financial Summary</div>
-        <div class="field"><span class="label">Total Fee</span><span>${overallTotalFee.toLocaleString()} IQD</span></div>
-        <div class="field"><span class="label">Paid</span><span>${totalPaid.toLocaleString()} IQD</span></div>
-        <div class="field"><span class="label">Additional Fees Total</span><span>${additionalFeesTotal.toLocaleString()} IQD</span></div>
-        <div class="field"><span class="label">Remaining</span><span>${remaining.toLocaleString()} IQD</span></div>
-      </div>
-      ${rows ? `<div class="section"><div class="section-title">Additional Fee Details</div>${rows}</div>` : ""}
       <script>window.onload = function(){ window.print(); }</script>
     </body></html>`;
 
@@ -412,6 +485,12 @@ export default function PatientProfilePage() {
               >
                 Edit Patient
               </Link>
+              <Link
+                href={`/patients/${patient.id}/case-sheet`}
+                className="bg-teal-600 hover:bg-teal-700 text-white px-5 py-2.5 rounded-lg font-medium transition"
+              >
+                Case Sheet
+              </Link>
               <button
                 type="button"
                 onClick={printReceipt}
@@ -436,6 +515,43 @@ export default function PatientProfilePage() {
               )}
             </div>
           </div>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 mb-8">
+          <h2 className="text-xl font-bold text-slate-900 mb-4">Latest Visit</h2>
+          {lastVisit ? (
+            <div className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-sm text-slate-500">Visit date</p>
+                  <p className="mt-1 font-semibold text-slate-900">{formatDateDMY(lastVisit.date) || "-"}</p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-sm text-slate-500">Payment</p>
+                  <p className="mt-1 font-semibold text-slate-900">{((lastVisit.payment || 0) as number).toLocaleString()} IQD</p>
+                </div>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm text-slate-500 mb-1">Current wire</p>
+                <p className="text-slate-900">
+                  Upper: <span className="font-semibold">{lastVisit.upperWire || lastVisit.upperArch || "-"}</span> | Lower: <span className="font-semibold">{lastVisit.lowerWire || lastVisit.lowerArch || "-"}</span>
+                </p>
+                <p className="mt-2 text-slate-900">Elastics: <span className="font-semibold">{lastVisit.elasticType || "-"}</span></p>
+                <p className="mt-2 text-slate-900">TADs: <span className="font-semibold">{lastVisit.tadsNote || "-"}</span></p>
+                <p className="mt-2 text-slate-900 whitespace-pre-wrap">Notes: <span className="font-semibold">{lastVisit.visitNotes || "-"}</span></p>
+              </div>
+
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                <h3 className="text-lg font-semibold text-emerald-800 mb-2">Next Planned Visit</h3>
+                <p className="text-slate-900">Wire: <span className="font-semibold">U{lastVisit.plannedUpperArch || "-"} L{lastVisit.plannedLowerArch || "-"}</span></p>
+                <p className="mt-2 text-slate-900">Elastics: <span className="font-semibold">{lastVisit.plannedElasticType || "-"}</span></p>
+                <p className="mt-2 text-slate-900">TADs: <span className="font-semibold">{lastVisit.plannedTadsNote || "-"}</span></p>
+                <p className="mt-2 text-slate-900 whitespace-pre-wrap">Notes: <span className="font-semibold">{lastVisit.plannedNotes || "-"}</span></p>
+              </div>
+            </div>
+          ) : (
+            <p className="text-slate-500">No visit recorded yet.</p>
+          )}
         </div>
 
         {/* Patient Attachments */}

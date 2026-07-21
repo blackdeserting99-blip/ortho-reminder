@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  ORTHO_PHOTO_UPLOAD_SLOTS,
+  type OrthoPhotoSlotKey,
+} from "../components/OrthoPhotoChart";
+
 type Draft = Record<string, any>;
 
 const eruptionQuadrants = [
@@ -31,6 +36,21 @@ function getHabitSummary(draft: Draft) {
 }
 
 export default function PrintableCaseSheet({ draft }: { draft: Draft }) {
+  const attachmentMap = (draft.attachments || []).reduce(
+    (acc: Partial<Record<OrthoPhotoSlotKey, { name: string; dataUrl: string }>>, photo: any) => {
+      if (!photo?.slotKey) {
+        return acc;
+      }
+
+      acc[photo.slotKey as OrthoPhotoSlotKey] = {
+        name: photo.name || "Photo",
+        dataUrl: photo.dataUrl || "",
+      };
+      return acc;
+    },
+    {}
+  );
+
   return (
     <div id="print-template" className="print-only print-template">
       <div className="print-page">
@@ -125,6 +145,54 @@ export default function PrintableCaseSheet({ draft }: { draft: Draft }) {
         <div className="print-section">
           <div className="print-section-heading">Treatment Plan</div>
           <div className="print-field"><span>Plan</span><span>{draft.treatmentPlan || "-"}</span></div>
+        </div>
+
+        <div className="print-section">
+          <div className="print-section-heading">Orthodontic Photo Chart</div>
+          <div className="grid grid-cols-3 gap-2">
+            {ORTHO_PHOTO_UPLOAD_SLOTS.slice(0, 3).map((slot) => (
+              <div key={slot.key} className="rounded border border-slate-300 bg-slate-50 p-1">
+                {attachmentMap[slot.key]?.dataUrl ? (
+                  <img src={attachmentMap[slot.key]?.dataUrl} alt={attachmentMap[slot.key]?.name || slot.label} className="h-28 w-full rounded object-cover" />
+                ) : (
+                  <div className="flex h-28 items-center justify-center rounded border border-dashed border-slate-300 text-xs text-slate-500">{slot.label}</div>
+                )}
+              </div>
+            ))}
+
+            <div className="rounded border border-slate-300 bg-slate-50 p-1">
+              {attachmentMap.upperOcclusal?.dataUrl ? (
+                <img src={attachmentMap.upperOcclusal.dataUrl} alt={attachmentMap.upperOcclusal.name} className="h-28 w-full rounded object-cover" />
+              ) : (
+                <div className="flex h-28 items-center justify-center rounded border border-dashed border-slate-300 text-xs text-slate-500">Upper Arch</div>
+              )}
+            </div>
+
+            <div className="flex h-28 flex-col items-center justify-center rounded border border-slate-300 bg-white text-center">
+              <p className="text-xs font-semibold text-slate-900">{draft.name || "Patient"}</p>
+              <p className="text-[11px] text-slate-700">Age: {draft.age || "-"}</p>
+              <p className="text-[11px] text-slate-700">Dentist: Orthodontist</p>
+              <p className="text-[11px] text-slate-700">Date: {draft.examDate || "-"}</p>
+            </div>
+
+            <div className="rounded border border-slate-300 bg-slate-50 p-1">
+              {attachmentMap.lowerOcclusal?.dataUrl ? (
+                <img src={attachmentMap.lowerOcclusal.dataUrl} alt={attachmentMap.lowerOcclusal.name} className="h-28 w-full rounded object-cover" />
+              ) : (
+                <div className="flex h-28 items-center justify-center rounded border border-dashed border-slate-300 text-xs text-slate-500">Lower Arch</div>
+              )}
+            </div>
+
+            {ORTHO_PHOTO_UPLOAD_SLOTS.slice(5, 8).map((slot) => (
+              <div key={slot.key} className="rounded border border-slate-300 bg-slate-50 p-1">
+                {attachmentMap[slot.key]?.dataUrl ? (
+                  <img src={attachmentMap[slot.key]?.dataUrl} alt={attachmentMap[slot.key]?.name || slot.label} className="h-28 w-full rounded object-cover" />
+                ) : (
+                  <div className="flex h-28 items-center justify-center rounded border border-dashed border-slate-300 text-xs text-slate-500">{slot.label}</div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>

@@ -30,7 +30,7 @@ export async function DELETE(
     return NextResponse.json({ error: "Visit not found" }, { status: 404 });
   }
 
-  const media = await prisma.visitMedia.findFirst({
+  const media = await prisma.media.findFirst({
     where: { id: mediaIdNumber, visitId: visitIdNumber },
   });
 
@@ -38,7 +38,11 @@ export async function DELETE(
     return NextResponse.json({ error: "Media not found" }, { status: 404 });
   }
 
-  const storagePath = path.join(process.cwd(), "public", media.storagePath);
+  const storagePath = path.join(
+    process.cwd(),
+    "public",
+    String(media.url || "").replace(/^\//, "")
+  );
   try {
     if (fs.existsSync(storagePath)) {
       fs.unlinkSync(storagePath);
@@ -47,7 +51,7 @@ export async function DELETE(
     // continue even if file deletion fails
   }
 
-  await prisma.visitMedia.delete({ where: { id: mediaIdNumber } });
+  await prisma.media.delete({ where: { id: mediaIdNumber } });
 
   return NextResponse.json({ success: true });
 }

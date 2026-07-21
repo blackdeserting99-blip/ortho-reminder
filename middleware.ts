@@ -16,19 +16,16 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (isPublicPath(pathname)) {
-    if (pathname === "/login" || pathname === "/register") {
-      const session = await getSessionFromCookieValue(request.cookies.get(SESSION_COOKIE_NAME)?.value);
-      if (session) {
-        return NextResponse.redirect(new URL("/patients", request.url));
-      }
-    }
-
     return NextResponse.next();
   }
 
   const session = await getSessionFromCookieValue(request.cookies.get(SESSION_COOKIE_NAME)?.value);
 
   if (!session) {
+    // Return JSON error for API routes, redirect to login for pages
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     return NextResponse.redirect(new URL("/login", request.url));
   }
 

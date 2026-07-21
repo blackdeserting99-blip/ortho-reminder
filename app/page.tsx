@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Sidebar from "./components/Sidebar";
 import DateInput from "./components/DateInput";
@@ -22,6 +23,7 @@ clinicColor?: string;
       };
 
       export default function Home() {
+        const router = useRouter();
         const [patientCount, setPatientCount] = useState(0);
         const [todayPatients, setTodayPatients] =
           useState<Patient[]>([]);
@@ -68,6 +70,21 @@ clinicColor?: string;
 
         target?.scrollIntoView({ behavior: "smooth", block: "start" });
       };
+
+      useEffect(() => {
+        const checkAuth = async () => {
+          try {
+            const response = await fetch("/api/me");
+            if (!response.ok) {
+              router.push("/login");
+            }
+          } catch (error) {
+            router.push("/login");
+          }
+        };
+        checkAuth();
+      }, [router]);
+
       useEffect(() => {
         const loadPatients = async () => {
           try {
@@ -233,6 +250,53 @@ clinicColor?: string;
 
       const getLatestVisit = (patient: any) =>
         patient.visits?.[patient.visits.length - 1] || {};
+
+      const renderNextVisitInfo = (patient: any) => {
+        const latestVisit = getLatestVisit(patient);
+        const plannedNotes = getLatestPlannedNotes(patient);
+        const hasCurrent =
+          latestVisit.upperArch ||
+          latestVisit.lowerArch ||
+          latestVisit.elasticType ||
+          latestVisit.tadsNote ||
+          latestVisit.visitNotes;
+        const hasPlanned =
+          latestVisit.plannedUpperArch ||
+          latestVisit.plannedLowerArch ||
+          latestVisit.plannedElasticType ||
+          latestVisit.plannedTadsNote ||
+          plannedNotes;
+
+        return (
+          <div className="space-y-2 text-sm text-gray-700">
+            {hasCurrent ? (
+              <div>
+                <div className="font-semibold text-gray-900">Current Visit</div>
+                {(latestVisit.upperArch || latestVisit.lowerArch) && (
+                  <div>Wire: U{latestVisit.upperArch || "-"} L{latestVisit.lowerArch || "-"}</div>
+                )}
+                {latestVisit.elasticType && <div>Elastic: {latestVisit.elasticType}</div>}
+                {latestVisit.tadsNote && <div>TADs: {latestVisit.tadsNote}</div>}
+                {latestVisit.visitNotes && <div>Notes: {latestVisit.visitNotes}</div>}
+              </div>
+            ) : null}
+
+            {hasPlanned ? (
+              <div>
+                <div className="font-semibold text-gray-900">Next Planned Visit</div>
+                {(latestVisit.plannedUpperArch || latestVisit.plannedLowerArch) && (
+                  <div>Wire: U{latestVisit.plannedUpperArch || "-"} L{latestVisit.plannedLowerArch || "-"}</div>
+                )}
+                {latestVisit.plannedElasticType && <div>Elastic: {latestVisit.plannedElasticType}</div>}
+                {latestVisit.plannedTadsNote && <div>TADs: {latestVisit.plannedTadsNote}</div>}
+                {plannedNotes && <div>Notes: {plannedNotes}</div>}
+              </div>
+            ) : null}
+
+            {!hasCurrent && !hasPlanned && <div className="text-gray-500">No visit details recorded</div>}
+          </div>
+        );
+      };
 
  return (
   <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(45,212,191,0.16),_transparent_36%),linear-gradient(135deg,_#f4fcfb_0%,_#eef9f7_100%)] px-4 py-6 sm:px-6 lg:px-8">
@@ -419,8 +483,6 @@ clinicColor?: string;
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {filteredTodayPatients.map((patient) => {
-                      const latestVisit = patient.visits?.at(-1) || {};
-                      const plannedNotes = getLatestPlannedNotes(patient);
                       return (
                         <tr key={patient.id} className="hover:bg-gray-50">
                           <td className="py-4 px-4">
@@ -439,23 +501,7 @@ clinicColor?: string;
                           </td>
                           <td className="py-4 px-4">{formatTreatment(patient)}</td>
                           <td className="py-4 px-4">
-                            <div className="space-y-1 text-sm text-gray-700">
-                              {(latestVisit.plannedUpperArch || latestVisit.plannedLowerArch) && (
-                                <div>
-                                  Wire: U{latestVisit.plannedUpperArch || "-"} L{latestVisit.plannedLowerArch || "-"}
-                                </div>
-                              )}
-                              {latestVisit.plannedElasticType && (
-                                <div>Elastic: {latestVisit.plannedElasticType}</div>
-                              )}
-                              {latestVisit.plannedTadsNote && (
-                                <div>Tads: {latestVisit.plannedTadsNote}</div>
-                              )}
-                              {plannedNotes && <div>{plannedNotes}</div>}
-                              {!latestVisit.plannedUpperArch && !latestVisit.plannedLowerArch && !latestVisit.plannedElasticType && !latestVisit.plannedTadsNote && !plannedNotes && (
-                                <div className="text-gray-500">No future plan recorded</div>
-                              )}
-                            </div>
+                            {renderNextVisitInfo(patient)}
                           </td>
                           <td className="py-4 px-4">
                             <div className="font-semibold text-green-700">
@@ -628,8 +674,6 @@ clinicColor?: string;
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {filteredUpcomingPatients.map((patient) => {
-                      const latestVisit = patient.visits?.at(-1) || {};
-                      const plannedNotes = getLatestPlannedNotes(patient);
                       return (
                         <tr key={patient.id} className="hover:bg-orange-50/50">
                           <td className="py-4 px-4">
@@ -648,21 +692,7 @@ clinicColor?: string;
                           </td>
                           <td className="py-4 px-4">{formatTreatment(patient)}</td>
                           <td className="py-4 px-4">
-                            <div className="space-y-1 text-sm text-gray-700">
-                              {(latestVisit.plannedUpperArch || latestVisit.plannedLowerArch) && (
-                                <div>
-                                  Wire: U{latestVisit.plannedUpperArch || "-"} L{latestVisit.plannedLowerArch || "-"}
-                                </div>
-                              )}
-                              {latestVisit.plannedElasticType && (
-                                <div>Elastic: {latestVisit.plannedElasticType}</div>
-                              )}
-                              {latestVisit.plannedTadsNote && <div>Tads: {latestVisit.plannedTadsNote}</div>}
-                              {plannedNotes && <div>{plannedNotes}</div>}
-                              {!latestVisit.plannedUpperArch && !latestVisit.plannedLowerArch && !latestVisit.plannedElasticType && !latestVisit.plannedTadsNote && !plannedNotes && (
-                                <div className="text-gray-500">No future plan recorded</div>
-                              )}
-                            </div>
+                            {renderNextVisitInfo(patient)}
                           </td>
                           <td className="py-4 px-4">
                             <div className="font-semibold text-green-700">
@@ -823,31 +853,7 @@ clinicColor?: string;
               </td>
 
               <td className="py-4 px-4">
-                    <div className="space-y-1 text-sm text-gray-700">
-                      {(patient.visits?.at(-1)?.plannedUpperArch || patient.visits?.at(-1)?.plannedLowerArch) && (
-                        <div>
-                          Wire: U{patient.visits?.at(-1)?.plannedUpperArch || "-"} L{patient.visits?.at(-1)?.plannedLowerArch || "-"}
-                        </div>
-                      )}
-                      {patient.visits?.at(-1)?.plannedElasticType && (
-                        <div>Elastic: {patient.visits?.at(-1)?.plannedElasticType}</div>
-                      )}
-                      {patient.visits?.at(-1)?.plannedTadsNote && (
-                        <div>Tads: {patient.visits?.at(-1)?.plannedTadsNote}</div>
-                      )}
-                      {(() => {
-                        const latestVisit = patient.visits?.at(-1) || {};
-                        const plannedNotes = getLatestPlannedNotes(patient);
-                        return (
-                          <>
-                            {plannedNotes && <div>{plannedNotes}</div>}
-                            {!latestVisit.plannedUpperArch && !latestVisit.plannedLowerArch && !latestVisit.plannedElasticType && !latestVisit.plannedTadsNote && !plannedNotes && (
-                              <div className="text-sm text-gray-500">No future plan recorded</div>
-                            )}
-                          </>
-                        );
-                      })()}
-                    </div>
+                {renderNextVisitInfo(patient)}
               </td>
 
               <td className="py-4 px-4">

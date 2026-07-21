@@ -206,20 +206,19 @@ export default function EditVisitPage() {
       const currentVisit = visits[currentIndex] ?? {};
 
       const newPayment = Number(payment.replace(/,/g, "")) || 0;
-      const newAdditional = Number(additionalAmount.replace(/,/g, "")) || 0;
-      const newAdditionalPaid = !!additionalPaid;
 
       visits[currentIndex] = {
         ...currentVisit,
-        visitNotes: note,
+        treatmentNotes: note,
         paymentCollected: newPayment,
         elastics: elasticEnabled ? elasticType : null,
       };
 
-      const updateResponse = await fetch(`/api/patients/${patientId}`, {
-        method: "PATCH",
+      const updateResponse = await fetch(`/api/patients/${patientId}/visits`, {
+        method: "PUT",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ visits }),
+        body: JSON.stringify(visits),
       });
       if (!updateResponse.ok) {
         throw new Error("Update failed");

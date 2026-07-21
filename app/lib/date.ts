@@ -13,3 +13,10 @@ export function formatDateDMY(dateString: string | undefined | null) {
   const mm = String(parsed.getMonth() + 1).padStart(2, "0");
   return `${dd}-${mm}-${parsed.getFullYear()}`;
 }
+
+export function convertTo12Hour(time24h: string): string {
+  const [hours, minutes] = time24h.split(':').map(Number);
+  const period = hours >= 12 ? 'PM' : 'AM';
+  const hours12 = hours % 12 || 12;
+  return `${hours12.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} ${period}`;
+}

@@ -250,7 +250,6 @@ const [totalFee, setTotalFee] = useState("");
       notes: notes.trim(),
       plannedNotes: plannedNotesEnabled ? plannedNotes.trim() : "",
       totalFee: Number(totalFee) || 0,
-      totalPaid: Number(additionalAmount) || 0,
       retainerFee: Number(retainerFee) || 0,
       elasticEnabled: false,
       elasticType: "",

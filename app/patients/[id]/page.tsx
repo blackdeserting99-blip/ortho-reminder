@@ -8,7 +8,6 @@ import {
   CalendarDays,
   CircleDollarSign,
   StickyNote,
-  Plus,
   Clock3,
   Activity,
   FileText,
@@ -16,7 +15,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import Sidebar from "../../components/Sidebar";
-import { formatDateDMY } from "../../lib/date";
+import { formatDateDMY, convertTo12Hour } from "../../lib/date";
 
 type VisitMedia = {
   id: number;
@@ -46,6 +45,15 @@ type Visit = {
   lowerArch?: string | null;
   elastics?: string | null;
   tads?: string | null;
+  plannedUpperArch?: string | null;
+  plannedLowerArch?: string | null;
+  plannedElasticType?: string | null;
+  plannedTadsNote?: string | null;
+  plannedTreatment?: string | null;
+  plannedNotes?: string | null;
+  visitNotes?: string | null;
+  additionalPayment?: number | null;
+  additionalReason?: string | null;
   treatmentNotes?: string | null;
   paymentCollected?: number | null;
   doctorNotes?: string | null;
@@ -57,6 +65,7 @@ type Patient = {
   name: string;
   phone: string;
   age?: number | null;
+  caseSheet?: string | null;
   clinicName?: string | null;
   clinicColor?: string | null;
   treatment: string;
@@ -142,6 +151,31 @@ const getGalleryFilterTitle = (filter: GalleryFilter) => {
   }
 };
 
+const toAmount = (value: unknown) => {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  if (typeof value === "string") {
+    const parsed = Number(value.replace(/,/g, "").trim());
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+};
+
+const getVisitMediaSummary = (visit: Visit) => {
+  const media = visit.visitMedia ?? [];
+  const photos = media.filter((item) => item.fileType === "PHOTO").length;
+  const xrays = media.filter((item) => item.fileType === "XRAY").length;
+  const scans = media.filter((item) => item.fileType === "SCAN").length;
+  const categories = Array.from(new Set(media.map((item) => item.category))).slice(0, 5);
+
+  return {
+    total: media.length,
+    photos,
+    xrays,
+    scans,
+    categories,
+  };
+};
+
 export default function PatientProfilePage() {
   const params = useParams();
   const id = params?.id ? String(params.id) : "";
@@ -149,19 +183,6 @@ export default function PatientProfilePage() {
   const [patient, setPatient] = useState<Patient | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"overview" | "visits" | "gallery" | "payments">("overview");
-  const [showNewVisitForm, setShowNewVisitForm] = useState(false);
-  const [newVisitForm, setNewVisitForm] = useState({
-    date: "",
-    time: "",
-    wireUsed: "",
-    upperArch: "",
-    lowerArch: "",
-    elastics: "",
-    tads: "",
-    treatmentNotes: "",
-    paymentCollected: "",
-    doctorNotes: "",
-  });
   const [uploadVisitId, setUploadVisitId] = useState<number | null>(null);
   const [uploadFiles, setUploadFiles] = useState<FileList | null>(null);
   const [uploadType, setUploadType] = useState("PHOTO");
@@ -173,8 +194,8 @@ export default function PatientProfilePage() {
   const [compareSelection, setCompareSelection] = useState<GalleryMedia[]>([]);
 
   const visits = useMemo(() => patient?.visits ?? [], [patient]);
-  const totalPayments = useMemo(() => visits.reduce((sum, visit) => sum + (visit.paymentCollected || 0), 0), [visits]);
-  const totalFee = patient?.totalFee ?? 0;
+  const totalPayments = useMemo(() => visits.reduce((sum, visit) => sum + toAmount(visit.paymentCollected), 0), [visits]);
+  const totalFee = toAmount(patient?.totalFee);
   const remainingBalance = totalFee - totalPayments;
   const visitCount = visits.length;
 
@@ -233,47 +254,6 @@ export default function PatientProfilePage() {
   useEffect(() => {
     loadPatient();
   }, [id]);
-
-  const handleNewVisitSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!id) return;
-
-    try {
-      const response = await fetch(`/api/patients/${id}/visits`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          date: newVisitForm.date,
-          time: newVisitForm.time || null,
-          wireUsed: newVisitForm.wireUsed || null,
-          upperArch: newVisitForm.upperArch || null,
-          lowerArch: newVisitForm.lowerArch || null,
-          elastics: newVisitForm.elastics || null,
-          tads: newVisitForm.tads || null,
-          treatmentNotes: newVisitForm.treatmentNotes || null,
-          paymentCollected: newVisitForm.paymentCollected ? Number(newVisitForm.paymentCollected) : null,
-          doctorNotes: newVisitForm.doctorNotes || null,
-        }),
-      });
-      if (!response.ok) throw new Error("Unable to add visit");
-      setShowNewVisitForm(false);
-      setNewVisitForm({
-        date: "",
-        time: "",
-        wireUsed: "",
-        upperArch: "",
-        lowerArch: "",
-        elastics: "",
-        tads: "",
-        treatmentNotes: "",
-        paymentCollected: "",
-        doctorNotes: "",
-      });
-      loadPatient();
-    } catch {
-      // keep UI intact
-    }
-  };
 
   const handleDeleteVisit = async (visitId: number) => {
     if (!id) return;
@@ -344,6 +324,114 @@ export default function PatientProfilePage() {
   };
 
   const availableGallery = galleryItems;
+
+  const printPaymentsStatement = () => {
+    if (!patient) return;
+
+    const doctorName = "Dr. Orthodontist";
+    const entries = visits
+      .map((visit, index) => {
+        const paid = toAmount(visit.paymentCollected);
+        const additional = toAmount(visit.additionalPayment);
+        return {
+          index: index + 1,
+          date: visit.date,
+          paid,
+          additional,
+          reason: (visit.additionalReason || "").trim(),
+          notes: visit.treatmentNotes || visit.doctorNotes || visit.visitNotes || "",
+          total: paid + additional,
+        };
+      })
+      .filter((entry) => entry.paid > 0 || entry.additional > 0 || entry.notes);
+
+    const additionalTotal = entries.reduce((sum, entry) => sum + entry.additional, 0);
+    const rows = entries.length
+      ? entries
+          .map(
+            (entry) => `
+              <tr>
+                <td>${entry.index}</td>
+                <td>${formatDateDMY(entry.date)}</td>
+                <td>${entry.paid > 0 ? `${entry.paid.toLocaleString()} IQD` : "-"}</td>
+                <td>${entry.additional > 0 ? `${entry.additional.toLocaleString()} IQD` : "-"}</td>
+                <td>${entry.additional > 0 ? entry.reason || "-" : "-"}</td>
+                <td>${entry.notes || "-"}</td>
+                <td>${entry.total > 0 ? `${entry.total.toLocaleString()} IQD` : "-"}</td>
+              </tr>
+            `
+          )
+          .join("")
+      : `<tr><td colspan="7" class="empty">No payment records yet.</td></tr>`;
+
+    const html = `<!doctype html><html><head><title>Payments Statement</title><style>
+      *{box-sizing:border-box}
+      body{font-family:Segoe UI,Tahoma,Geneva,Verdana,sans-serif;color:#0f172a;margin:24px;background:#f8fafc}
+      .sheet{background:#fff;border:1px solid #e2e8f0;border-radius:18px;padding:24px;max-width:1100px;margin:0 auto}
+      .top{display:flex;justify-content:space-between;gap:24px;align-items:flex-start;border-bottom:2px solid #0ea5a4;padding-bottom:16px}
+      .brand{font-size:30px;font-weight:800;color:#0f766e}
+      .title{font-size:20px;font-weight:700;color:#0f172a;text-align:right}
+      .meta{margin-top:4px;font-size:12px;color:#334155;text-align:right}
+      .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px}
+      .card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px}
+      .label{font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:.08em}
+      .value{margin-top:4px;font-size:15px;font-weight:600;color:#0f172a}
+      table{width:100%;border-collapse:collapse;margin-top:20px}
+      th{background:#ecfeff;color:#0f766e;font-size:12px;text-transform:uppercase;letter-spacing:.06em;padding:10px;border:1px solid #bae6fd;text-align:left}
+      td{padding:10px;border:1px solid #e2e8f0;font-size:13px;color:#1e293b;vertical-align:top}
+      .empty{text-align:center;color:#64748b;padding:18px}
+      .summary{margin-top:18px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+      .sum{display:flex;justify-content:space-between;padding:10px 12px;border-radius:10px;background:#f8fafc;border:1px solid #e2e8f0;font-size:13px}
+      .sum strong{color:#0f172a}
+      .sum.total{background:#ecfdf5;border-color:#bbf7d0}
+      .sum.balance{background:#fef2f2;border-color:#fecaca}
+      @media print{body{background:#fff;margin:0}.sheet{border:none;border-radius:0;max-width:none;padding:12px}}
+    </style></head><body>
+      <div class="sheet">
+        <div class="top">
+          <div><div class="brand">Payments Statement</div></div>
+          <div>
+            <div class="title">Patient Billing History</div>
+            <div class="meta">Date: ${formatDateDMY(new Date().toISOString().split("T")[0])}</div>
+          </div>
+        </div>
+        <div class="grid">
+          <div class="card"><div class="label">Doctor</div><div class="value">${doctorName}</div></div>
+          <div class="card"><div class="label">Patient</div><div class="value">${patient.name}</div></div>
+          <div class="card"><div class="label">Phone</div><div class="value">${patient.phone}</div></div>
+          <div class="card"><div class="label">Treatment</div><div class="value">${patient.treatment}</div></div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Date</th>
+              <th>Paid</th>
+              <th>Additional Fee</th>
+              <th>Additional Reason</th>
+              <th>Notes</th>
+              <th>Visit Total</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <div class="summary">
+          <div class="sum"><span>Total Fee</span><strong>${totalFee.toLocaleString()} IQD</strong></div>
+          <div class="sum"><span>Regular Paid</span><strong>${totalPayments.toLocaleString()} IQD</strong></div>
+          <div class="sum"><span>Additional Fees Total</span><strong>${additionalTotal.toLocaleString()} IQD</strong></div>
+          <div class="sum total"><span>Overall Paid</span><strong>${(totalPayments + additionalTotal).toLocaleString()} IQD</strong></div>
+          <div class="sum balance" style="grid-column:1 / -1;"><span>Remaining Balance</span><strong>${remainingBalance.toLocaleString()} IQD</strong></div>
+        </div>
+      </div>
+      <script>window.onload = function(){ window.print(); }</script>
+    </body></html>`;
+
+    const win = window.open("", "_blank", "width=1200,height=700");
+    if (!win) return;
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+  };
 
   const viewerIndex = viewerMedia ? availableGallery.findIndex((item) => item.id === viewerMedia.id) : -1;
 
@@ -431,7 +519,7 @@ export default function PatientProfilePage() {
                 <CalendarDays size={16} className="text-teal-600" /> Next appointment
               </div>
               <p className="mt-4 text-3xl font-semibold text-slate-900">{patient.appointmentDate || "Not scheduled"}</p>
-              <p className="mt-2 text-sm text-slate-600">{patient.appointmentTime || "No time set"}</p>
+              <p className="mt-2 text-sm text-slate-600">{patient.appointmentTime ? convertTo12Hour(patient.appointmentTime) : "No time set"}</p>
             </article>
             <article className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex items-center gap-2 text-sm font-semibold text-slate-500">
@@ -502,6 +590,23 @@ export default function PatientProfilePage() {
                       ) : (
                         (() => {
                           const latest = visits[visits.length - 1];
+                          const latestMedia = getVisitMediaSummary(latest);
+                          const currentHasData = Boolean(
+                            latest.upperArch ||
+                              latest.lowerArch ||
+                              latest.elastics ||
+                              latest.tads ||
+                              latest.treatmentNotes ||
+                              latest.visitNotes
+                          );
+                          const plannedNotesText = latest.plannedNotes || latest.plannedTreatment;
+                          const plannedHasData = Boolean(
+                            latest.plannedUpperArch ||
+                              latest.plannedLowerArch ||
+                              latest.plannedElasticType ||
+                              latest.plannedTadsNote ||
+                              plannedNotesText
+                          );
                           return (
                             <div className="rounded-3xl bg-white p-5 shadow-sm">
                               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -515,10 +620,44 @@ export default function PatientProfilePage() {
                                 </div>
                                 <div>
                                   <p className="text-sm text-slate-500">Payment</p>
-                                  <p className="mt-1 text-lg font-semibold text-slate-900">{latest.paymentCollected ? `${latest.paymentCollected.toLocaleString()} IQD` : "—"}</p>
+                                  <p className="mt-1 text-lg font-semibold text-slate-900">{toAmount(latest.paymentCollected) > 0 ? `${toAmount(latest.paymentCollected).toLocaleString()} IQD` : "—"}</p>
+                                </div>
+                              </div>
+                              <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-700">
+                                <div className="flex flex-wrap items-center gap-3">
+                                  <span className="font-semibold text-slate-900">Visit attachments</span>
+                                  <span>
+                                    Added: {latestMedia.total > 0 ? "Yes" : "No"}
+                                  </span>
                                 </div>
                               </div>
                               <div className="mt-6 grid gap-3 md:grid-cols-2">
+                                <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-700">
+                                  <div className="font-semibold text-slate-900">Current visit</div>
+                                  {currentHasData ? (
+                                    <div className="mt-2 space-y-1">
+                                      <p>Wire: U{latest.upperArch || "-"} L{latest.lowerArch || "-"}</p>
+                                      <p>Elastics: {latest.elastics || "-"}</p>
+                                      <p>TADs: {latest.tads || "-"}</p>
+                                      <p>Notes: {latest.treatmentNotes || latest.visitNotes || "-"}</p>
+                                    </div>
+                                  ) : (
+                                    <p className="mt-2">No current visit details.</p>
+                                  )}
+                                </div>
+                                <div className="rounded-2xl bg-emerald-50 p-4 text-sm text-slate-700">
+                                  <div className="font-semibold text-emerald-800">Upcoming planned visit</div>
+                                  {plannedHasData ? (
+                                    <div className="mt-2 space-y-1">
+                                      <p>Wire: U{latest.plannedUpperArch || "-"} L{latest.plannedLowerArch || "-"}</p>
+                                      <p>Elastics: {latest.plannedElasticType || "-"}</p>
+                                      <p>TADs: {latest.plannedTadsNote || "-"}</p>
+                                      <p>Notes: {plannedNotesText || "-"}</p>
+                                    </div>
+                                  ) : (
+                                    <p className="mt-2">No upcoming plan details.</p>
+                                  )}
+                                </div>
                                 <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-700">
                                   <div className="font-semibold text-slate-900">Treatment</div>
                                   <p className="mt-2">{latest.treatmentNotes || "No treatment notes."}</p>
@@ -567,6 +706,9 @@ export default function PatientProfilePage() {
                       <Link href={`/edit-patient/${patient.id}`} className="rounded-2xl bg-slate-900 px-4 py-3 text-center text-sm font-semibold text-white transition hover:bg-slate-800">
                         Edit patient
                       </Link>
+                      <Link href={`/patients/${patient.id}/case-sheet`} className="rounded-2xl bg-teal-600 px-4 py-3 text-center text-sm font-semibold text-white transition hover:bg-teal-700">
+                        Case sheet
+                      </Link>
                       <Link href={`/new-appointment/${patient.id}`} className="rounded-2xl bg-teal-600 px-4 py-3 text-center text-sm font-semibold text-white transition hover:bg-teal-700">
                         Schedule appointment
                       </Link>
@@ -599,63 +741,7 @@ export default function PatientProfilePage() {
                       <h3 className="text-xl font-semibold text-slate-900">Visits</h3>
                       <p className="mt-1 text-sm text-slate-600">Manage the treatment sessions and upload visit media.</p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowNewVisitForm((active) => !active)}
-                      className="inline-flex items-center gap-2 rounded-2xl bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700"
-                    >
-                      <Plus size={16} /> New Visit
-                    </button>
                   </div>
-
-                  {showNewVisitForm && (
-                    <form onSubmit={handleNewVisitSubmit} className="mt-6 grid gap-4 rounded-3xl border border-slate-200 bg-white p-5 md:grid-cols-2">
-                      <div className="md:col-span-2">
-                        <label className="mb-1 block text-sm font-medium text-slate-700">Visit date</label>
-                        <input required value={newVisitForm.date} onChange={(e) => setNewVisitForm((prev) => ({ ...prev, date: e.target.value }))} type="date" className="w-full rounded-2xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none" />
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-sm font-medium text-slate-700">Time</label>
-                        <input value={newVisitForm.time} onChange={(e) => setNewVisitForm((prev) => ({ ...prev, time: e.target.value }))} type="time" className="w-full rounded-2xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none" />
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-sm font-medium text-slate-700">Wire used</label>
-                        <input value={newVisitForm.wireUsed} onChange={(e) => setNewVisitForm((prev) => ({ ...prev, wireUsed: e.target.value }))} className="w-full rounded-2xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none" placeholder="e.g. 0.019x0.025 SS" />
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-sm font-medium text-slate-700">Upper arch</label>
-                        <input value={newVisitForm.upperArch} onChange={(e) => setNewVisitForm((prev) => ({ ...prev, upperArch: e.target.value }))} className="w-full rounded-2xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none" placeholder="Upper arch" />
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-sm font-medium text-slate-700">Lower arch</label>
-                        <input value={newVisitForm.lowerArch} onChange={(e) => setNewVisitForm((prev) => ({ ...prev, lowerArch: e.target.value }))} className="w-full rounded-2xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none" placeholder="Lower arch" />
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-sm font-medium text-slate-700">Elastics</label>
-                        <input value={newVisitForm.elastics} onChange={(e) => setNewVisitForm((prev) => ({ ...prev, elastics: e.target.value }))} className="w-full rounded-2xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none" placeholder="Elastic type" />
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-sm font-medium text-slate-700">TADs</label>
-                        <input value={newVisitForm.tads} onChange={(e) => setNewVisitForm((prev) => ({ ...prev, tads: e.target.value }))} className="w-full rounded-2xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none" placeholder="TAD details" />
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-sm font-medium text-slate-700">Payment collected</label>
-                        <input value={newVisitForm.paymentCollected} onChange={(e) => setNewVisitForm((prev) => ({ ...prev, paymentCollected: e.target.value }))} type="number" className="w-full rounded-2xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none" placeholder="IQD" />
-                      </div>
-                      <div className="md:col-span-2">
-                        <label className="mb-1 block text-sm font-medium text-slate-700">Treatment notes</label>
-                        <textarea value={newVisitForm.treatmentNotes} onChange={(e) => setNewVisitForm((prev) => ({ ...prev, treatmentNotes: e.target.value }))} rows={3} className="w-full rounded-2xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none" placeholder="Treatment notes" />
-                      </div>
-                      <div className="md:col-span-2">
-                        <label className="mb-1 block text-sm font-medium text-slate-700">Doctor notes</label>
-                        <textarea value={newVisitForm.doctorNotes} onChange={(e) => setNewVisitForm((prev) => ({ ...prev, doctorNotes: e.target.value }))} rows={3} className="w-full rounded-2xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none" placeholder="Doctor notes" />
-                      </div>
-                      <div className="md:col-span-2 flex justify-end gap-3">
-                        <button type="button" onClick={() => setShowNewVisitForm(false)} className="rounded-2xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">Cancel</button>
-                        <button type="submit" className="rounded-2xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white">Save visit</button>
-                      </div>
-                    </form>
-                  )}
                 </div>
 
                 {visits.length === 0 ? (
@@ -663,7 +749,7 @@ export default function PatientProfilePage() {
                 ) : (
                   <div className="space-y-6">
                     {visits.map((visit, index) => {
-                      const mediaCount = visit.visitMedia?.length ?? 0;
+                      const mediaSummary = getVisitMediaSummary(visit);
                       return (
                         <article key={visit.id} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
                           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -693,13 +779,25 @@ export default function PatientProfilePage() {
                                 </div>
                                 <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-700">
                                   <h4 className="font-semibold text-slate-900">Payment</h4>
-                                  <p className="mt-2">{visit.paymentCollected ? `${visit.paymentCollected.toLocaleString()} IQD` : "—"}</p>
+                                  <p className="mt-2">{toAmount(visit.paymentCollected) > 0 ? `${toAmount(visit.paymentCollected).toLocaleString()} IQD` : "—"}</p>
                                 </div>
                               </div>
                             </div>
                             <div className="min-w-[260px] rounded-3xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
                               <div className="font-semibold text-slate-900">Media</div>
-                              <p className="mt-2">{mediaCount} files attached</p>
+                              <p className="mt-2">{mediaSummary.total} files attached</p>
+                              <p className="mt-1 text-xs text-slate-600">
+                                Photos: {mediaSummary.photos} • X-rays: {mediaSummary.xrays} • Scans: {mediaSummary.scans}
+                              </p>
+                              {mediaSummary.categories.length > 0 ? (
+                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                  {mediaSummary.categories.map((category) => (
+                                    <span key={category} className="rounded-full bg-white px-2 py-0.5 text-[11px] text-slate-700">
+                                      {category}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : null}
                               <div className="mt-4 flex flex-wrap gap-2">
                                 <Link href={`/edit-visit/${patient.id}/${visit.id}`} className="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800">
                                   Edit Visit
@@ -927,14 +1025,23 @@ export default function PatientProfilePage() {
                     <h3 className="text-2xl font-semibold text-slate-900">Payments</h3>
                     <p className="mt-1 text-sm text-slate-600">Track visit-level payments and running balance.</p>
                   </div>
-                  <div className="rounded-3xl bg-white px-5 py-4 text-sm text-slate-700 shadow-sm">
-                    <div className="flex items-center justify-between gap-4">
-                      <span>Total paid</span>
-                      <span className="font-semibold text-slate-900">{totalPayments.toLocaleString()} IQD</span>
-                    </div>
-                    <div className="mt-3 flex items-center justify-between gap-4">
-                      <span>Balance</span>
-                      <span className="font-semibold text-slate-900">{remainingBalance.toLocaleString()} IQD</span>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={printPaymentsStatement}
+                      className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                    >
+                      Print Payments
+                    </button>
+                    <div className="rounded-3xl bg-white px-5 py-4 text-sm text-slate-700 shadow-sm">
+                      <div className="flex items-center justify-between gap-4">
+                        <span>Total paid</span>
+                        <span className="font-semibold text-slate-900">{totalPayments.toLocaleString()} IQD</span>
+                      </div>
+                      <div className="mt-3 flex items-center justify-between gap-4">
+                        <span>Balance</span>
+                        <span className="font-semibold text-slate-900">{remainingBalance.toLocaleString()} IQD</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -952,7 +1059,7 @@ export default function PatientProfilePage() {
                     </thead>
                     <tbody className="divide-y divide-slate-200 bg-white">
                       {visits.reduce<{ rows: Array<{ visit: Visit; runningTotal: number }> ; current: number }>((acc, visit) => {
-                        const payment = visit.paymentCollected || 0;
+                        const payment = toAmount(visit.paymentCollected);
                         const runningTotal = acc.current + payment;
                         acc.rows.push({ visit, runningTotal });
                         acc.current = runningTotal;
@@ -961,7 +1068,7 @@ export default function PatientProfilePage() {
                         <tr key={visit.id} className={index % 2 === 0 ? "bg-white" : "bg-slate-50"}>
                           <td className="whitespace-nowrap px-6 py-4 text-sm font-semibold text-slate-900">#{index + 1}</td>
                           <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-700">{visit.date}</td>
-                          <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-700">{(visit.paymentCollected || 0).toLocaleString()} IQD</td>
+                          <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-700">{toAmount(visit.paymentCollected).toLocaleString()} IQD</td>
                           <td className="px-6 py-4 text-sm text-slate-700">{visit.treatmentNotes || visit.doctorNotes || "—"}</td>
                           <td className="whitespace-nowrap px-6 py-4 text-sm font-semibold text-slate-900">{runningTotal.toLocaleString()} IQD</td>
                         </tr>

@@ -52,7 +52,6 @@ export type Patient = {
   notes?: string;
   plannedNotes?: string;
   totalFee?: number;
-  totalPaid?: number;
   retainerFee?: number;
   elasticEnabled?: boolean;
   elasticType?: string;
