@@ -1,4 +1,4 @@
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import { prisma } from "@/app/lib/prisma";
 import { clearSessionCookie, createSessionCookie, getSessionFromCookieValue, SESSION_COOKIE_NAME } from "@/app/lib/session";
 import { cookies } from "next/headers";
