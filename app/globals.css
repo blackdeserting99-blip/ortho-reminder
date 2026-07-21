@@ -241,18 +241,19 @@ button {
   }
 
   body * {
-    display: none !important;
     visibility: hidden !important;
   }
 
-  .print-only {
-    display: block !important;
+  #print-template,
+  #print-template * {
     visibility: visible !important;
   }
 
-  .print-only * {
-    display: revert !important;
-    visibility: visible !important;
+  #print-template {
+    display: block !important;
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    width: 100% !important;
   }
 
   input,

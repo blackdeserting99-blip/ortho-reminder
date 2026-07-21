@@ -1,13 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import DateInput from "../components/DateInput";
 import PrintableCaseSheet from "./PrintableCaseSheet";
+import OrthoPhotoChart, {
+  ORTHO_PHOTO_UPLOAD_SLOTS,
+  type OrthoPhotoSlotKey,
+} from "../components/OrthoPhotoChart";
 
 type EruptionStatus = Record<string, "present" | "not-present">;
-type AttachedPhoto = { id: string; name: string; dataUrl: string };
+type AttachedPhoto = {
+  id: string;
+  name: string;
+  dataUrl: string;
+  slotKey?: OrthoPhotoSlotKey;
+};
+
+type SupportingFile = {
+  id: string;
+  name: string;
+};
 
 const todayDate = new Date().toISOString().split("T")[0];
 
@@ -140,6 +154,10 @@ const initialDraft = {
   congenitallyMissingTeeth: "",
   impactedTeeth: "",
   attachments: [] as AttachedPhoto[],
+  xrayEnabled: false,
+  xrayFiles: [] as SupportingFile[],
+  scannerEnabled: false,
+  scannerFiles: [] as SupportingFile[],
   treatmentPlan: "",
   caseSheetText: "",
 };
@@ -279,6 +297,24 @@ function serializeDraft(draft: CaseSheetDraft) {
   sections.push("\nTREATMENT PLAN");
   sections.push(draft.treatmentPlan || "-");
 
+  sections.push("\nX-RAY FOLDER");
+  if (!draft.xrayEnabled) {
+    sections.push("Not enabled");
+  } else if (draft.xrayFiles.length === 0) {
+    sections.push("Enabled (no files added)");
+  } else {
+    sections.push(draft.xrayFiles.map((file: SupportingFile) => file.name).join(", "));
+  }
+
+  sections.push("\nSCANNER FOLDER");
+  if (!draft.scannerEnabled) {
+    sections.push("Not enabled");
+  } else if (draft.scannerFiles.length === 0) {
+    sections.push("Enabled (no files added)");
+  } else {
+    sections.push(draft.scannerFiles.map((file: SupportingFile) => file.name).join(", "));
+  }
+
   return sections.join("\n");
 }
 
@@ -292,6 +328,28 @@ function hasDraftContent(draft: CaseSheetDraft) {
     }
     return typeof value === "string" && value.trim().length > 0;
   });
+}
+
+function normalizeAttachments(attachments: AttachedPhoto[]) {
+  const normalized: AttachedPhoto[] = [];
+  const slotQueue = [...ORTHO_PHOTO_UPLOAD_SLOTS.map((slot) => slot.key)];
+
+  attachments.forEach((photo) => {
+    const assignedSlot = photo.slotKey && slotQueue.includes(photo.slotKey)
+      ? photo.slotKey
+      : slotQueue.shift();
+
+    if (!assignedSlot) {
+      return;
+    }
+
+    normalized.push({
+      ...photo,
+      slotKey: assignedSlot,
+    });
+  });
+
+  return normalized;
 }
 
 export default function CaseSheetPage() {
@@ -309,7 +367,9 @@ export default function CaseSheetPage() {
           ...parsed,
           examDate: parsed.examDate || prev.examDate,
           eruptionStatus: parsed.eruptionStatus || prev.eruptionStatus,
-          attachments: parsed.attachments || prev.attachments,
+          attachments: Array.isArray(parsed.attachments)
+            ? normalizeAttachments(parsed.attachments)
+            : prev.attachments,
         }));
       }
     } catch (error) {
@@ -355,36 +415,86 @@ export default function CaseSheetPage() {
     setSavedAt(null);
   };
 
-  const handlePhotoUpload = (event: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? []);
-    if (files.length === 0) return;
+  const handlePhotoUpload = (slotKey: OrthoPhotoSlotKey, file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result || "");
+      if (!dataUrl) {
+        return;
+      }
 
-    const readers = files.map(
-      (file) =>
-        new Promise<AttachedPhoto>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => {
-            resolve({
+      setDraft((prev) => {
+        const remaining = prev.attachments.filter((photo) => photo.slotKey !== slotKey);
+        return {
+          ...prev,
+          attachments: [
+            ...remaining,
+            {
               id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
               name: file.name,
-              dataUrl: reader.result as string,
-            });
-          };
-          reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
-          reader.readAsDataURL(file);
-        })
-    );
+              dataUrl,
+              slotKey,
+            },
+          ],
+        };
+      });
+    };
+    reader.readAsDataURL(file);
+  };
 
-    Promise.all(readers).then((photos) => {
-      setDraft((prev) => ({ ...prev, attachments: [...prev.attachments, ...photos] }));
+  const removePhoto = (slotKey: OrthoPhotoSlotKey) => {
+    setDraft((prev) => ({
+      ...prev,
+      attachments: prev.attachments.filter((photo) => photo.slotKey !== slotKey),
+    }));
+  };
+
+  const handleSupportingFiles = (kind: "xray" | "scanner", files: FileList | null) => {
+    if (!files) return;
+
+    const mapped = Array.from(files).map((file) => ({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      name: file.name,
+    }));
+
+    setDraft((prev) => {
+      if (kind === "xray") {
+        return { ...prev, xrayFiles: [...prev.xrayFiles, ...mapped] };
+      }
+      return { ...prev, scannerFiles: [...prev.scannerFiles, ...mapped] };
     });
-
-    event.target.value = "";
   };
 
-  const removePhoto = (photoId: string) => {
-    setDraft((prev) => ({ ...prev, attachments: prev.attachments.filter((photo) => photo.id !== photoId) }));
+  const removeSupportingFile = (kind: "xray" | "scanner", id: string) => {
+    setDraft((prev) => {
+      if (kind === "xray") {
+        return {
+          ...prev,
+          xrayFiles: prev.xrayFiles.filter((file) => file.id !== id),
+        };
+      }
+      return {
+        ...prev,
+        scannerFiles: prev.scannerFiles.filter((file) => file.id !== id),
+      };
+    });
   };
+
+  const photosBySlot = useMemo(() => {
+    return draft.attachments.reduce<
+      Partial<Record<OrthoPhotoSlotKey, { name: string; previewUrl: string }>>
+    >((acc, photo) => {
+      if (!photo.slotKey) {
+        return acc;
+      }
+
+      acc[photo.slotKey] = {
+        name: photo.name,
+        previewUrl: photo.dataUrl,
+      };
+      return acc;
+    }, {});
+  }, [draft.attachments]);
 
   const handleDownloadPdf = async () => {
       function loadScript(src: string) {
@@ -524,6 +634,12 @@ export default function CaseSheetPage() {
         )
         .join("");
 
+      const xraySummary = !draft.xrayEnabled
+        ? "Not enabled"
+        : draft.xrayFiles.length === 0
+          ? "Enabled (no files added)"
+          : draft.xrayFiles.map((file: SupportingFile) => file.name).join(", ");
+
       return `
         <style>
           body{font-family:Inter,system-ui,sans-serif;color:#111;background:#fff;padding:12mm;margin:0}
@@ -616,6 +732,10 @@ export default function CaseSheetPage() {
           <div class="section">
             <div class="heading">Treatment Plan</div>
             ${field("Plan", draft.treatmentPlan)}
+          </div>
+          <div class="section">
+            <div class="heading">X-Ray Folder</div>
+            ${field("X-ray files", xraySummary)}
           </div>
         </div>`;
     }
@@ -1078,27 +1198,21 @@ export default function CaseSheetPage() {
             </section>
 
             <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="text-xl font-semibold text-slate-900 mb-4">Photos & Attachments</h2>
+              <h2 className="text-xl font-semibold text-slate-900 mb-4">Orthodontic Photo Chart</h2>
               <div className="space-y-4">
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-slate-700">Upload patient photos from this computer</span>
-                  <input type="file" accept="image/*" multiple onChange={handlePhotoUpload} className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-900" />
-                </label>
-                {draft.attachments.length > 0 ? (
-                  <div className="grid gap-3 md:grid-cols-2">
-                    {draft.attachments.map((photo) => (
-                      <div key={photo.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                        <img src={photo.dataUrl} alt={photo.name} className="h-40 w-full rounded-xl object-cover" />
-                        <div className="mt-2 flex items-center justify-between gap-2">
-                          <p className="text-sm font-medium text-slate-700">{photo.name}</p>
-                          <button type="button" onClick={() => removePhoto(photo.id)} className="text-sm text-red-600 hover:text-red-700">Remove</button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">No images attached yet. Add photographs here and they will stay with this draft in the browser.</p>
-                )}
+                <p className="text-sm text-slate-600">
+                  Upload photos in the same clinical sequence: normal, smiling, profile; upper arch, lower arch; then left, middle, right.
+                </p>
+                <OrthoPhotoChart
+                  photos={photosBySlot}
+                  onSelectPhoto={handlePhotoUpload}
+                  onRemovePhoto={removePhoto}
+                  patientName={draft.name || "Patient"}
+                  ageText={draft.age || "-"}
+                  dentistText="Orthodontist"
+                  bracesText={draft.treatmentPlan || "Orthodontic plan"}
+                  dateText={draft.examDate || "-"}
+                />
               </div>
             </section>
 
@@ -1108,6 +1222,112 @@ export default function CaseSheetPage() {
                 <span className="text-sm font-medium text-slate-700">Treatment Plan Notes</span>
                 <textarea value={draft.treatmentPlan} onChange={(e) => update("treatmentPlan", e.target.value)} rows={5} className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-900" placeholder="Write the proposed orthodontic treatment plan here." />
               </label>
+            </section>
+
+            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h2 className="text-xl font-semibold text-slate-900 mb-4">Supporting Folders</h2>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                  <input
+                    type="checkbox"
+                    checked={draft.xrayEnabled}
+                    onChange={(e) => {
+                      const enabled = e.target.checked;
+                      setDraft((prev) => ({
+                        ...prev,
+                        xrayEnabled: enabled,
+                        xrayFiles: enabled ? prev.xrayFiles : [],
+                      }));
+                    }}
+                  />
+                  X-ray folder (optional)
+                </label>
+
+                {draft.xrayEnabled ? (
+                  <div className="mt-3 space-y-3">
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/*,.pdf"
+                      onChange={(e) => {
+                        handleSupportingFiles("xray", e.target.files);
+                        e.currentTarget.value = "";
+                      }}
+                      className="block w-full text-sm text-slate-700"
+                    />
+                    {draft.xrayFiles.length > 0 ? (
+                      <div className="space-y-2">
+                        {draft.xrayFiles.map((file) => (
+                          <div key={file.id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                            <span>{file.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => removeSupportingFile("xray", file.id)}
+                              className="rounded-lg border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-500">No X-ray files added.</p>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                  <input
+                    type="checkbox"
+                    checked={draft.scannerEnabled}
+                    onChange={(e) => {
+                      const enabled = e.target.checked;
+                      setDraft((prev) => ({
+                        ...prev,
+                        scannerEnabled: enabled,
+                        scannerFiles: enabled ? prev.scannerFiles : [],
+                      }));
+                    }}
+                  />
+                  Scanner folder (optional)
+                </label>
+
+                {draft.scannerEnabled ? (
+                  <div className="mt-3 space-y-3">
+                    <input
+                      type="file"
+                      multiple
+                      accept=".stl,image/*,.pdf"
+                      onChange={(e) => {
+                        handleSupportingFiles("scanner", e.target.files);
+                        e.currentTarget.value = "";
+                      }}
+                      className="block w-full text-sm text-slate-700"
+                    />
+                    {draft.scannerFiles.length > 0 ? (
+                      <div className="space-y-2">
+                        {draft.scannerFiles.map((file) => (
+                          <div key={file.id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                            <span>{file.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => removeSupportingFile("scanner", file.id)}
+                              className="rounded-lg border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-500">No scanner files added.</p>
+                    )}
+                  </div>
+                ) : null}
+              </div>
             </section>
             <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
               <button

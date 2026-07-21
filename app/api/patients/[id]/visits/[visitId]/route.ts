@@ -29,18 +29,33 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "Request body must be valid JSON." }, { status: 400 });
   }
 
+  const toDateOrNull = (value: unknown): Date | null => {
+    if (!value) {
+      return null;
+    }
+
+    const parsed = new Date(String(value));
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+
+  const nextVisitDate = toDateOrNull(body.visitDate ?? body.date);
+  const nextAppointmentDate = toDateOrNull(body.nextAppointment);
+
   const updated = await prisma.visit.update({
     where: { id: visitIdNumber },
     data: {
-      date: body.date ?? visit.date,
-      time: body.time ?? visit.time,
-      wireUsed: body.wireUsed ?? visit.wireUsed,
+      visitDate: nextVisitDate ?? visit.visitDate,
+      wireType: body.wireType ?? body.wireUsed ?? visit.wireType,
       upperArch: body.upperArch ?? visit.upperArch,
       lowerArch: body.lowerArch ?? visit.lowerArch,
       elastics: body.elastics ?? visit.elastics,
       tads: body.tads ?? visit.tads,
+      plannedUpperArch: body.plannedUpperArch ?? visit.plannedUpperArch,
+      plannedLowerArch: body.plannedLowerArch ?? visit.plannedLowerArch,
+      plannedElasticType: body.plannedElasticType ?? visit.plannedElasticType,
+      plannedTadsNote: body.plannedTadsNote ?? visit.plannedTadsNote,
       treatmentNotes: body.treatmentNotes ?? visit.treatmentNotes,
-      doctorNotes: body.doctorNotes ?? visit.doctorNotes,
+      nextAppointment: nextAppointmentDate ?? visit.nextAppointment,
       paymentCollected: body.paymentCollected ?? visit.paymentCollected,
     },
   });
