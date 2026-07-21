@@ -22,6 +22,19 @@ clinicColor?: string;
         visits?: any[];
       };
 
+type AlignerPatchNotification = {
+  id: string;
+  patientId: number;
+  patientName: string;
+  patientPhone: string;
+  appointmentDate: string;
+  alignerReached: number;
+  totalAligners: number;
+  nextPatchStartsFrom: number;
+  remainingAligners: number;
+  overdue: boolean;
+};
+
       export default function Home() {
         const router = useRouter();
         const [patientCount, setPatientCount] = useState(0);
@@ -55,6 +68,8 @@ clinicColor?: string;
         upcoming: true,
         overdue: true,
       });
+      const [alignerAlerts, setAlignerAlerts] = useState<AlignerPatchNotification[]>([]);
+      const [dismissedAlignerAlertIds, setDismissedAlignerAlertIds] = useState<string[]>([]);
       const todaySectionRef = useRef<HTMLDivElement | null>(null);
       const upcomingSectionRef = useRef<HTMLDivElement | null>(null);
       const overdueSectionRef = useRef<HTMLDivElement | null>(null);
@@ -84,6 +99,28 @@ clinicColor?: string;
         };
         checkAuth();
       }, [router]);
+
+      useEffect(() => {
+        const loadAlignerAlerts = async () => {
+          try {
+            const response = await fetch("/api/notifications/aligner-patches", { cache: "no-store" });
+            if (!response.ok) {
+              return;
+            }
+
+            const payload = await response.json();
+            setAlignerAlerts(Array.isArray(payload?.notifications) ? payload.notifications : []);
+          } catch {
+            setAlignerAlerts([]);
+          }
+        };
+
+        loadAlignerAlerts();
+      }, []);
+
+      const visibleAlignerAlerts = alignerAlerts.filter(
+        (alert) => !dismissedAlignerAlertIds.includes(alert.id)
+      );
 
       useEffect(() => {
         const loadPatients = async () => {
@@ -302,6 +339,54 @@ clinicColor?: string;
   <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(45,212,191,0.16),_transparent_36%),linear-gradient(135deg,_#f4fcfb_0%,_#eef9f7_100%)] px-4 py-6 sm:px-6 lg:px-8">
     <Sidebar />
     <main className="mx-auto flex max-w-7xl flex-col gap-6">
+      {visibleAlignerAlerts.length > 0 && (
+        <section className="rounded-[24px] border border-amber-200 bg-amber-50 p-5 shadow-sm">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-700">Doctor Alert</p>
+              <h2 className="mt-2 text-2xl font-semibold text-amber-900">Clear aligner patch preparation needed</h2>
+              <p className="mt-1 text-sm text-amber-800">Patient reached current patch end. Prepare the next patch if remaining aligners exist.</p>
+            </div>
+          </div>
+
+          <div className="mt-4 space-y-3">
+            {visibleAlignerAlerts.map((alert) => (
+              <article key={alert.id} className="rounded-2xl border border-amber-200 bg-white p-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <div className="text-base font-semibold text-slate-900">{alert.patientName}</div>
+                    <div className="text-sm text-slate-600">Phone: {alert.patientPhone || "-"}</div>
+                    <div className="mt-1 text-sm text-slate-700">
+                      Reached aligner #{alert.alignerReached}. Next patch starts from #{alert.nextPatchStartsFrom}. Remaining: {alert.remainingAligners} aligners.
+                    </div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      Review date: {formatDateDMY(alert.appointmentDate)} {alert.overdue ? "(overdue)" : "(today)"}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Link
+                      href={`/patients/${alert.patientId}`}
+                      className="rounded-xl bg-teal-600 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-700"
+                    >
+                      Open Patient
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDismissedAlignerAlertIds((prev) => [...prev, alert.id])
+                      }
+                      className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+
       <div className="rounded-[28px] border border-slate-200/80 bg-white/80 p-6 shadow-[0_18px_60px_rgba(15,23,42,0.07)] backdrop-blur-xl">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>

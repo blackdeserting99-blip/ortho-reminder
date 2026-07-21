@@ -141,6 +141,71 @@ function buildDoctorMessage(input: {
   ].join("\n");
 }
 
+function readClearAlignersPlan(value: unknown): {
+  total: number;
+  given: number;
+  wearDays: number;
+} | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const raw = value as Record<string, unknown>;
+  const total = Number(raw.total);
+  const given = Number(raw.given);
+  const wearDays = Number(raw.wearDays || 14);
+
+  if (!Number.isFinite(total) || !Number.isFinite(given) || total <= 0 || given <= 0) {
+    return null;
+  }
+
+  return {
+    total: Math.floor(total),
+    given: Math.floor(given),
+    wearDays: Number.isFinite(wearDays) && wearDays > 0 ? Math.floor(wearDays) : 14,
+  };
+}
+
+function hasUpcomingAlignerPatch(patient: { treatmentCategory: string | null; clearAlignersPlan: unknown }) {
+  const treatment = (patient.treatmentCategory || "").toLowerCase();
+  const plan = readClearAlignersPlan(patient.clearAlignersPlan);
+
+  if (!treatment.includes("clear aligners") || !plan) {
+    return null;
+  }
+
+  if (plan.total <= plan.given) {
+    return null;
+  }
+
+  return {
+    ...plan,
+    nextPatchStartsFrom: plan.given + 1,
+    remainingAligners: plan.total - plan.given,
+  };
+}
+
+function buildAlignerPatchDoctorMessage(input: {
+  patientName: string;
+  patientPhone: string;
+  appointmentDate: Date;
+  total: number;
+  given: number;
+  remainingAligners: number;
+  nextPatchStartsFrom: number;
+}) {
+  return [
+    "Aligner patch preparation alert.",
+    `Patient: ${input.patientName}`,
+    `Phone: ${input.patientPhone}`,
+    `Today marks aligner #${input.given}.`,
+    `Total planned aligners: ${input.total}`,
+    `Remaining aligners after current patch: ${input.remainingAligners}`,
+    `Please prepare next patch starting from aligner #${input.nextPatchStartsFrom}.`,
+    `Review date: ${formatIsoDate(input.appointmentDate)} ${formatLocalTime(input.appointmentDate)} UTC`,
+  ].join("\n");
+}
+
 async function isAuthorized(request: Request) {
   const token = process.env.REMINDER_API_TOKEN;
   const requestToken = request.headers.get("x-reminder-token");
@@ -282,12 +347,25 @@ export async function POST(request: Request) {
     );
 
     const doctorPhone = getDoctorPhone(appointment.patient.clinic?.phone);
-    const doctorMessage = buildDoctorMessage({
+    let doctorMessage = buildDoctorMessage({
       patientName: appointment.patient.name,
       patientPhone,
       reminderType: type,
       scheduledAt: appointment.scheduledAt,
     });
+
+    const upcomingPatch = hasUpcomingAlignerPatch(appointment.patient);
+    if (type === "sameDay" && upcomingPatch) {
+      doctorMessage = `${doctorMessage}\n\n${buildAlignerPatchDoctorMessage({
+        patientName: appointment.patient.name,
+        patientPhone,
+        appointmentDate: appointment.scheduledAt,
+        total: upcomingPatch.total,
+        given: upcomingPatch.given,
+        remainingAligners: upcomingPatch.remainingAligners,
+        nextPatchStartsFrom: upcomingPatch.nextPatchStartsFrom,
+      })}`;
+    }
 
     if (dryRun) {
       results.push({
