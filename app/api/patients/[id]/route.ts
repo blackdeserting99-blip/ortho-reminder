@@ -146,15 +146,32 @@ function getCaseStatusFromMetadata(metadata: unknown) {
 }
 
 function buildRetainerPatientMessage(input: {
-  appointmentDate: string;
-  appointmentTime: string;
+  patientName: string;
+  doctorName: string;
 }) {
-  return [
-    "Your treatment has moved to the retainer phase.",
-    `Your retainer follow-up is on ${input.appointmentDate} at ${input.appointmentTime}.`,
-    "Please wear your retainer exactly as instructed and bring it with you to every visit.",
-    "If the retainer feels tight, cracked, or lost, contact the clinic immediately.",
-  ].join("\n");
+  return `السلام عليكم ${input.patientName} 🌹
+
+مبارك لكم انتهاء علاج التقويم، ونتمنى لكم ابتسامة جميلة ودائمة. ✨
+
+للحفاظ على نتيجة العلاج، يرجى الالتزام بارتداء الريتينر كما يلي:
+
+📌 السنة الأولى:
+ارتداء الريتينر لمدة 24 ساعة يومياً، ويتم نزعه فقط أثناء تناول الطعام أو شرب المشروبات الساخنة.
+
+📌 السنة الثانية:
+ارتداء الريتينر أثناء النوم فقط، أو حسب تعليمات الطبيب.
+
+تعليمات مهمة:
+✅ انزع الريتينر قبل الأكل أو الشرب (عدا الماء).
+✅ نظّف الريتينر يومياً باستخدام فرشاة ناعمة وماء فاتر.
+❌ تجنب استخدام الماء الساخن لأنه قد يغيّر شكل الريتينر.
+✅ احتفظ به داخل علبته المخصصة عند عدم استخدامه.
+❌ لا تلفّه بالمنديل أو تضعه في الجيب لتجنب فقدانه أو كسره.
+
+في حال كسر الريتينر أو فقدانه، يرجى التواصل مع العيادة بأسرع وقت.
+
+مع تمنياتنا لكم بدوام الصحة والابتسامة الجميلة 🌹
+${input.doctorName}`;
 }
 
 function buildRetainerDoctorMessage(input: {
@@ -396,12 +413,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       const appointmentTimeText =
         (typeof incoming.appointmentTime === "string" && incoming.appointmentTime.trim()) ||
         "TBD";
+      const doctorName = process.env.DOCTOR_DISPLAY_NAME || "Doctor";
 
       const patientPhone = (existing.phone || "").trim();
       if (patientPhone) {
         const patientMessage = buildRetainerPatientMessage({
-          appointmentDate: appointmentDateText,
-          appointmentTime: appointmentTimeText,
+          patientName: existing.name,
+          doctorName,
         });
         await sendWhatsAppText(patientPhone, patientMessage);
       }
