@@ -126,6 +126,7 @@ const buildCareInstructions = (
   const myoScheduleText = buildMyofunctionalScheduleText(
     patient.myofunctionalProgram
   );
+  const upcomingDate = formatDateDMY(patient.appointmentDate);
 
   if (patient.firstAppointment) {
     if (
@@ -140,7 +141,32 @@ const buildCareInstructions = (
       treatment.includes("activator")
     ) {
       parts.push(
-        `Orthopedic appliance instructions:\n- Activate the device exactly as instructed by the doctor.\n- Keep activation timing consistent each day.\n- Do not over-activate or skip activations.\n- If pain is unusual or appliance is loose, contact clinic immediately.${myoScheduleText ? `\nSchedule: ${myoScheduleText}` : ""}`
+        `السلام عليكم ${patientName} 🌹
+
+نتمنى لكم التوفيق في رحلة العلاج.
+
+يرجى الالتزام بتعليمات الطبيب لضمان تحقيق أفضل النتائج.
+
+📅 موعد التفعيل القادم:
+${upcomingDate}
+
+🔄 تعليمات التفعيل:
+${myoScheduleText || "حسب تعليمات الطبيب"}
+
+يرجى الالتزام بالمواعيد المحددة وعدم زيادة أو تقليل عدد مرات التفعيل إلا بتوجيه من الطبيب.
+
+تعليمات مهمة:
+✅ ارتداء الجهاز حسب المدة التي أوصى بها الطبيب.
+✅ المحافظة على نظافة الجهاز بغسله بالماء الفاتر وتنظيفه يومياً.
+✅ حفظ الجهاز داخل علبته المخصصة عند عدم استخدامه.
+❌ تجنب تعريض الجهاز للماء الساخن أو أشعة الشمس المباشرة.
+❌ عدم محاولة تعديل الجهاز أو تفعيله بطرق غير موصى بها.
+
+⚠️ في حال كسر الجهاز، أو فقدانه، أو الشعور بألم غير طبيعي، يرجى التواصل مع العيادة مباشرة.
+
+شكراً لثقتكم بنا، ونتمنى لكم علاجاً ناجحاً 🌹
+
+${doctorName}`
       );
     } else if (
       category.includes("fixed") ||
