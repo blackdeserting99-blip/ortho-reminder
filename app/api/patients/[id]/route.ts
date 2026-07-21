@@ -378,6 +378,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   if (shouldUpdateMetadata) {
     const existingMetadata = getMetadataObject(existing.metadata);
+    const previousCaseStatus = getCaseStatusFromMetadata(existingMetadata);
+    const nextCaseStatusFromPayload =
+      typeof incoming.caseStatus === "string"
+        ? incoming.caseStatus
+        : previousCaseStatus;
+
     const mergedMetadata: Record<string, unknown> = {
       ...existingMetadata,
       autoReminderEnabled:
@@ -393,6 +399,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           ? incoming.caseStatus
           : getCaseStatusFromMetadata(existingMetadata),
     };
+
+    if (
+      previousCaseStatus !== "retainer" &&
+      nextCaseStatusFromPayload === "retainer" &&
+      !existingMetadata.retainerStartedAt
+    ) {
+      mergedMetadata.retainerStartedAt = new Date().toISOString();
+    }
 
     updatePayload.metadata = mergedMetadata;
   }

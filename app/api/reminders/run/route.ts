@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/app/lib/auth";
 import { prisma } from "@/app/lib/prisma";
 import {
+  buildRetainerYearOnePatientMessage,
   buildWhatsAppBotMessage,
   getReminderType,
   sendWhatsAppText,
@@ -72,6 +73,39 @@ function readAlignerDaysPerTray(metadata: unknown): number {
   }
 
   return Math.floor(value);
+}
+
+function readCaseStatus(metadata: unknown): string {
+  const obj = toMetadataObject(metadata);
+  return typeof obj.caseStatus === "string" ? obj.caseStatus : "active";
+}
+
+function readRetainerStartedAt(metadata: unknown): Date | null {
+  const obj = toMetadataObject(metadata);
+  const raw = obj.retainerStartedAt;
+  if (typeof raw !== "string" || !raw.trim()) {
+    return null;
+  }
+
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function wasRetainerYearOneSent(metadata: unknown): boolean {
+  const obj = toMetadataObject(metadata);
+  const remindersSent = toMetadataObject(obj.remindersSent);
+  return remindersSent.retainerYearOneNightOnly === true;
+}
+
+function markRetainerYearOneSent(metadata: unknown): MetadataObject {
+  const obj = toMetadataObject(metadata);
+  return {
+    ...obj,
+    remindersSent: {
+      ...toMetadataObject(obj.remindersSent),
+      retainerYearOneNightOnly: true,
+    },
+  };
 }
 
 function getMorningHour() {
@@ -330,9 +364,99 @@ export async function POST(request: Request) {
     doctorPatchPrepSent: 0,
     doctorPatchPrepSkippedAlreadySent: 0,
     doctorPatchPrepFailed: 0,
+    retainerYearOneEligible: 0,
+    retainerYearOneSent: 0,
+    retainerYearOneFailed: 0,
+    retainerYearOneSkippedAlreadySent: 0,
+    retainerYearOneSkippedNoStartDate: 0,
+    retainerYearOneSkippedNotDue: 0,
+    retainerYearOneSkippedNoPhone: 0,
   };
 
   const results: Array<Record<string, unknown>> = [];
+
+  const patientsForRetainerYearOne = await prisma.patient.findMany({
+    where: {
+      ...(patientId ? { id: patientId } : {}),
+      ...(auth.userId ? { userId: auth.userId } : {}),
+    },
+    select: {
+      id: true,
+      name: true,
+      phone: true,
+      metadata: true,
+    },
+    take: limit,
+  });
+
+  for (const patient of patientsForRetainerYearOne) {
+    if (readCaseStatus(patient.metadata) !== "retainer") {
+      continue;
+    }
+
+    if (!readPatientAutoReminderEnabled(patient.metadata)) {
+      continue;
+    }
+
+    const retainerStartedAt = readRetainerStartedAt(patient.metadata);
+    if (!retainerStartedAt) {
+      summary.retainerYearOneSkippedNoStartDate += 1;
+      continue;
+    }
+
+    const daysSinceRetainerStart = getDiffDays(retainerStartedAt, baseDate);
+    if (daysSinceRetainerStart !== 365) {
+      summary.retainerYearOneSkippedNotDue += 1;
+      continue;
+    }
+
+    if (wasRetainerYearOneSent(patient.metadata)) {
+      summary.retainerYearOneSkippedAlreadySent += 1;
+      continue;
+    }
+
+    if (!patient.phone?.trim()) {
+      summary.retainerYearOneSkippedNoPhone += 1;
+      continue;
+    }
+
+    summary.retainerYearOneEligible += 1;
+
+    const message = buildRetainerYearOnePatientMessage({
+      patientName: patient.name,
+      doctorName: process.env.DOCTOR_DISPLAY_NAME || "Doctor",
+    });
+
+    if (dryRun) {
+      summary.retainerYearOneSent += 1;
+      results.push({
+        patientId: patient.id,
+        retainerYearOne: true,
+        dryRun: true,
+        patientPhone: patient.phone,
+      });
+      continue;
+    }
+
+    const sendResult = await sendWhatsAppText(patient.phone, message);
+    if (sendResult.ok) {
+      summary.retainerYearOneSent += 1;
+      await prisma.patient.update({
+        where: { id: patient.id },
+        data: {
+          metadata: markRetainerYearOneSent(patient.metadata),
+        },
+      });
+    } else {
+      summary.retainerYearOneFailed += 1;
+    }
+
+    results.push({
+      patientId: patient.id,
+      retainerYearOne: true,
+      sendResult,
+    });
+  }
 
   for (const appointment of appointments) {
     const leadDays = getAlignerPrepLeadDays();

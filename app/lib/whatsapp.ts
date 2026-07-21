@@ -363,6 +363,33 @@ export function buildTadsStartedDoctorMessage(input: {
   ].join("\n");
 }
 
+export function buildRetainerYearOnePatientMessage(input: {
+  patientName?: string;
+  doctorName?: string;
+}) {
+  const patientName = (input.patientName || "").trim() || "مراجعنا العزيز";
+  const doctorName = (input.doctorName || "").trim() || "Doctor";
+
+  return `السلام عليكم ${patientName} 🌹
+
+نبارك لكم إكمال السنة الأولى من استخدام الريتينر. 👏
+
+ابتداءً من الآن، يمكنكم ارتداء الريتينر أثناء النوم فقط، ما لم يوصِ الطبيب بغير ذلك.
+
+تذكير مهم:
+✅ ارتدِ الريتينر كل ليلة للمحافظة على استقامة الأسنان.
+✅ نظّف الريتينر يومياً بالماء الفاتر وفرشاة ناعمة.
+✅ احفظه في علبته عند عدم استخدامه.
+❌ لا تستخدم الماء الساخن لتنظيفه.
+❌ لا تتركه ملفوفاً بمناديل أو في أماكن معرضة للحرارة.
+
+⚠️ إذا أصبح الريتينر ضيقاً، انكسر، أو فُقد، يرجى التواصل مع العيادة في أقرب وقت.
+
+شكراً لثقتكم بنا، ونتمنى لكم دوام الصحة وابتسامة جميلة 🌹
+
+${doctorName}`;
+}
+
 export function createWhatsAppUrl(phone: string, message: string) {
   const digits = phone.replace(/\D/g, "");
   return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
