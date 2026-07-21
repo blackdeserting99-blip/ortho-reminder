@@ -1,6 +1,21 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/app/lib/auth";
 import { prisma } from "@/app/lib/prisma";
+import {
+  buildElasticsStartedDoctorMessage,
+  buildElasticsStartedPatientMessage,
+  sendWhatsAppText,
+} from "@/app/lib/whatsapp";
+
+const hasValue = (value: unknown) => String(value ?? "").trim().length > 0;
+
+function getMetadataObject(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return value as Record<string, unknown>;
+}
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string; visitId: string }> }) {
   const user = await getCurrentUser();
@@ -41,6 +56,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const nextVisitDate = toDateOrNull(body.visitDate ?? body.date);
   const nextAppointmentDate = toDateOrNull(body.nextAppointment);
 
+  const previousHadElastics = hasValue(visit.elastics);
+  const nextElastics = body.elastics ?? visit.elastics;
+
   const updated = await prisma.visit.update({
     where: { id: visitIdNumber },
     data: {
@@ -59,6 +77,55 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       paymentCollected: body.paymentCollected ?? visit.paymentCollected,
     },
   });
+
+  const updatedMetadata = getMetadataObject(updated.metadata);
+  const shouldNotifyFromThisVisit = !previousHadElastics && hasValue(nextElastics);
+
+  if (shouldNotifyFromThisVisit && updatedMetadata.elasticsStartedNotified !== true) {
+    const hadElasticsInOtherVisits = await prisma.visit.count({
+      where: {
+        patientId,
+        id: { not: visitIdNumber },
+        elastics: { not: null },
+      },
+    });
+
+    if (hadElasticsInOtherVisits === 0) {
+      const patient = await prisma.patient.findFirst({
+        where: { id: patientId, userId: user.id },
+      });
+
+      if (patient?.phone?.trim()) {
+        const doctorName = process.env.DOCTOR_DISPLAY_NAME || "Doctor";
+        const patientMessage = buildElasticsStartedPatientMessage({
+          patientName: patient.name,
+          elasticType: String(nextElastics),
+          doctorName,
+        });
+        await sendWhatsAppText(patient.phone, patientMessage);
+
+        const doctorPhone = process.env.DOCTOR_WHATSAPP_PHONE || "";
+        if (doctorPhone) {
+          const doctorMessage = buildElasticsStartedDoctorMessage({
+            patientName: patient.name,
+            patientPhone: patient.phone,
+            elasticType: String(nextElastics),
+          });
+          await sendWhatsAppText(doctorPhone, doctorMessage);
+        }
+
+        await prisma.visit.update({
+          where: { id: visitIdNumber },
+          data: {
+            metadata: {
+              ...updatedMetadata,
+              elasticsStartedNotified: true,
+            },
+          },
+        });
+      }
+    }
+  }
 
   return NextResponse.json(updated);
 }

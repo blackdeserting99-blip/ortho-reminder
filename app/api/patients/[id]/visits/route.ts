@@ -1,6 +1,70 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/app/lib/auth";
 import { prisma } from "@/app/lib/prisma";
+import {
+  buildElasticsStartedDoctorMessage,
+  buildElasticsStartedPatientMessage,
+  sendWhatsAppText,
+} from "@/app/lib/whatsapp";
+
+const hasValue = (value: unknown) => String(value ?? "").trim().length > 0;
+
+function getMetadataObject(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return value as Record<string, unknown>;
+}
+
+async function sendElasticsStartedNotification(input: {
+  patient: { id: number; name: string; phone: string | null };
+  elasticType?: string | null;
+  visitId: number;
+}) {
+  const patientPhone = (input.patient.phone || "").trim();
+  if (!patientPhone) {
+    return;
+  }
+
+  const visit = await prisma.visit.findUnique({ where: { id: input.visitId } });
+  if (!visit) {
+    return;
+  }
+
+  const metadata = getMetadataObject(visit.metadata);
+  if (metadata.elasticsStartedNotified === true) {
+    return;
+  }
+
+  const doctorName = process.env.DOCTOR_DISPLAY_NAME || "Doctor";
+  const patientMessage = buildElasticsStartedPatientMessage({
+    patientName: input.patient.name,
+    elasticType: input.elasticType,
+    doctorName,
+  });
+  await sendWhatsAppText(patientPhone, patientMessage);
+
+  const doctorPhone = process.env.DOCTOR_WHATSAPP_PHONE || "";
+  if (doctorPhone) {
+    const doctorMessage = buildElasticsStartedDoctorMessage({
+      patientName: input.patient.name,
+      patientPhone: input.patient.phone || "-",
+      elasticType: input.elasticType,
+    });
+    await sendWhatsAppText(doctorPhone, doctorMessage);
+  }
+
+  await prisma.visit.update({
+    where: { id: input.visitId },
+    data: {
+      metadata: {
+        ...metadata,
+        elasticsStartedNotified: true,
+      },
+    },
+  });
+}
 
 const isUnknownPlannedFieldError = (error: unknown) => {
   if (!(error instanceof Error)) {
@@ -77,6 +141,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Visit date is required" }, { status: 400 });
   }
 
+  const hadElasticsBefore = await prisma.visit.count({
+    where: {
+      patientId,
+      elastics: {
+        not: null,
+      },
+    },
+  });
+
   const buildCreateData = (includePlannedFields: boolean) => ({
     patientId,
     visitDate: new Date(body.visitDate),
@@ -116,6 +189,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
       visit = await prisma.visit.create({
         data: buildCreateData(false),
+      });
+    }
+
+    if (visit && hasValue(visit.elastics) && hadElasticsBefore === 0) {
+      await sendElasticsStartedNotification({
+        patient,
+        elasticType: visit.elastics,
+        visitId: visit.id,
       });
     }
 
@@ -237,6 +318,15 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   };
 
   try {
+    const hadElasticsBefore = await prisma.visit.count({
+      where: {
+        patientId,
+        elastics: {
+          not: null,
+        },
+      },
+    });
+
     try {
       await runUpsertTransaction(true);
     } catch (error) {
@@ -252,6 +342,17 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       where: { patientId },
       orderBy: { id: "desc" },
     });
+
+    if (hadElasticsBefore === 0) {
+      const firstVisitWithElastics = updatedVisits.find((visit) => hasValue(visit.elastics));
+      if (firstVisitWithElastics) {
+        await sendElasticsStartedNotification({
+          patient,
+          elasticType: firstVisitWithElastics.elastics,
+          visitId: firstVisitWithElastics.id,
+        });
+      }
+    }
 
     return NextResponse.json(updatedVisits);
   } catch (error) {

@@ -269,6 +269,47 @@ export function buildWhatsAppBotMessage(
   return `${whenText} من عيادة الدكتور.\nموعدك يوم ${appointmentDate} الساعة ${appointmentTime}.${careText}\n\nإذا كان لديك أي سؤال، راسلنا هنا على هذا الرقم.`;
 }
 
+export function buildElasticsStartedPatientMessage(input: {
+  patientName?: string;
+  elasticType?: string | null;
+  doctorName?: string;
+}) {
+  const patientName = (input.patientName || "").trim() || "مراجعنا العزيز";
+  const doctorName = (input.doctorName || "").trim() || "Doctor";
+  const elasticType = (input.elasticType || "").trim();
+  const elasticLine = elasticType ? `\nنوع الإيلاستك: ${elasticType}` : "";
+
+  return `السلام عليكم ${patientName} 🌹
+
+تم اليوم تركيب الإيلاستك ضمن خطة العلاج.${elasticLine}
+
+يرجى الالتزام بالتعليمات التالية:
+✅ ارتداء الإيلاستك بشكل مستمر.
+✅ تبديل الإيلاستك مرة كل 24 ساعة.
+✅ إزالته فقط أثناء الأكل وتنظيف الأسنان إذا أوصى الطبيب بذلك.
+
+⚠️ في حال انقطاع الإيلاستك أو حدوث ألم غير طبيعي، يرجى التواصل مع العيادة مباشرة.
+
+شكراً لالتزامكم، ونتمنى لكم علاجاً ناجحاً 🌹
+
+${doctorName}`;
+}
+
+export function buildElasticsStartedDoctorMessage(input: {
+  patientName: string;
+  patientPhone: string;
+  elasticType?: string | null;
+}) {
+  const elasticType = (input.elasticType || "").trim() || "Not specified";
+
+  return [
+    "Elastics started alert.",
+    `Patient: ${input.patientName}`,
+    `Phone: ${input.patientPhone || "-"}`,
+    `Elastic type: ${elasticType}`,
+  ].join("\n");
+}
+
 export function createWhatsAppUrl(phone: string, message: string) {
   const digits = phone.replace(/\D/g, "");
   return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
