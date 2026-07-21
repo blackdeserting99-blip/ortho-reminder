@@ -116,7 +116,17 @@ const patientSchema = z.object({
   myofunctionalType: z.string().optional(),
   myofunctionalProgram: z.any().optional(),
   clearAlignersPlan: z.any().optional(),
+  autoReminderEnabled: z.boolean().optional(),
+  alignerDaysPerTray: z.number().int().positive().max(30).optional(),
 });
+
+function getMetadataObject(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return value as Record<string, unknown>;
+}
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
@@ -201,6 +211,8 @@ const patient = await prisma.patient.findFirst({
         visits: visitsWithAliases,
         appointmentDate,
         appointmentTime,
+        autoReminderEnabled: Boolean(getMetadataObject(patient.metadata).autoReminderEnabled),
+        alignerDaysPerTray: Number(getMetadataObject(patient.metadata).alignerDaysPerTray || 14),
       };
       
       return NextResponse.json(result);
@@ -269,6 +281,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   );
   const shouldUpdateAppointment =
     hasAppointmentDateInPayload || hasAppointmentTimeInPayload;
+  const shouldUpdateReminderSettings =
+    Object.prototype.hasOwnProperty.call(body, "autoReminderEnabled") ||
+    Object.prototype.hasOwnProperty.call(body, "alignerDaysPerTray");
 
   // Remove visits from update payload so we can safely update patient scalars
   const updatePayload: any = { ...incoming };
@@ -284,6 +299,29 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
   if (Object.prototype.hasOwnProperty.call(updatePayload, "appointmentTime")) {
     delete updatePayload.appointmentTime;
+  }
+  if (Object.prototype.hasOwnProperty.call(updatePayload, "autoReminderEnabled")) {
+    delete updatePayload.autoReminderEnabled;
+  }
+  if (Object.prototype.hasOwnProperty.call(updatePayload, "alignerDaysPerTray")) {
+    delete updatePayload.alignerDaysPerTray;
+  }
+
+  if (shouldUpdateReminderSettings) {
+    const existingMetadata = getMetadataObject(existing.metadata);
+    const mergedMetadata: Record<string, unknown> = {
+      ...existingMetadata,
+      autoReminderEnabled:
+        typeof incoming.autoReminderEnabled === "boolean"
+          ? incoming.autoReminderEnabled
+          : Boolean(existingMetadata.autoReminderEnabled),
+      alignerDaysPerTray:
+        typeof incoming.alignerDaysPerTray === "number"
+          ? incoming.alignerDaysPerTray
+          : Number(existingMetadata.alignerDaysPerTray || 14),
+    };
+
+    updatePayload.metadata = mergedMetadata;
   }
 
   try {

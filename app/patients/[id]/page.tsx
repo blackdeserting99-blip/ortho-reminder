@@ -77,6 +77,8 @@ type Patient = {
   appointmentTime?: string | null;
   totalFee?: number | null;
   totalPaid?: number | null;
+  autoReminderEnabled?: boolean;
+  alignerDaysPerTray?: number;
   createdAt: string;
   visits?: Visit[];
 };
@@ -192,6 +194,7 @@ export default function PatientProfilePage() {
   const [gallerySort, setGallerySort] = useState<GallerySort>("newest");
   const [viewerMedia, setViewerMedia] = useState<GalleryMedia | null>(null);
   const [compareSelection, setCompareSelection] = useState<GalleryMedia[]>([]);
+  const [reminderSaving, setReminderSaving] = useState(false);
 
   const visits = useMemo(() => patient?.visits ?? [], [patient]);
   const totalPayments = useMemo(() => visits.reduce((sum, visit) => sum + toAmount(visit.paymentCollected), 0), [visits]);
@@ -295,6 +298,55 @@ export default function PatientProfilePage() {
       // keep current view intact
     } finally {
       setUploading(false);
+    }
+  };
+
+  const saveReminderSettings = async (next: {
+    autoReminderEnabled?: boolean;
+    alignerDaysPerTray?: number;
+  }) => {
+    if (!id || !patient) return;
+
+    setReminderSaving(true);
+    const previous = patient;
+
+    const optimisticPatient = {
+      ...patient,
+      ...next,
+    };
+
+    setPatient(optimisticPatient);
+
+    try {
+      const response = await fetch(`/api/patients/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(next),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to save reminder settings");
+      }
+
+      const reloaded = await response.json().catch(() => null);
+      if (reloaded) {
+        setPatient((current) => ({
+          ...current,
+          ...reloaded,
+          autoReminderEnabled:
+            typeof reloaded.autoReminderEnabled === "boolean"
+              ? reloaded.autoReminderEnabled
+              : optimisticPatient.autoReminderEnabled,
+          alignerDaysPerTray:
+            typeof reloaded.alignerDaysPerTray === "number"
+              ? reloaded.alignerDaysPerTray
+              : optimisticPatient.alignerDaysPerTray,
+        }));
+      }
+    } catch {
+      setPatient(previous);
+    } finally {
+      setReminderSaving(false);
     }
   };
 
@@ -713,6 +765,65 @@ export default function PatientProfilePage() {
                         Schedule appointment
                       </Link>
                     </div>
+                  </div>
+
+                  <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                    <h3 className="text-xl font-semibold text-slate-900">Auto reminders</h3>
+                    <p className="mt-2 text-sm text-slate-600">When enabled, this patient receives WhatsApp reminders 3 days before and 7 AM on appointment day.</p>
+
+                    <label className="mt-5 flex items-center gap-3 text-sm font-medium text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(patient.autoReminderEnabled)}
+                        onChange={(event) =>
+                          saveReminderSettings({ autoReminderEnabled: event.target.checked })
+                        }
+                        disabled={reminderSaving}
+                        className="h-4 w-4 rounded border-slate-300 text-teal-600"
+                      />
+                      Enable auto reminders for this patient
+                    </label>
+
+                    <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <label className="text-sm font-medium text-slate-700" htmlFor="alignerDaysPerTray">
+                        Aligner days per tray
+                      </label>
+                      <div className="mt-2 flex items-center gap-2">
+                        <input
+                          id="alignerDaysPerTray"
+                          type="number"
+                          min={1}
+                          max={30}
+                          value={patient.alignerDaysPerTray ?? 14}
+                          onChange={(event) => {
+                            const parsed = Number(event.target.value);
+                            setPatient((current) =>
+                              current
+                                ? {
+                                    ...current,
+                                    alignerDaysPerTray: Number.isFinite(parsed) ? parsed : 14,
+                                  }
+                                : current
+                            );
+                          }}
+                          onBlur={() =>
+                            saveReminderSettings({
+                              alignerDaysPerTray: Math.min(
+                                30,
+                                Math.max(1, Number(patient.alignerDaysPerTray ?? 14))
+                              ),
+                            })
+                          }
+                          disabled={reminderSaving}
+                          className="w-24 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                        />
+                        <span className="text-sm text-slate-500">days</span>
+                      </div>
+                    </div>
+
+                    <p className="mt-3 text-xs text-slate-500">
+                      {reminderSaving ? "Saving reminder settings..." : "Reminder settings are saved per patient profile."}
+                    </p>
                   </div>
                 </aside>
               </div>

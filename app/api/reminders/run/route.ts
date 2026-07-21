@@ -59,6 +59,34 @@ function readSentMap(metadata: unknown): ReminderMap {
   return sent as ReminderMap;
 }
 
+function readPatientAutoReminderEnabled(metadata: unknown): boolean {
+  const obj = toMetadataObject(metadata);
+  return Boolean(obj.autoReminderEnabled);
+}
+
+function readAlignerDaysPerTray(metadata: unknown): number {
+  const obj = toMetadataObject(metadata);
+  const value = Number(obj.alignerDaysPerTray || 14);
+  if (!Number.isFinite(value) || value <= 0 || value > 30) {
+    return 14;
+  }
+
+  return Math.floor(value);
+}
+
+function getMorningHour() {
+  const parsed = Number(process.env.REMINDER_MORNING_HOUR || "7");
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 23) {
+    return 7;
+  }
+
+  return Math.floor(parsed);
+}
+
+function allowSameDayNow(baseDate: Date) {
+  return baseDate.getUTCHours() === getMorningHour();
+}
+
 function canSendReminder(
   sentMap: ReminderMap,
   reminderType: WhatsAppReminderType
@@ -193,6 +221,8 @@ export async function POST(request: Request) {
     skippedAlreadySent: 0,
     skippedNoReminderType: 0,
     skippedNoPatientPhone: 0,
+    skippedAutoReminderDisabled: 0,
+    skippedOutsideMorningWindow: 0,
   };
 
   const results: Array<Record<string, unknown>> = [];
@@ -202,6 +232,16 @@ export async function POST(request: Request) {
 
     if (!type) {
       summary.skippedNoReminderType += 1;
+      continue;
+    }
+
+    if (!readPatientAutoReminderEnabled(appointment.patient.metadata)) {
+      summary.skippedAutoReminderDisabled += 1;
+      continue;
+    }
+
+    if (!reminderType && type === "sameDay" && !allowSameDayNow(baseDate)) {
+      summary.skippedOutsideMorningWindow += 1;
       continue;
     }
 
@@ -225,6 +265,7 @@ export async function POST(request: Request) {
         appointmentDate: appointment.scheduledAt.toISOString(),
         appointmentTime: formatLocalTime(appointment.scheduledAt),
         treatmentCategory: appointment.patient.treatmentCategory || undefined,
+        alignerDaysPerTray: readAlignerDaysPerTray(appointment.patient.metadata),
         firstAppointment: appointment.patient.firstAppointment,
         elasticEnabled: appointment.patient.elasticEnabled,
         elasticType: appointment.patient.elasticType || undefined,

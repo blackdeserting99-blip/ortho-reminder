@@ -8,6 +8,7 @@ export type WhatsAppReminderPatient = {
   appointmentTime?: string;
   treatment?: string;
   treatmentCategory?: string;
+  alignerDaysPerTray?: number;
   firstAppointment?: boolean;
   elasticEnabled?: boolean;
   elasticType?: string;
@@ -112,31 +113,49 @@ const buildCareInstructions = (
   const parts: string[] = [];
   const treatment = (patient.treatment || "").toLowerCase();
   const category = (patient.treatmentCategory || "").toLowerCase();
+  const alignerDays =
+    Number.isFinite(Number(patient.alignerDaysPerTray)) && Number(patient.alignerDaysPerTray) > 0
+      ? Number(patient.alignerDaysPerTray)
+      : 14;
 
   const myoScheduleText = buildMyofunctionalScheduleText(
     patient.myofunctionalProgram
   );
 
   if (patient.firstAppointment) {
-    if (category.includes("myofunctional") || treatment.includes("hyrax") || treatment.includes("twin block") || treatment.includes("myobrace") || treatment.includes("trainer") || treatment.includes("frankel") || treatment.includes("bionator") || treatment.includes("activator")) {
+    if (
+      category.includes("myofunctional") ||
+      category.includes("orthopedic") ||
+      treatment.includes("hyrax") ||
+      treatment.includes("twin block") ||
+      treatment.includes("myobrace") ||
+      treatment.includes("trainer") ||
+      treatment.includes("frankel") ||
+      treatment.includes("bionator") ||
+      treatment.includes("activator")
+    ) {
       parts.push(
-        `هذه أول زيارة لك مع الجهاز الميوفنكشونال. يجب تفعيله يدوياً حسب الجدول التالي: ${myoScheduleText}`
+        `Orthopedic appliance instructions:\n- Activate the device exactly as instructed by the doctor.\n- Keep activation timing consistent each day.\n- Do not over-activate or skip activations.\n- If pain is unusual or appliance is loose, contact clinic immediately.${myoScheduleText ? `\nSchedule: ${myoScheduleText}` : ""}`
       );
-    } else if (category.includes("fixed") || treatment.includes("braces") || treatment.includes("hyrax") || treatment.includes("fixed")) {
+    } else if (
+      category.includes("fixed") ||
+      treatment.includes("braces") ||
+      treatment.includes("fixed")
+    ) {
       parts.push(
-        "هذه أول زيارة لك مع جهاز التقويم الثابت. يرجى الاهتمام بالتالي:\n- نظف الأسنان جيداً بعد كل وجبة.\n- تجنب الأطعمة الصلبة واللزجة.\n- لا تلمس الجهاز بيدك.\n- استخدم فرشاة بين الأسنان."
+        "Braces care instructions:\n- Brush after every meal and before sleep.\n- Use interdental brush around brackets and wires.\n- Avoid hard/sticky foods (nuts, gum, toffee, ice).\n- If wire pokes or bracket breaks, contact clinic."
       );
     } else if (category.includes("retainer") || treatment.includes("retainer")) {
       parts.push(
-        "هذه أول زيارة لك مع الجهة المانعة للحركة (Retainer). يرجى الاهتمام بالتالي:\n- ارتدِ الجهة حسب تعليمات الطبيب.\n- نظفها يومياً بالماء الفاتر والبخار.\n- لا تأكل وأنت ترتديها.\n- احفظها في علبتها عندما لا تستخدمها."
+        "Retainer care instructions:\n- Wear exactly as prescribed by your doctor.\n- Clean daily with lukewarm water and a soft brush.\n- Do not eat while wearing your retainer.\n- Keep it in its case when not in use."
       );
     } else if (category.includes("aligner") || treatment.includes("aligner")) {
       parts.push(
-        "هذه أول زيارة لك مع الجهاز الشفاف. يرجى الاهتمام بالتالي:\n- نظف الجهاز يومياً.\n- اخلعه قبل الأكل واشرب السوائل الساخنة.\n- ارتديه 20-22 ساعة يومياً.\n- احفظه في علبته النظيفة."
+        `Aligner instructions:\n- Wear aligners 20-22 hours per day.\n- Remove aligners only for meals and hot drinks.\n- Clean aligners daily using soft brush and lukewarm water.\n- Wear each aligner for ${alignerDays} days unless doctor changes plan.\n- When ${alignerDays} days are completed, switch to the next aligner set.`
       );
     } else {
       parts.push(
-        "هذه أول زيارة لك. يرجى اتباع تعليمات العناية العامة للجهاز:\n- نظف الأسنان جيداً بعد كل وجبة.\n- تجنب الأطعمة الصلبة واللزجة.\n- لا تلمس الجهاز بيدك."
+        "General appliance instructions:\n- Keep excellent oral hygiene.\n- Follow appliance use exactly as prescribed.\n- Avoid habits or foods that damage the appliance.\n- Contact clinic if breakage, severe pain, or fitting issues occur."
       );
     }
   }
