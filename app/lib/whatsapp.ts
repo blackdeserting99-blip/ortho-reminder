@@ -190,3 +190,95 @@ export function createWhatsAppUrl(phone: string, message: string) {
   const digits = phone.replace(/\D/g, "");
   return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
 }
+
+export type WhatsAppSendResult = {
+  ok: boolean;
+  provider: "meta" | "simulation";
+  to: string;
+  messageId?: string;
+  error?: string;
+};
+
+export function normalizePhone(phone: string) {
+  return phone.replace(/\D/g, "");
+}
+
+export async function sendWhatsAppText(
+  phone: string,
+  message: string
+): Promise<WhatsAppSendResult> {
+  const to = normalizePhone(phone);
+
+  if (!to) {
+    return {
+      ok: false,
+      provider: "simulation",
+      to,
+      error: "Phone number is empty after normalization.",
+    };
+  }
+
+  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const apiVersion = process.env.WHATSAPP_API_VERSION || "v21.0";
+
+  // If Meta credentials are not configured, keep the flow non-breaking and
+  // return a simulation result that can be logged/previewed in the dashboard.
+  if (!accessToken || !phoneNumberId) {
+    return {
+      ok: true,
+      provider: "simulation",
+      to,
+    };
+  }
+
+  try {
+    const response = await fetch(
+      `https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to,
+          type: "text",
+          text: {
+            preview_url: false,
+            body: message,
+          },
+        }),
+      }
+    );
+
+    const payload = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        provider: "meta",
+        to,
+        error:
+          payload?.error?.message ||
+          `Meta API request failed with status ${response.status}`,
+      };
+    }
+
+    return {
+      ok: true,
+      provider: "meta",
+      to,
+      messageId: payload?.messages?.[0]?.id,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      provider: "meta",
+      to,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
