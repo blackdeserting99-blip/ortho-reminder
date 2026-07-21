@@ -30,6 +30,25 @@ function getClearAlignersPlan(value: unknown): { total: number; given: number; w
   };
 }
 
+function getLeadDays() {
+  const parsed = Number(process.env.ALIGNER_PREP_LEAD_DAYS || "14");
+  if (!Number.isFinite(parsed) || parsed <= 0 || parsed > 90) {
+    return 14;
+  }
+
+  return Math.floor(parsed);
+}
+
+function getUtcDateOnly(date: Date) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
+
+function getDiffDays(from: Date, to: Date) {
+  const fromDate = getUtcDateOnly(from);
+  const toDate = getUtcDateOnly(to);
+  return Math.round((toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24));
+}
+
 function isAutoReminderEnabled(metadata: unknown): boolean {
   if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
     return true;
@@ -63,6 +82,8 @@ export async function GET() {
   });
 
   const today = new Date().toLocaleDateString("en-CA");
+  const todayDate = new Date(`${today}T00:00:00Z`);
+  const leadDays = getLeadDays();
 
   const notifications = patients
     .map((patient) => {
@@ -85,7 +106,8 @@ export async function GET() {
       }
 
       const appointmentDate = formatDateIso(nextAppointment);
-      if (appointmentDate > today) {
+      const diffDays = getDiffDays(todayDate, nextAppointment);
+      if (diffDays !== leadDays) {
         return null;
       }
 
@@ -99,7 +121,7 @@ export async function GET() {
         totalAligners: plan.total,
         nextPatchStartsFrom: plan.given + 1,
         remainingAligners: plan.total - plan.given,
-        overdue: appointmentDate < today,
+        leadDays,
       };
     })
     .filter((item): item is NonNullable<typeof item> => Boolean(item));

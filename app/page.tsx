@@ -32,7 +32,7 @@ type AlignerPatchNotification = {
   totalAligners: number;
   nextPatchStartsFrom: number;
   remainingAligners: number;
-  overdue: boolean;
+  leadDays: number;
 };
 
       export default function Home() {
@@ -345,7 +345,7 @@ type AlignerPatchNotification = {
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-700">Doctor Alert</p>
               <h2 className="mt-2 text-2xl font-semibold text-amber-900">Clear aligner patch preparation needed</h2>
-              <p className="mt-1 text-sm text-amber-800">Patient reached current patch end. Prepare the next patch if remaining aligners exist.</p>
+              <p className="mt-1 text-sm text-amber-800">Lead-time notification before clinic visit. Prepare next patch while remaining aligners still exist.</p>
             </div>
           </div>
 
@@ -360,7 +360,7 @@ type AlignerPatchNotification = {
                       Reached aligner #{alert.alignerReached}. Next patch starts from #{alert.nextPatchStartsFrom}. Remaining: {alert.remainingAligners} aligners.
                     </div>
                     <div className="mt-1 text-xs text-slate-500">
-                      Review date: {formatDateDMY(alert.appointmentDate)} {alert.overdue ? "(overdue)" : "(today)"}
+                      Appointment in {alert.leadDays} days: {formatDateDMY(alert.appointmentDate)}
                     </div>
                   </div>
                   <div className="flex gap-2">

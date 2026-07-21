@@ -83,6 +83,25 @@ function getMorningHour() {
   return Math.floor(parsed);
 }
 
+function getAlignerPrepLeadDays() {
+  const parsed = Number(process.env.ALIGNER_PREP_LEAD_DAYS || "14");
+  if (!Number.isFinite(parsed) || parsed <= 0 || parsed > 90) {
+    return 14;
+  }
+
+  return Math.floor(parsed);
+}
+
+function getUtcDateOnly(date: Date) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
+
+function getDiffDays(from: Date, to: Date) {
+  const fromDate = getUtcDateOnly(from);
+  const toDate = getUtcDateOnly(to);
+  return Math.round((toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24));
+}
+
 function allowSameDayNow(baseDate: Date) {
   return baseDate.getUTCHours() === getMorningHour();
 }
@@ -112,6 +131,25 @@ function updateMetadataSent(
   return {
     ...base,
     remindersSent: sentMap,
+  };
+}
+
+function wasPatchPrepSent(previous: unknown): boolean {
+  const base = toMetadataObject(previous);
+  const remindersSent = toMetadataObject(base.remindersSent);
+  return Boolean(remindersSent.patchPrep14days);
+}
+
+function markPatchPrepSent(previous: unknown): MetadataObject {
+  const base = toMetadataObject(previous);
+  const remindersSent = {
+    ...toMetadataObject(base.remindersSent),
+    patchPrep14days: true,
+  };
+
+  return {
+    ...base,
+    remindersSent,
   };
 }
 
@@ -198,6 +236,7 @@ function buildAlignerPatchDoctorMessage(input: {
     "Aligner patch preparation alert.",
     `Patient: ${input.patientName}`,
     `Phone: ${input.patientPhone}`,
+    "Lead time alert: 14 days before patient appointment.",
     `Today marks aligner #${input.given}.`,
     `Total planned aligners: ${input.total}`,
     `Remaining aligners after current patch: ${input.remainingAligners}`,
@@ -288,11 +327,67 @@ export async function POST(request: Request) {
     skippedNoPatientPhone: 0,
     skippedAutoReminderDisabled: 0,
     skippedOutsideMorningWindow: 0,
+    doctorPatchPrepSent: 0,
+    doctorPatchPrepSkippedAlreadySent: 0,
+    doctorPatchPrepFailed: 0,
   };
 
   const results: Array<Record<string, unknown>> = [];
 
   for (const appointment of appointments) {
+    const leadDays = getAlignerPrepLeadDays();
+    const diffDays = getDiffDays(baseDate, appointment.scheduledAt);
+
+    const upcomingPatch = hasUpcomingAlignerPatch(appointment.patient);
+    const shouldRunPatchPrepAlert =
+      Boolean(upcomingPatch) &&
+      diffDays === leadDays &&
+      readPatientAutoReminderEnabled(appointment.patient.metadata);
+
+    if (shouldRunPatchPrepAlert && upcomingPatch) {
+      if (wasPatchPrepSent(appointment.metadata)) {
+        summary.doctorPatchPrepSkippedAlreadySent += 1;
+      } else {
+        const doctorPhone = getDoctorPhone(appointment.patient.clinic?.phone);
+        const doctorPatchMessage = buildAlignerPatchDoctorMessage({
+          patientName: appointment.patient.name,
+          patientPhone: appointment.patient.phone || "-",
+          appointmentDate: appointment.scheduledAt,
+          total: upcomingPatch.total,
+          given: upcomingPatch.given,
+          remainingAligners: upcomingPatch.remainingAligners,
+          nextPatchStartsFrom: upcomingPatch.nextPatchStartsFrom,
+        });
+
+        if (!dryRun && doctorPhone) {
+          const patchSend = await sendWhatsAppText(doctorPhone, doctorPatchMessage);
+          if (patchSend.ok) {
+            summary.doctorPatchPrepSent += 1;
+            await prisma.appointment.update({
+              where: { id: appointment.id },
+              data: {
+                metadata: markPatchPrepSent(appointment.metadata),
+              },
+            });
+          } else {
+            summary.doctorPatchPrepFailed += 1;
+          }
+        } else if (dryRun) {
+          summary.doctorPatchPrepSent += 1;
+        }
+
+        results.push({
+          appointmentId: appointment.id,
+          patientId: appointment.patientId,
+          doctorPatchPrep: true,
+          dryRun,
+          leadDays,
+          doctorPhone: doctorPhone || null,
+          messagePreview: doctorPatchMessage,
+        });
+      }
+    }
+
     const type = reminderType || getReminderType(appointment.scheduledAt.toISOString(), baseDate);
 
     if (!type) {
@@ -353,19 +448,6 @@ export async function POST(request: Request) {
       reminderType: type,
       scheduledAt: appointment.scheduledAt,
     });
-
-    const upcomingPatch = hasUpcomingAlignerPatch(appointment.patient);
-    if (type === "sameDay" && upcomingPatch) {
-      doctorMessage = `${doctorMessage}\n\n${buildAlignerPatchDoctorMessage({
-        patientName: appointment.patient.name,
-        patientPhone,
-        appointmentDate: appointment.scheduledAt,
-        total: upcomingPatch.total,
-        given: upcomingPatch.given,
-        remainingAligners: upcomingPatch.remainingAligners,
-        nextPatchStartsFrom: upcomingPatch.nextPatchStartsFrom,
-      })}`;
-    }
 
     if (dryRun) {
       results.push({
