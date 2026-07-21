@@ -5,6 +5,7 @@ export type WhatsAppReminderType = "3days" | "sameDay" | "general";
 export type WhatsAppReminderPatient = {
   name?: string;
   clinicName?: string;
+  doctorName?: string;
   phone: string;
   appointmentDate: string;
   appointmentTime?: string;
@@ -119,6 +120,8 @@ const buildCareInstructions = (
     Number.isFinite(Number(patient.alignerDaysPerTray)) && Number(patient.alignerDaysPerTray) > 0
       ? Number(patient.alignerDaysPerTray)
       : 14;
+  const patientName = (patient.name || "").trim() || "مراجعنا العزيز";
+  const doctorName = (patient.doctorName || "").trim() || "Doctor";
 
   const myoScheduleText = buildMyofunctionalScheduleText(
     patient.myofunctionalProgram
@@ -145,7 +148,23 @@ const buildCareInstructions = (
       treatment.includes("fixed")
     ) {
       parts.push(
-        "Braces care instructions:\n- Brush after every meal and before sleep.\n- Use interdental brush around brackets and wires.\n- Avoid hard/sticky foods (nuts, gum, toffee, ice).\n- If wire pokes or bracket breaks, contact clinic."
+        `السلام عليكم ${patientName} 🌹
+
+نبارك لكم بداية رحلة العلاج بالتقويم، ونتمنى لكم تجربة علاج ناجحة وابتسامة جميلة بإذن الله.
+
+من الطبيعي خلال الأيام الأولى الشعور بضغط أو ألم خفيف على الأسنان، وقد تواجهون صعوبة بسيطة أثناء المضغ، وهذا أمر طبيعي وسيختفي تدريجياً مع تأقلم الأسنان على التقويم.
+
+يرجى الالتزام بالتعليمات التالية:
+
+✅ تناول الأطعمة اللينة خلال الأيام الأولى.
+✅ تجنب الأطعمة القاسية واللزجة مثل المكسرات، الثلج، العلكة، والكراميل.
+✅ تنظيف الأسنان والتقويم جيداً بعد كل وجبة للحفاظ على صحة الأسنان واللثة.
+
+⚠️ في حال سقوط أي نجمة من التقويم، أو انقطاع السلك، أو حدوث أي مشكلة غير معتادة، يرجى التواصل مع العيادة مباشرة وعدم محاولة إصلاحها بأنفسكم.
+
+شكراً لثقتكم بنا، ونتمنى لكم علاجاً ناجحاً وابتسامة جميلة. 🌹
+
+${doctorName}`
       );
     } else if (category.includes("retainer") || treatment.includes("retainer")) {
       parts.push(

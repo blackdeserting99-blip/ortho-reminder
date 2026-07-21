@@ -423,6 +423,7 @@ export async function POST(request: Request) {
       {
         name: appointment.patient.name,
         clinicName: appointment.patient.clinic?.name || "العيادة",
+        doctorName: process.env.DOCTOR_DISPLAY_NAME || "Doctor",
         phone: patientPhone,
         appointmentDate: appointment.scheduledAt.toISOString(),
         appointmentTime: formatLocalTime(appointment.scheduledAt),
