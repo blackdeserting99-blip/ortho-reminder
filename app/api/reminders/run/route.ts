@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/app/lib/auth";
 import { prisma } from "@/app/lib/prisma";
+import { getDoctorWhatsApp } from "@/app/lib/doctor-whatsapp";
 import {
   buildRetainerYearOnePatientMessage,
   buildWhatsAppBotMessage,
@@ -249,10 +250,6 @@ function markPatchPrepSent(previous: unknown): MetadataObject {
   };
 }
 
-function getDoctorPhone(clinicPhone: string | null | undefined) {
-  return process.env.DOCTOR_WHATSAPP_PHONE || clinicPhone || "";
-}
-
 function buildDoctorMessage(input: {
   patientName: string;
   patientPhone: string;
@@ -404,7 +401,7 @@ export async function POST(request: Request) {
             take: 5,
           },
           clinic: {
-            select: { phone: true, name: true },
+            select: { phone: true, name: true, metadata: true },
           },
         },
       },
@@ -538,7 +535,10 @@ export async function POST(request: Request) {
       if (wasPatchPrepSent(appointment.metadata)) {
         summary.doctorPatchPrepSkippedAlreadySent += 1;
       } else {
-        const doctorPhone = getDoctorPhone(appointment.patient.clinic?.phone);
+        const doctorPhone = getDoctorWhatsApp({
+          clinicPhone: appointment.patient.clinic?.phone,
+          clinicMetadata: appointment.patient.clinic?.metadata,
+        });
         const doctorPatchMessage = buildAlignerPatchDoctorMessage({
           patientName: appointment.patient.name,
           patientPhone: appointment.patient.phone || "-",
@@ -634,7 +634,10 @@ export async function POST(request: Request) {
       type
     );
 
-    const doctorPhone = getDoctorPhone(appointment.patient.clinic?.phone);
+    const doctorPhone = getDoctorWhatsApp({
+      clinicPhone: appointment.patient.clinic?.phone,
+      clinicMetadata: appointment.patient.clinic?.metadata,
+    });
     let doctorMessage = buildDoctorMessage({
       patientName: appointment.patient.name,
       patientPhone,

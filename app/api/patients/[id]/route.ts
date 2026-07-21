@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/app/lib/auth";
 import { prisma } from "@/app/lib/prisma";
+import { getDoctorWhatsApp } from "@/app/lib/doctor-whatsapp";
 import { sendWhatsAppText } from "@/app/lib/whatsapp";
 
 const DEFAULT_APPOINTMENT_TIME = "04:00 PM";
@@ -311,6 +312,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const existing = await prisma.patient.findFirst({
     where: { id: patientId, userId: user.id },
+    include: {
+      clinic: {
+        select: {
+          phone: true,
+          metadata: true,
+        },
+      },
+    },
   });
 
   if (!existing) {
@@ -438,7 +447,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         await sendWhatsAppText(patientPhone, patientMessage);
       }
 
-      const doctorPhone = process.env.DOCTOR_WHATSAPP_PHONE || "";
+      const doctorPhone = getDoctorWhatsApp({
+        clinicPhone: existing.clinic?.phone,
+        clinicMetadata: existing.clinic?.metadata,
+      });
       if (doctorPhone) {
         const doctorMessage = buildRetainerDoctorMessage({
           patientName: existing.name,

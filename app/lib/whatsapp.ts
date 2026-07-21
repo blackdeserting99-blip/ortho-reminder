@@ -399,7 +399,28 @@ export type WhatsAppSendResult = {
 };
 
 export function normalizePhone(phone: string) {
-  return phone.replace(/\D/g, "");
+  let digits = phone.replace(/\D/g, "");
+
+  if (digits.startsWith("00")) {
+    digits = digits.slice(2);
+  }
+
+  if (digits.startsWith("964")) {
+    return digits;
+  }
+
+  // Iraqi local mobile formats:
+  // - 07XXXXXXXXX -> 9647XXXXXXXXX
+  // - 7XXXXXXXXX  -> 9647XXXXXXXXX
+  if (digits.length === 11 && digits.startsWith("07")) {
+    return `964${digits.slice(1)}`;
+  }
+
+  if (digits.length === 10 && digits.startsWith("7")) {
+    return `964${digits}`;
+  }
+
+  return digits;
 }
 
 export async function sendWhatsAppText(

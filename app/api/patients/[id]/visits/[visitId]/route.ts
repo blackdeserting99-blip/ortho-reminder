@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/app/lib/auth";
 import { prisma } from "@/app/lib/prisma";
+import { getDoctorWhatsApp } from "@/app/lib/doctor-whatsapp";
 import {
   buildElasticsStartedDoctorMessage,
   buildElasticsStartedPatientMessage,
@@ -97,6 +98,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (hadElasticsInOtherVisits === 0) {
       const patient = await prisma.patient.findFirst({
         where: { id: patientId, userId: user.id },
+        include: {
+          clinic: {
+            select: {
+              phone: true,
+              metadata: true,
+            },
+          },
+        },
       });
 
       if (patient?.phone?.trim()) {
@@ -108,7 +117,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         });
         await sendWhatsAppText(patient.phone, patientMessage);
 
-        const doctorPhone = process.env.DOCTOR_WHATSAPP_PHONE || "";
+        const doctorPhone = getDoctorWhatsApp({
+          clinicPhone: patient.clinic?.phone,
+          clinicMetadata: patient.clinic?.metadata,
+        });
         if (doctorPhone) {
           const doctorMessage = buildElasticsStartedDoctorMessage({
             patientName: patient.name,
@@ -145,6 +157,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (hadTadsInOtherVisits === 0) {
       const patient = await prisma.patient.findFirst({
         where: { id: patientId, userId: user.id },
+        include: {
+          clinic: {
+            select: {
+              phone: true,
+              metadata: true,
+            },
+          },
+        },
       });
 
       if (patient?.phone?.trim()) {
@@ -156,7 +176,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         });
         await sendWhatsAppText(patient.phone, patientMessage);
 
-        const doctorPhone = process.env.DOCTOR_WHATSAPP_PHONE || "";
+        const doctorPhone = getDoctorWhatsApp({
+          clinicPhone: patient.clinic?.phone,
+          clinicMetadata: patient.clinic?.metadata,
+        });
         if (doctorPhone) {
           const doctorMessage = buildTadsStartedDoctorMessage({
             patientName: patient.name,

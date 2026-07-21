@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/app/lib/auth";
 import { prisma } from "@/app/lib/prisma";
+import { getDoctorWhatsApp } from "@/app/lib/doctor-whatsapp";
 import {
   buildElasticsStartedDoctorMessage,
   buildElasticsStartedPatientMessage,
@@ -20,7 +21,7 @@ function getMetadataObject(value: unknown): Record<string, unknown> {
 }
 
 async function sendElasticsStartedNotification(input: {
-  patient: { id: number; name: string; phone: string | null };
+  patient: { id: number; name: string; phone: string | null; clinic: { phone: string | null; metadata: unknown } | null };
   elasticType?: string | null;
   visitId: number;
 }) {
@@ -47,7 +48,10 @@ async function sendElasticsStartedNotification(input: {
   });
   await sendWhatsAppText(patientPhone, patientMessage);
 
-  const doctorPhone = process.env.DOCTOR_WHATSAPP_PHONE || "";
+  const doctorPhone = getDoctorWhatsApp({
+    clinicPhone: input.patient.clinic?.phone,
+    clinicMetadata: input.patient.clinic?.metadata,
+  });
   if (doctorPhone) {
     const doctorMessage = buildElasticsStartedDoctorMessage({
       patientName: input.patient.name,
@@ -69,7 +73,7 @@ async function sendElasticsStartedNotification(input: {
 }
 
 async function sendTadsStartedNotification(input: {
-  patient: { id: number; name: string; phone: string | null };
+  patient: { id: number; name: string; phone: string | null; clinic: { phone: string | null; metadata: unknown } | null };
   tadsNote?: string | null;
   visitId: number;
 }) {
@@ -96,7 +100,10 @@ async function sendTadsStartedNotification(input: {
   });
   await sendWhatsAppText(patientPhone, patientMessage);
 
-  const doctorPhone = process.env.DOCTOR_WHATSAPP_PHONE || "";
+  const doctorPhone = getDoctorWhatsApp({
+    clinicPhone: input.patient.clinic?.phone,
+    clinicMetadata: input.patient.clinic?.metadata,
+  });
   if (doctorPhone) {
     const doctorMessage = buildTadsStartedDoctorMessage({
       patientName: input.patient.name,
@@ -181,6 +188,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const patient = await prisma.patient.findFirst({
     where: { id: patientId, userId: user.id },
+    include: {
+      clinic: {
+        select: {
+          phone: true,
+          metadata: true,
+        },
+      },
+    },
   });
 
   if (!patient) {
@@ -293,6 +308,14 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
   const patient = await prisma.patient.findFirst({
     where: { id: patientId, userId: user.id },
+    include: {
+      clinic: {
+        select: {
+          phone: true,
+          metadata: true,
+        },
+      },
+    },
   });
 
   if (!patient) {
