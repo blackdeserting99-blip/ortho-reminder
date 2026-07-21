@@ -444,7 +444,7 @@ export async function POST(request: Request) {
       await prisma.patient.update({
         where: { id: patient.id },
         data: {
-          metadata: markRetainerYearOneSent(patient.metadata),
+          metadata: markRetainerYearOneSent(patient.metadata) as any,
         },
       });
     } else {
@@ -490,7 +490,7 @@ export async function POST(request: Request) {
             await prisma.appointment.update({
               where: { id: appointment.id },
               data: {
-                metadata: markPatchPrepSent(appointment.metadata),
+                metadata: markPatchPrepSent(appointment.metadata) as any,
               },
             });
           } else {
@@ -609,7 +609,7 @@ export async function POST(request: Request) {
         reminderStatus: success ? "SENT" : "FAILED",
         reminderSentAt: success ? new Date() : appointment.reminderSentAt,
         reminderNote: reminderErrors || null,
-        metadata: updateMetadataSent(appointment.metadata, type),
+        metadata: updateMetadataSent(appointment.metadata, type) as any,
       },
     });
 

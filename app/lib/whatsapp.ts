@@ -257,12 +257,7 @@ export function buildWhatsAppBotMessage(
 نتمنى لكم يوماً سعيداً 💙`;
   }
 
-  const whenText =
-    reminderType === "3days"
-      ? "هذا تذكير قبل 3 أيام من موعدك"
-      : reminderType === "sameDay"
-      ? "هذا تذكير ليوم الموعد"
-      : "هذا تذكير بموعدك";
+  const whenText = "هذا تذكير بموعدك";
 
   const careText = buildCareInstructions(patient);
 
