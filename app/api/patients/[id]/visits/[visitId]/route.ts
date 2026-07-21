@@ -4,6 +4,8 @@ import { prisma } from "@/app/lib/prisma";
 import {
   buildElasticsStartedDoctorMessage,
   buildElasticsStartedPatientMessage,
+  buildTadsStartedDoctorMessage,
+  buildTadsStartedPatientMessage,
   sendWhatsAppText,
 } from "@/app/lib/whatsapp";
 
@@ -58,6 +60,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const previousHadElastics = hasValue(visit.elastics);
   const nextElastics = body.elastics ?? visit.elastics;
+  const previousHadTads = hasValue(visit.tads);
+  const nextTads = body.tads ?? visit.tads;
 
   const updated = await prisma.visit.update({
     where: { id: visitIdNumber },
@@ -120,6 +124,54 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
             metadata: {
               ...updatedMetadata,
               elasticsStartedNotified: true,
+            },
+          },
+        });
+      }
+    }
+  }
+
+  const shouldNotifyTadsFromThisVisit = !previousHadTads && hasValue(nextTads);
+
+  if (shouldNotifyTadsFromThisVisit && updatedMetadata.tadsStartedNotified !== true) {
+    const hadTadsInOtherVisits = await prisma.visit.count({
+      where: {
+        patientId,
+        id: { not: visitIdNumber },
+        tads: { not: null },
+      },
+    });
+
+    if (hadTadsInOtherVisits === 0) {
+      const patient = await prisma.patient.findFirst({
+        where: { id: patientId, userId: user.id },
+      });
+
+      if (patient?.phone?.trim()) {
+        const doctorName = process.env.DOCTOR_DISPLAY_NAME || "Doctor";
+        const patientMessage = buildTadsStartedPatientMessage({
+          patientName: patient.name,
+          tadsNote: String(nextTads),
+          doctorName,
+        });
+        await sendWhatsAppText(patient.phone, patientMessage);
+
+        const doctorPhone = process.env.DOCTOR_WHATSAPP_PHONE || "";
+        if (doctorPhone) {
+          const doctorMessage = buildTadsStartedDoctorMessage({
+            patientName: patient.name,
+            patientPhone: patient.phone,
+            tadsNote: String(nextTads),
+          });
+          await sendWhatsAppText(doctorPhone, doctorMessage);
+        }
+
+        await prisma.visit.update({
+          where: { id: visitIdNumber },
+          data: {
+            metadata: {
+              ...updatedMetadata,
+              tadsStartedNotified: true,
             },
           },
         });

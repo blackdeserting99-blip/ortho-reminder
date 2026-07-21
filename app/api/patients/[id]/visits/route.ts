@@ -4,6 +4,8 @@ import { prisma } from "@/app/lib/prisma";
 import {
   buildElasticsStartedDoctorMessage,
   buildElasticsStartedPatientMessage,
+  buildTadsStartedDoctorMessage,
+  buildTadsStartedPatientMessage,
   sendWhatsAppText,
 } from "@/app/lib/whatsapp";
 
@@ -61,6 +63,55 @@ async function sendElasticsStartedNotification(input: {
       metadata: {
         ...metadata,
         elasticsStartedNotified: true,
+      },
+    },
+  });
+}
+
+async function sendTadsStartedNotification(input: {
+  patient: { id: number; name: string; phone: string | null };
+  tadsNote?: string | null;
+  visitId: number;
+}) {
+  const patientPhone = (input.patient.phone || "").trim();
+  if (!patientPhone) {
+    return;
+  }
+
+  const visit = await prisma.visit.findUnique({ where: { id: input.visitId } });
+  if (!visit) {
+    return;
+  }
+
+  const metadata = getMetadataObject(visit.metadata);
+  if (metadata.tadsStartedNotified === true) {
+    return;
+  }
+
+  const doctorName = process.env.DOCTOR_DISPLAY_NAME || "Doctor";
+  const patientMessage = buildTadsStartedPatientMessage({
+    patientName: input.patient.name,
+    tadsNote: input.tadsNote,
+    doctorName,
+  });
+  await sendWhatsAppText(patientPhone, patientMessage);
+
+  const doctorPhone = process.env.DOCTOR_WHATSAPP_PHONE || "";
+  if (doctorPhone) {
+    const doctorMessage = buildTadsStartedDoctorMessage({
+      patientName: input.patient.name,
+      patientPhone: input.patient.phone || "-",
+      tadsNote: input.tadsNote,
+    });
+    await sendWhatsAppText(doctorPhone, doctorMessage);
+  }
+
+  await prisma.visit.update({
+    where: { id: input.visitId },
+    data: {
+      metadata: {
+        ...metadata,
+        tadsStartedNotified: true,
       },
     },
   });
@@ -150,6 +201,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     },
   });
 
+  const hadTadsBefore = await prisma.visit.count({
+    where: {
+      patientId,
+      tads: {
+        not: null,
+      },
+    },
+  });
+
   const buildCreateData = (includePlannedFields: boolean) => ({
     patientId,
     visitDate: new Date(body.visitDate),
@@ -196,6 +256,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       await sendElasticsStartedNotification({
         patient,
         elasticType: visit.elastics,
+        visitId: visit.id,
+      });
+    }
+
+    if (visit && hasValue(visit.tads) && hadTadsBefore === 0) {
+      await sendTadsStartedNotification({
+        patient,
+        tadsNote: visit.tads,
         visitId: visit.id,
       });
     }
@@ -327,6 +395,15 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       },
     });
 
+    const hadTadsBefore = await prisma.visit.count({
+      where: {
+        patientId,
+        tads: {
+          not: null,
+        },
+      },
+    });
+
     try {
       await runUpsertTransaction(true);
     } catch (error) {
@@ -350,6 +427,17 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
           patient,
           elasticType: firstVisitWithElastics.elastics,
           visitId: firstVisitWithElastics.id,
+        });
+      }
+    }
+
+    if (hadTadsBefore === 0) {
+      const firstVisitWithTads = updatedVisits.find((visit) => hasValue(visit.tads));
+      if (firstVisitWithTads) {
+        await sendTadsStartedNotification({
+          patient,
+          tadsNote: firstVisitWithTads.tads,
+          visitId: firstVisitWithTads.id,
         });
       }
     }

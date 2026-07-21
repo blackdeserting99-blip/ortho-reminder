@@ -319,6 +319,50 @@ export function buildElasticsStartedDoctorMessage(input: {
   ].join("\n");
 }
 
+export function buildTadsStartedPatientMessage(input: {
+  patientName?: string;
+  tadsNote?: string | null;
+  doctorName?: string;
+}) {
+  const patientName = (input.patientName || "").trim() || "مراجعنا العزيز";
+  const doctorName = (input.doctorName || "").trim() || "Doctor";
+  const tadsNote = (input.tadsNote || "").trim() || "حسب تعليمات الطبيب";
+
+  return `السلام عليكم ${patientName} 🌹
+
+تم اليوم وضع الـ TADS ضمن خطة العلاج الخاصة بكم.
+
+📌 تعليمات العناية:
+✅ الالتزام التام بتعليمات الطبيب.
+✅ المحافظة على نظافة المنطقة حول الـ TADS يومياً.
+✅ تجنب العبث بها أو تحريكها باللسان أو الأصابع.
+✅ الالتزام بالمراجعات الدورية لضمان تقدم العلاج بالشكل الصحيح.
+
+ملاحظة الطبيب:
+${tadsNote}
+
+⚠️ في حال الشعور بألم غير طبيعي، حركة في الـ TADS، أو أي انزعاج مستمر، يرجى التواصل مع العيادة مباشرة.
+
+شكراً لثقتكم بنا، ونتمنى لكم علاجاً ناجحاً 🌹
+
+${doctorName}`;
+}
+
+export function buildTadsStartedDoctorMessage(input: {
+  patientName: string;
+  patientPhone: string;
+  tadsNote?: string | null;
+}) {
+  const tadsNote = (input.tadsNote || "").trim() || "Not specified";
+
+  return [
+    "TADS started alert.",
+    `Patient: ${input.patientName}`,
+    `Phone: ${input.patientPhone || "-"}`,
+    `TADS note: ${tadsNote}`,
+  ].join("\n");
+}
+
 export function createWhatsAppUrl(phone: string, message: string) {
   const digits = phone.replace(/\D/g, "");
   return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
