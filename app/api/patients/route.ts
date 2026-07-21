@@ -90,7 +90,27 @@ const patientSchema = z.object({
   myofunctionalType: z.string().optional(),
   myofunctionalProgram: z.any().optional(),
   clearAlignersPlan: z.any().optional(),
+  caseStatus: z.enum(["active", "retainer", "finished", "cancelled", "archived"]).optional(),
 });
+
+function getCaseStatusFromMetadata(metadata: unknown) {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return "active" as const;
+  }
+
+  const value = (metadata as Record<string, unknown>).caseStatus;
+  if (
+    value === "active" ||
+    value === "retainer" ||
+    value === "finished" ||
+    value === "cancelled" ||
+    value === "archived"
+  ) {
+    return value;
+  }
+
+  return "active" as const;
+}
 
 export async function GET() {
   try {
@@ -141,6 +161,7 @@ export async function GET() {
 
       return {
         ...patient,
+        caseStatus: getCaseStatusFromMetadata(patient.metadata),
         treatment: patient.treatmentCategory,
         visits: (patient.visits || []).map((visit) => ({
           ...visit,
@@ -245,6 +266,9 @@ export async function POST(request: Request) {
         myofunctionalType: parseResult.data.myofunctionalType ?? null,
         myofunctionalProgram: parseResult.data.myofunctionalProgram ?? null,
         clearAlignersPlan: parseResult.data.clearAlignersPlan ?? null,
+        metadata: {
+          caseStatus: parseResult.data.caseStatus || "active",
+        },
       },
     });
 

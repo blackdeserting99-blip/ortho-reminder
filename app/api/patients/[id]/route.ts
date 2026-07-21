@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/app/lib/auth";
 import { prisma } from "@/app/lib/prisma";
+import { sendWhatsAppText } from "@/app/lib/whatsapp";
 
 const DEFAULT_APPOINTMENT_TIME = "04:00 PM";
 
@@ -116,6 +117,7 @@ const patientSchema = z.object({
   myofunctionalType: z.string().optional(),
   myofunctionalProgram: z.any().optional(),
   clearAlignersPlan: z.any().optional(),
+  caseStatus: z.enum(["active", "retainer", "finished", "cancelled", "archived"]).optional(),
   autoReminderEnabled: z.boolean().optional(),
   alignerDaysPerTray: z.number().int().positive().max(30).optional(),
 });
@@ -126,6 +128,48 @@ function getMetadataObject(value: unknown): Record<string, unknown> {
   }
 
   return value as Record<string, unknown>;
+}
+
+function getCaseStatusFromMetadata(metadata: unknown) {
+  const value = getMetadataObject(metadata).caseStatus;
+  if (
+    value === "active" ||
+    value === "retainer" ||
+    value === "finished" ||
+    value === "cancelled" ||
+    value === "archived"
+  ) {
+    return value;
+  }
+
+  return "active" as const;
+}
+
+function buildRetainerPatientMessage(input: {
+  appointmentDate: string;
+  appointmentTime: string;
+}) {
+  return [
+    "Your treatment has moved to the retainer phase.",
+    `Your retainer follow-up is on ${input.appointmentDate} at ${input.appointmentTime}.`,
+    "Please wear your retainer exactly as instructed and bring it with you to every visit.",
+    "If the retainer feels tight, cracked, or lost, contact the clinic immediately.",
+  ].join("\n");
+}
+
+function buildRetainerDoctorMessage(input: {
+  patientName: string;
+  patientPhone: string;
+  appointmentDate: string;
+  appointmentTime: string;
+}) {
+  return [
+    "Retainer phase transition alert.",
+    `Patient: ${input.patientName}`,
+    `Phone: ${input.patientPhone}`,
+    `Retainer follow-up: ${input.appointmentDate} ${input.appointmentTime}`,
+    "Case has been switched from active treatment to retainer phase.",
+  ].join("\n");
 }
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -211,6 +255,7 @@ const patient = await prisma.patient.findFirst({
         visits: visitsWithAliases,
         appointmentDate,
         appointmentTime,
+        caseStatus: getCaseStatusFromMetadata(patient.metadata),
         autoReminderEnabled: getMetadataObject(patient.metadata).autoReminderEnabled !== false,
         alignerDaysPerTray: Number(getMetadataObject(patient.metadata).alignerDaysPerTray || 14),
       };
@@ -281,6 +326,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   );
   const shouldUpdateAppointment =
     hasAppointmentDateInPayload || hasAppointmentTimeInPayload;
+  const shouldUpdateCaseStatus = Object.prototype.hasOwnProperty.call(body, "caseStatus");
   const shouldUpdateReminderSettings =
     Object.prototype.hasOwnProperty.call(body, "autoReminderEnabled") ||
     Object.prototype.hasOwnProperty.call(body, "alignerDaysPerTray");
@@ -300,6 +346,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (Object.prototype.hasOwnProperty.call(updatePayload, "appointmentTime")) {
     delete updatePayload.appointmentTime;
   }
+  if (Object.prototype.hasOwnProperty.call(updatePayload, "caseStatus")) {
+    delete updatePayload.caseStatus;
+  }
   if (Object.prototype.hasOwnProperty.call(updatePayload, "autoReminderEnabled")) {
     delete updatePayload.autoReminderEnabled;
   }
@@ -307,7 +356,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     delete updatePayload.alignerDaysPerTray;
   }
 
-  if (shouldUpdateReminderSettings) {
+  const shouldUpdateMetadata = shouldUpdateReminderSettings || shouldUpdateCaseStatus;
+  const existingMetadata = getMetadataObject(existing.metadata);
+
+  if (shouldUpdateMetadata) {
     const existingMetadata = getMetadataObject(existing.metadata);
     const mergedMetadata: Record<string, unknown> = {
       ...existingMetadata,
@@ -319,6 +371,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         typeof incoming.alignerDaysPerTray === "number"
           ? incoming.alignerDaysPerTray
           : Number(existingMetadata.alignerDaysPerTray || 14),
+      caseStatus:
+        typeof incoming.caseStatus === "string"
+          ? incoming.caseStatus
+          : getCaseStatusFromMetadata(existingMetadata),
     };
 
     updatePayload.metadata = mergedMetadata;
@@ -327,6 +383,40 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   try {
     // Update patient scalar fields
     await prisma.patient.update({ where: { id: patientId }, data: updatePayload });
+
+    const previousCaseStatus = getCaseStatusFromMetadata(existingMetadata);
+    const nextCaseStatus = typeof incoming.caseStatus === "string"
+      ? incoming.caseStatus
+      : previousCaseStatus;
+
+    if (previousCaseStatus !== "retainer" && nextCaseStatus === "retainer") {
+      const appointmentDateText =
+        (typeof incoming.appointmentDate === "string" && incoming.appointmentDate.trim()) ||
+        "TBD";
+      const appointmentTimeText =
+        (typeof incoming.appointmentTime === "string" && incoming.appointmentTime.trim()) ||
+        "TBD";
+
+      const patientPhone = (existing.phone || "").trim();
+      if (patientPhone) {
+        const patientMessage = buildRetainerPatientMessage({
+          appointmentDate: appointmentDateText,
+          appointmentTime: appointmentTimeText,
+        });
+        await sendWhatsAppText(patientPhone, patientMessage);
+      }
+
+      const doctorPhone = process.env.DOCTOR_WHATSAPP_PHONE || "";
+      if (doctorPhone) {
+        const doctorMessage = buildRetainerDoctorMessage({
+          patientName: existing.name,
+          patientPhone: existing.phone || "-",
+          appointmentDate: appointmentDateText,
+          appointmentTime: appointmentTimeText,
+        });
+        await sendWhatsAppText(doctorPhone, doctorMessage);
+      }
+    }
 
     if (shouldUpdateAppointment) {
       const latestVisit = await prisma.visit.findFirst({
@@ -405,7 +495,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         visits: true,
       },
     });
-    return NextResponse.json(reloaded);
+    if (!reloaded) {
+      return NextResponse.json({ error: "Patient not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      ...reloaded,
+      caseStatus: getCaseStatusFromMetadata(reloaded.metadata),
+    });
   } catch (error) {
     console.error('[PATCH /api/patients/[id] ERROR]', error);
     return NextResponse.json(
