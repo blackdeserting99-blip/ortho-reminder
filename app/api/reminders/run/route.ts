@@ -61,7 +61,7 @@ function readSentMap(metadata: unknown): ReminderMap {
 
 function readPatientAutoReminderEnabled(metadata: unknown): boolean {
   const obj = toMetadataObject(metadata);
-  return Boolean(obj.autoReminderEnabled);
+  return obj.autoReminderEnabled !== false;
 }
 
 function readAlignerDaysPerTray(metadata: unknown): number {

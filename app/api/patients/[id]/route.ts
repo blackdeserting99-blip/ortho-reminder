@@ -211,7 +211,7 @@ const patient = await prisma.patient.findFirst({
         visits: visitsWithAliases,
         appointmentDate,
         appointmentTime,
-        autoReminderEnabled: Boolean(getMetadataObject(patient.metadata).autoReminderEnabled),
+        autoReminderEnabled: getMetadataObject(patient.metadata).autoReminderEnabled !== false,
         alignerDaysPerTray: Number(getMetadataObject(patient.metadata).alignerDaysPerTray || 14),
       };
       
@@ -314,7 +314,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       autoReminderEnabled:
         typeof incoming.autoReminderEnabled === "boolean"
           ? incoming.autoReminderEnabled
-          : Boolean(existingMetadata.autoReminderEnabled),
+          : existingMetadata.autoReminderEnabled !== false,
       alignerDaysPerTray:
         typeof incoming.alignerDaysPerTray === "number"
           ? incoming.alignerDaysPerTray
