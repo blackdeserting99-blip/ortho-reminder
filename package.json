@@ -7,10 +7,11 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
-    "cf:build": "prisma generate && npx @opennextjs/cloudflare build",
+    "cf:build": "prisma generate && prisma migrate deploy && npx @opennextjs/cloudflare build",
     "cf:deploy": "npm run cf:build && wrangler deploy",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev --name init --create-only"
+    "prisma:migrate": "prisma migrate dev --name init --create-only",
+    "prisma:migrate:deploy": "prisma migrate deploy"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.5.20",

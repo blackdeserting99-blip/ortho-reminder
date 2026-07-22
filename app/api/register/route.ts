@@ -29,16 +29,28 @@ export async function POST(request: Request) {
 
     const { name, email, password } = parseResult.data;
 
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
-    });
+console.log("🔵 About to query user...");
 
-    if (existingUser) {
-      return NextResponse.json(
-        { error: "A user with this email already exists." },
-        { status: 409 }
-      );
-    }
+let existingUser;
+
+try {
+  existingUser = await prisma.user.findUnique({
+    where: { email },
+  });
+
+  console.log("🟢 Query finished:", existingUser);
+} catch (err) {
+  console.error("🔴 Prisma findUnique failed");
+  console.error(err);
+  throw err;
+}
+
+if (existingUser) {
+  return NextResponse.json(
+    { error: "A user with this email already exists." },
+    { status: 409 }
+  );
+}
 
     const passwordHash = await hashPassword(password);
 
