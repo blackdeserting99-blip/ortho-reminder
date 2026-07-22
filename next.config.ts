@@ -1,10 +1,14 @@
 import type { NextConfig } from "next";
 import path from "path";
 
+const traceRoot = process.env.NEXT_PRIVATE_OUTPUT_TRACE_ROOT
+  ? path.resolve(process.env.NEXT_PRIVATE_OUTPUT_TRACE_ROOT)
+  : path.resolve(__dirname);
+
 const nextConfig: NextConfig = {
-  // Ensure output tracing root is set to this project root so Next's server
-  // bundles include vendor chunks (avoids missing './vendor-chunks/*' at runtime)
-  outputFileTracingRoot: path.resolve(__dirname),
+  // OpenNext sets NEXT_PRIVATE_OUTPUT_TRACE_ROOT for monorepos; use it when present.
+  // Fallback to the app root for regular local Next.js builds.
+  outputFileTracingRoot: traceRoot,
   images: {
     unoptimized: true,
   },
