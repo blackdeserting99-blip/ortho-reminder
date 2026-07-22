@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client/edge";
+import { PrismaClient } from "../generated/prisma/client";
 import { PrismaNeon } from "@prisma/adapter-neon";
 
 function getDatabaseUrl(): string {
@@ -20,7 +20,10 @@ function getDatabaseUrl(): string {
 
   return value;
 }
-
+console.log(
+  "DATABASE_URL during build:",
+  process.env.DATABASE_URL ? "FOUND" : "MISSING"
+);
 const connectionString = getDatabaseUrl();
 
 const adapter = new PrismaNeon({
