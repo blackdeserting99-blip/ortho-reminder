@@ -1,18 +1,34 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
+import bcrypt from "bcryptjs";
 
 export async function POST(request: Request) {
   try {
-    const { name, email, password } = await request.json();
+    console.log("=== REGISTER START ===");
 
-    // Check if user already exists
+    const body = await request.json();
+    console.log("Request received");
+
+    const { name, email, password } = body;
+
+    if (!name || !email || !password) {
+      return NextResponse.json(
+        {
+          error: "Missing required fields.",
+        },
+        { status: 400 }
+      );
+    }
+
+    console.log("Checking existing user...");
+
     const existingUser = await prisma.user.findUnique({
-      where: {
-        email,
-      },
+      where: { email },
     });
 
     if (existingUser) {
+      console.log("User already exists");
+
       return NextResponse.json(
         {
           error: "Email already exists.",
@@ -21,12 +37,17 @@ export async function POST(request: Request) {
       );
     }
 
-    // Create user
+    console.log("Hashing password...");
+
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    console.log("Creating user...");
+
     const user = await prisma.user.create({
       data: {
         name,
         email,
-        passwordHash: password, // Replace with a hashed password if you're not already hashing it elsewhere
+        passwordHash,
       },
       select: {
         id: true,
@@ -36,6 +57,8 @@ export async function POST(request: Request) {
       },
     });
 
+    console.log("User created successfully");
+
     return NextResponse.json(
       {
         success: true,
@@ -44,12 +67,19 @@ export async function POST(request: Request) {
       { status: 201 }
     );
   } catch (error) {
-    console.error("Registration error:", error);
+    console.error("========== REGISTER ERROR ==========");
+    console.error(error);
+    console.error("====================================");
 
     return NextResponse.json(
       {
-        error: "Registration failed.",
-        details: error instanceof Error ? error.message : "Unknown error",
+        success: false,
+        error: "Registration failed",
+        details: {
+          name: error instanceof Error ? error.name : "Unknown",
+          message: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : null,
+        },
       },
       { status: 500 }
     );
