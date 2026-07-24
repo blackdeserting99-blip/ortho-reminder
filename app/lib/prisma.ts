@@ -6,6 +6,7 @@ const globalForPrisma = globalThis as {
 };
 
 function createPrismaClient() {
+  console.log("DATABASE_URL present:", !!process.env.DATABASE_URL);
   const raw = process.env.DATABASE_URL;
 
   if (!raw) {
