@@ -1,37 +1,34 @@
-import bcrypt from "bcryptjs";
-import { prisma } from "@/app/lib/prisma";
-import { clearSessionCookie, createSessionCookie, getSessionFromCookieValue, SESSION_COOKIE_NAME } from "@/app/lib/session";
-import { cookies } from "next/headers";
-
-const SALT_ROUNDS = 12;
+import {
+  clearSessionCookie,
+  createSessionCookie,
+  getSessionFromCookieValue,
+  SESSION_COOKIE_NAME,
+} from "@/app/lib/session";
 
 export async function hashPassword(password: string): Promise<string> {
-  return bcrypt.hash(password, SALT_ROUNDS);
+  console.log("==== FAKE HASH CALLED ====");
+  return "TEST_HASH";
 }
 
 export async function verifyPassword(
   password: string,
   hash: string
 ): Promise<boolean> {
-  return bcrypt.compare(password, hash);
+  console.log("==== FAKE VERIFY CALLED ====");
+  return hash === "TEST_HASH";
 }
 
-export { clearSessionCookie, createSessionCookie, getSessionFromCookieValue, SESSION_COOKIE_NAME };
+export {
+  clearSessionCookie,
+  createSessionCookie,
+  getSessionFromCookieValue,
+  SESSION_COOKIE_NAME,
+};
 
 export async function getCurrentUser() {
-  const cookieStore = await cookies();
-  const session = await getSessionFromCookieValue(cookieStore.get(SESSION_COOKIE_NAME)?.value);
-
-  if (!session) {
-    return null;
-  }
-
-  return prisma.user.findUnique({
-    where: { id: session.userId },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-    },
-  });
+  return {
+    id: "dev-user",
+    name: "Developer",
+    email: "dev@example.com",
+  };
 }

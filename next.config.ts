@@ -9,6 +9,10 @@ const nextConfig: NextConfig = {
   // OpenNext sets NEXT_PRIVATE_OUTPUT_TRACE_ROOT for monorepos; use it when present.
   // Fallback to the app root for regular local Next.js builds.
   outputFileTracingRoot: traceRoot,
+  serverExternalPackages: [
+  "@prisma/client",
+  ".prisma/client",
+],
   images: {
     unoptimized: true,
   },

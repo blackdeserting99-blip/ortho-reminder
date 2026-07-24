@@ -29,21 +29,13 @@ export async function POST(request: Request) {
 
     const { name, email, password } = parseResult.data;
 
-console.log("🔵 About to query user...");
+console.log("1 - Before findUnique");
 
-let existingUser;
+const existingUser = await prisma.user.findUnique({
+  where: { email },
+});
 
-try {
-  existingUser = await prisma.user.findUnique({
-    where: { email },
-  });
-
-  console.log("🟢 Query finished:", existingUser);
-} catch (err) {
-  console.error("🔴 Prisma findUnique failed");
-  console.error(err);
-  throw err;
-}
+console.log("2 - After findUnique");
 
 if (existingUser) {
   return NextResponse.json(
@@ -52,9 +44,15 @@ if (existingUser) {
   );
 }
 
-    const passwordHash = await hashPassword(password);
+console.log("3 - Before hash");
 
-    const user = await prisma.user.create({
+const passwordHash = await hashPassword(password);
+
+console.log("4 - After hash");
+
+console.log("5 - Before create");
+
+const user = await prisma.user.create({
       data: {
         name,
         email,
@@ -67,7 +65,7 @@ if (existingUser) {
         createdAt: true,
       },
     });
-
+console.log("6 - User created");
     await createSessionCookie(user.id);
 
     return NextResponse.json({ success: true, user }, { status: 201 });

@@ -1,0 +1,13 @@
+[35mapp/api/login/route.ts[m[36m:[m[1;31mimport { prisma }[m from "@/app/lib/prisma";
+[35mapp/api/notifications/aligner-patches/route.ts[m[36m:[m[1;31mimport { prisma }[m from "@/app/lib/prisma";
+[35mapp/api/patients/[id]/appointments/route.ts[m[36m:[m[1;31mimport { prisma }[m from "@/app/lib/prisma";
+[35mapp/api/patients/[id]/route.ts[m[36m:[m[1;31mimport { prisma }[m from "@/app/lib/prisma";
+[35mapp/api/patients/[id]/visits/[visitId]/media/[mediaId]/route.ts[m[36m:[m[1;31mimport { prisma }[m from "@/app/lib/prisma";
+[35mapp/api/patients/[id]/visits/[visitId]/media/route.ts[m[36m:[m[1;31mimport { prisma }[m from "@/app/lib/prisma";
+[35mapp/api/patients/[id]/visits/[visitId]/route.ts[m[36m:[m[1;31mimport { prisma }[m from "@/app/lib/prisma";
+[35mapp/api/patients/[id]/visits/route.ts[m[36m:[m[1;31mimport { prisma }[m from "@/app/lib/prisma";
+[35mapp/api/patients/route.ts[m[36m:[m[1;31mimport { prisma }[m from "@/app/lib/prisma";
+[35mapp/api/register/route.ts[m[36m:[m[1;31mimport { prisma }[m from "@/app/lib/prisma";
+[35mapp/api/reminders/run/route.ts[m[36m:[m[1;31mimport { prisma }[m from "@/app/lib/prisma";
+[35mapp/api/settings/doctor-whatsapp/route.ts[m[36m:[m[1;31mimport { prisma }[m from "@/app/lib/prisma";
+[35mapp/lib/auth.ts[m[36m:[m[1;31mimport { prisma }[m from "@/app/lib/prisma";

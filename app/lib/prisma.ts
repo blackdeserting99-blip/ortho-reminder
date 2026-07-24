@@ -1,4 +1,4 @@
-import { PrismaClient } from "../generated/prisma/client";
+import { PrismaClient } from "@prisma/client";
 import { PrismaNeon } from "@prisma/adapter-neon";
 
 const globalForPrisma = globalThis as {
@@ -12,18 +12,9 @@ function createPrismaClient() {
     throw new Error("DATABASE_URL is not configured.");
   }
 
-  let connectionString = raw.trim();
-
-  if (
-    (connectionString.startsWith('"') && connectionString.endsWith('"')) ||
-    (connectionString.startsWith("'") && connectionString.endsWith("'"))
-  ) {
-    connectionString = connectionString.slice(1, -1).trim();
-  }
-
   return new PrismaClient({
     adapter: new PrismaNeon({
-      connectionString,
+      connectionString: raw.trim(),
     }),
   });
 }

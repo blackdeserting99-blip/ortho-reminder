@@ -16,8 +16,9 @@
   "dependencies": {
     "@clerk/nextjs": "^7.5.20",
     "@neondatabase/serverless": "^1.1.0",
-    "@prisma/adapter-neon": "^7.9.0",
-    "@prisma/client": "^7.9.0",
+    "@noble/hashes": "^1.8.0",
+    "@prisma/adapter-neon": "6.16.3",
+    "@prisma/client": "6.16.3",
     "bcryptjs": "^3.0.3",
     "lucide-react": "^1.21.0",
     "next": "15.5.21",
@@ -34,7 +35,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "15.5.21",
-    "prisma": "^7.9.0",
+    "prisma": "6.16.3",
     "tailwindcss": "^4",
     "typescript": "^5",
     "wrangler": "^4.110.0"

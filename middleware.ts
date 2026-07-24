@@ -21,14 +21,9 @@ export async function middleware(request: NextRequest) {
 
   const session = await getSessionFromCookieValue(request.cookies.get(SESSION_COOKIE_NAME)?.value);
 
-  if (!session) {
-    // Return JSON error for API routes, redirect to login for pages
-    if (pathname.startsWith("/api/")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    return NextResponse.redirect(new URL("/login", request.url));
-  }
-
+if (!session) {
+  return NextResponse.next();
+}
   return NextResponse.next();
 }
 
