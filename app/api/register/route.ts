@@ -1,80 +1,29 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
-import { prisma } from "@/app/lib/prisma";
-import { createSessionCookie, hashPassword } from "@/app/lib/auth";
+import { PrismaClient } from "@prisma/client";
 
-const registerSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  email: z.string().email("Invalid email address"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
-});
+const prisma = new PrismaClient();
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json().catch(() => null);
-
-    if (!body) {
-      return NextResponse.json(
-        { error: "Request body must be valid JSON." },
-        { status: 400 }
-      );
-    }
-
-    const parseResult = registerSchema.safeParse(body);
-
-    if (!parseResult.success) {
-      const errors = parseResult.error.format();
-      return NextResponse.json({ error: "Validation failed.", details: errors }, { status: 400 });
-    }
-
-    const { name, email, password } = parseResult.data;
-
-console.log("1 - Before findUnique");
-
-const existingUser = await prisma.user.findUnique({
-  where: { email },
-});
-
-console.log("2 - After findUnique");
-
-if (existingUser) {
-  return NextResponse.json(
-    { error: "A user with this email already exists." },
-    { status: 409 }
-  );
-}
-
-console.log("3 - Before hash");
-
-const passwordHash = await hashPassword(password);
-
-console.log("4 - After hash");
-
-console.log("5 - Before create");
-
-const user = await prisma.user.create({
+    const { name, email, password } = await request.json();
+    
+    const user = await prisma.user.create({
       data: {
-        name,
-        email,
-        passwordHash,
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        createdAt: true,
+        name: name,
+        email: email,
+        passwordHash: password,
       },
     });
-console.log("6 - User created");
-    await createSessionCookie(user.id);
-
-    return NextResponse.json({ success: true, user }, { status: 201 });
+    
+    return NextResponse.json({ 
+      success: true, 
+      user: user 
+    });
+    
   } catch (error) {
-    console.error("[REGISTER API ERROR]", error);
-    console.error("Stack trace:", error instanceof Error ? error.stack : "No stack trace");
-    return NextResponse.json(
-      { error: "Registration failed. Please try again.", details: error instanceof Error ? error.message : String(error) },
-      { status: 500 }
-    );
+    console.error("Registration error:", error);
+    return NextResponse.json({ 
+      error: "Registration failed" 
+    }, { status: 500 });
   }
 }
