@@ -1,15 +1,23 @@
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 
-const prisma = new PrismaClient();
+// Don't create new instance here
+let prisma: PrismaClient;
+
+if (process.env.NODE_ENV === "production") {
+  prisma = new PrismaClient();
+} else {
+  // In development, reuse existing instance
+  const globalWithPrisma = global as typeof globalThis & {
+    prisma?: PrismaClient;
+  };
+  if (!globalWithPrisma.prisma) {
+    globalWithPrisma.prisma = new PrismaClient();
+  }
+  prisma = globalWithPrisma.prisma;
+}
 
 export async function POST(request: Request) {
-  // DEBUG: Check if DATABASE_URL exists
-  console.log("=== DEBUG ===");
-  console.log("DATABASE_URL exists:", !!process.env.DATABASE_URL);
-  console.log("DATABASE_URL starts with:", process.env.DATABASE_URL?.substring(0, 30));
-  console.log("==============");
-  
   try {
     const { name, email, password } = await request.json();
     
@@ -29,8 +37,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Registration error:", error);
     return NextResponse.json({ 
-      error: "Registration failed",
-      details: String(error)
+      error: "Registration failed" 
     }, { status: 500 });
   }
 }
