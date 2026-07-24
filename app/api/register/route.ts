@@ -4,6 +4,12 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 export async function POST(request: Request) {
+  // DEBUG: Check if DATABASE_URL exists
+  console.log("=== DEBUG ===");
+  console.log("DATABASE_URL exists:", !!process.env.DATABASE_URL);
+  console.log("DATABASE_URL starts with:", process.env.DATABASE_URL?.substring(0, 30));
+  console.log("==============");
+  
   try {
     const { name, email, password } = await request.json();
     
@@ -23,7 +29,8 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Registration error:", error);
     return NextResponse.json({ 
-      error: "Registration failed" 
+      error: "Registration failed",
+      details: String(error)
     }, { status: 500 });
   }
 }
