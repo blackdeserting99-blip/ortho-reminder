@@ -5,18 +5,18 @@ const globalForPrisma = globalThis as {
   prisma?: PrismaClient;
 };
 
-function createPrismaClient() {
+function createPrismaClient(): PrismaClient {
   console.log("DATABASE_URL present:", !!process.env.DATABASE_URL);
-  const raw = process.env.DATABASE_URL;
 
-if (!raw) {
-  console.warn("DATABASE_URL missing");
-  return {} as never;
-}
+  const connectionString = process.env.DATABASE_URL?.trim();
+
+  if (!connectionString) {
+    throw new Error("DATABASE_URL is not configured.");
+  }
 
   return new PrismaClient({
     adapter: new PrismaNeon({
-      connectionString: raw.trim(),
+      connectionString,
     }),
   });
 }
