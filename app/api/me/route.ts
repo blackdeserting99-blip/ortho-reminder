@@ -3,28 +3,20 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-export async function POST(request: Request) {
+export async function GET() {
   try {
-    const { fullname, email, password } = await request.json();
+    const user = await prisma.user.findFirst();
     
-    // Create user
-    const user = await prisma.user.create({
-      data: {
-        fullname: fullname,
-        email: email,
-        password: password, // You should hash this later!
-      },
+    return NextResponse.json({
+      id: user?.id || "dev-user",
+      name: user?.name || "Developer",
+      email: user?.email || "dev@example.com",
     });
-    
-    return NextResponse.json({ 
-      success: true, 
-      user: user 
-    });
-    
   } catch (error) {
-    console.error("Registration error:", error);
-    return NextResponse.json({ 
-      error: "Registration failed" 
-    }, { status: 500 });
+    return NextResponse.json({
+      id: "dev-user",
+      name: "Developer",
+      email: "dev@example.com",
+    });
   }
 }
