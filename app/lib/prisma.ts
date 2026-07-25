@@ -8,16 +8,22 @@ const globalForPrisma = globalThis as unknown as {
 function createPrismaClient() {
   const connectionString = process.env.DATABASE_URL;
 
+  // During Next build
   if (!connectionString) {
-    throw new Error("DATABASE_URL missing");
+    console.warn("DATABASE_URL missing - creating dummy Prisma client");
+    
+    return new PrismaClient({
+      adapter: new PrismaNeon({
+        connectionString:
+          "postgresql://placeholder:placeholder@localhost:5432/placeholder",
+      }),
+    });
   }
 
-  const adapter = new PrismaNeon({
-    connectionString,
-  });
-
   return new PrismaClient({
-    adapter,
+    adapter: new PrismaNeon({
+      connectionString,
+    }),
   });
 }
 
