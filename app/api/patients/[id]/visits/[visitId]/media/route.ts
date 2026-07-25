@@ -3,7 +3,6 @@ import fs from "fs";
 import path from "path";
 import { getCurrentUser } from "@/app/lib/auth";
 import { prisma } from "@/app/lib/prisma";
-
 const ALLOWED_FILE_TYPES = ["PHOTO", "XRAY", "SCAN", "PDF", "STL", "VIDEO", "OTHER"];
 
 const mapMediaType = (fileType: string, fileName: string) => {

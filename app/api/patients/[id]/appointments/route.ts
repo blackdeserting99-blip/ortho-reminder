@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/app/lib/auth";
 import { prisma } from "@/app/lib/prisma";
-
 const appointmentSchema = z.object({
   scheduledAt: z.string().datetime(),
   status: z.enum(["SCHEDULED", "CONFIRMED", "RESCHEDULED", "COMPLETED", "CANCELED", "NO_SHOW"]).default("SCHEDULED"),
