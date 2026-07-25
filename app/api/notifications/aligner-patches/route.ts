@@ -1,4 +1,5 @@
-
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/app/lib/auth";
 import { prisma } from "@/app/lib/prisma";
@@ -86,8 +87,8 @@ export async function GET() {
   const todayDate = new Date(`${today}T00:00:00Z`);
   const leadDays = getLeadDays();
 
-  const notifications = patients
-    .map((patient) => {
+const notifications = patients
+  .map((patient: typeof patients[number]) => {
       if (!isAutoReminderEnabled(patient.metadata)) {
         return null;
       }
