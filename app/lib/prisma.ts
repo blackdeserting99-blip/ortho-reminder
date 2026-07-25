@@ -13,10 +13,13 @@ function createPrismaClient(): PrismaClient {
   const connectionString = process.env.DATABASE_URL?.trim();
 
   console.log("[DEBUG] DATABASE_URL exists:", !!connectionString);
-
 if (!connectionString) {
   console.warn("DATABASE_URL missing during build/runtime");
-  return new PrismaClient();
+  return new PrismaClient({
+    adapter: new PrismaNeon({
+      connectionString: "postgresql://placeholder",
+    }),
+  });
 }
 
   console.log("[DEBUG] Creating PrismaNeon adapter...");
