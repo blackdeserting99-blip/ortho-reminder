@@ -6,7 +6,18 @@ export async function POST(req: Request) {
     // Lazy load Prisma inside request handler for Cloudflare Workers compatibility
     const { prisma } = await import("@/app/lib/prisma");
 
-    const body = await req.json();
+    // Debug: log request details
+    console.log("REGISTER REQUEST RECEIVED");
+    console.log("Content-Type:", req.headers.get("content-type"));
+    console.log("Content-Length:", req.headers.get("content-length"));
+    
+    // Read the body as text first to inspect it
+    const bodyText = await req.text();
+    console.log("RAW BODY TEXT:", bodyText);
+    console.log("BODY LENGTH:", bodyText.length);
+    
+    // Now parse it
+    const body = JSON.parse(bodyText);
 
     console.log("REGISTER BODY RECEIVED:", {
       name: body.name,
