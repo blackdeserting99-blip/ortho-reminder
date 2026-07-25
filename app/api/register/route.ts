@@ -3,15 +3,14 @@ import bcrypt from "bcryptjs";
 
 export async function POST(req: Request) {
   try {
+    console.log("REGISTER: Step 1 - Handler called");
+    
     // Lazy load Prisma inside request handler for Cloudflare Workers compatibility
     const { prisma } = await import("@/app/lib/prisma");
+    console.log("REGISTER: Step 2 - Prisma imported");
 
     const body = await req.json();
-
-    console.log("REGISTER BODY RECEIVED:", {
-      name: body.name,
-      email: body.email,
-    });
+    console.log("REGISTER: Step 3 - Body parsed:", body);
 
     const { name, email, password } = body;
 
@@ -64,7 +63,15 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     console.error("===== REGISTER FAILED =====");
-    console.error("Error details:", error);
+    console.error("Error type:", typeof error);
+    console.error("Error instanceof Error:", error instanceof Error);
+    if (error instanceof Error) {
+      console.error("Error name:", error.name);
+      console.error("Error message:", error.message);
+      console.error("Error stack:", error.stack);
+    } else {
+      console.error("Error as JSON:", JSON.stringify(error, null, 2));
+    }
 
     // Better error serialization for Cloudflare Workers
     let errorMessage = "Unknown error";
