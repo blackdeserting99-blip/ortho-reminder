@@ -12,12 +12,27 @@ export async function POST(req: Request) {
     console.log("Content-Length:", req.headers.get("content-length"));
     
     // Read the body as text first to inspect it
-    const bodyText = await req.text();
-    console.log("RAW BODY TEXT:", bodyText);
-    console.log("BODY LENGTH:", bodyText.length);
+    let bodyText = "";
+    try {
+      bodyText = await req.text();
+      console.log("RAW BODY TEXT:", bodyText);
+      console.log("BODY LENGTH:", bodyText.length);
+      console.log("BODY FIRST 100 CHARS:", bodyText.substring(0, 100));
+    } catch (e) {
+      console.error("ERROR READING BODY:", e);
+      throw e;
+    }
     
     // Now parse it
-    const body = JSON.parse(bodyText);
+    let body;
+    try {
+      body = JSON.parse(bodyText);
+      console.log("PARSED BODY:", body);
+    } catch (parseErr) {
+      console.error("JSON PARSE ERROR:", parseErr);
+      console.error("BODY WAS:", bodyText);
+      throw parseErr;
+    }
 
     console.log("REGISTER BODY RECEIVED:", {
       name: body.name,
