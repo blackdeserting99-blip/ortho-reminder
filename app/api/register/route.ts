@@ -6,7 +6,27 @@ export async function POST(req: Request) {
     // Lazy load Prisma inside request handler for Cloudflare Workers compatibility
     const { prisma } = await import("@/app/lib/prisma");
 
-    const body = await req.json();
+    // Read body as text first to handle Cloudflare's JSON quote stripping
+    const bodyText = await req.text();
+    
+    // Parse JSON, handling the case where quotes might be stripped
+    let body;
+    try {
+      body = JSON.parse(bodyText);
+    } catch (e) {
+      // If standard JSON parsing fails, the body might have quotes stripped
+      // Try to fix it by adding quotes back around property names and string values
+      const fixedBody = bodyText
+        .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":')
+        .replace(/:\s*([^{,}\[\]":\s]+?)([,}])/g, (match, value, end) => {
+          // Add quotes around unquoted string values (but not numbers/booleans)
+          if (value === 'true' || value === 'false' || value === 'null' || !isNaN(value)) {
+            return `:${value}${end}`;
+          }
+          return `:"${value}"${end}`;
+        });
+      body = JSON.parse(fixedBody);
+    }
 
     const { name, email, password } = body;
 
