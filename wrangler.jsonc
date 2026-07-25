@@ -11,7 +11,7 @@
 	"vars": {
 		"REMINDER_TIME_ZONE": "Asia/Baghdad",
 		"REMINDER_MORNING_HOUR": "7",
-		"DATABASE_URL": ""
+		"DATABASE_URL": "postgresql://neondb_owner:npg_M5PJnpdroe9L@ep-summer-moon-avf91ipg.c-11.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
 	},
 	"compatibility_flags": [
 		"nodejs_compat",
