@@ -8,17 +8,14 @@ const globalForPrisma = globalThis as unknown as {
 function createPrismaClient() {
   const connectionString = process.env.DATABASE_URL;
 
-  // During Next build
   if (!connectionString) {
-    console.warn("DATABASE_URL missing - creating dummy Prisma client");
-    
-    return new PrismaClient({
-      adapter: new PrismaNeon({
-        connectionString:
-          "postgresql://placeholder:placeholder@localhost:5432/placeholder",
-      }),
-    });
+    const error =
+      "DATABASE_URL environment variable is not set. Please configure it in your Cloudflare environment variables.";
+    console.error(error);
+    throw new Error(error);
   }
+
+  console.log("Initializing Prisma client with Neon adapter");
 
   return new PrismaClient({
     adapter: new PrismaNeon({
@@ -27,10 +24,18 @@ function createPrismaClient() {
   });
 }
 
-export const prisma =
-  globalForPrisma.prisma ??
-  createPrismaClient();
-
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
+function getPrismaClient(): PrismaClient {
+  if (!globalForPrisma.prisma) {
+    globalForPrisma.prisma = createPrismaClient();
+  }
+  return globalForPrisma.prisma;
 }
+
+// Use a Proxy to lazily initialize Prisma on first access
+// This ensures initialization happens inside the request context where env vars are available
+export const prisma = new Proxy({} as PrismaClient, {
+  get(target, prop: string | symbol) {
+    const client = getPrismaClient();
+    return (client as any)[prop];
+  },
+});
