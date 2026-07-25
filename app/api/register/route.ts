@@ -22,11 +22,15 @@ export async function POST(req: Request) {
       );
     }
 
+    console.log("CHECKING EXISTING USER...");
+
     const existingUser = await prisma.user.findUnique({
       where: {
         email,
       },
     });
+
+    console.log("EXISTING USER RESULT:", !!existingUser);
 
     if (existingUser) {
       return NextResponse.json(
@@ -37,7 +41,11 @@ export async function POST(req: Request) {
       );
     }
 
+    console.log("HASHING PASSWORD...");
+
     const passwordHash = await bcrypt.hash(password, 10);
+
+    console.log("CREATING USER...");
 
     const user = await prisma.user.create({
       data: {
@@ -57,7 +65,19 @@ export async function POST(req: Request) {
       },
     });
   } catch (error) {
-    console.error("REGISTER ERROR:", error);
+    console.error("===== REGISTER ERROR =====");
+    console.error("TYPE:", typeof error);
+    console.error("NAME:", error instanceof Error ? error.name : "unknown");
+    console.error(
+      "MESSAGE:",
+      error instanceof Error ? error.message : String(error)
+    );
+    console.error(
+      "STACK:",
+      error instanceof Error ? error.stack : "no stack"
+    );
+    console.error("FULL ERROR:", error);
+    console.error("==========================");
 
     return NextResponse.json(
       {
@@ -67,7 +87,6 @@ export async function POST(req: Request) {
             ? {
                 name: error.name,
                 message: error.message,
-                stack: error.stack,
               }
             : String(error),
       },
