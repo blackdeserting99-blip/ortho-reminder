@@ -10,7 +10,8 @@
 	},
 	"vars": {
 		"REMINDER_TIME_ZONE": "Asia/Baghdad",
-		"REMINDER_MORNING_HOUR": "7"
+		"REMINDER_MORNING_HOUR": "7",
+		"DATABASE_URL": ""
 	},
 	"compatibility_flags": [
 		"nodejs_compat",
@@ -33,12 +34,5 @@
 		// Enable image optimization
 		// see https://opennext.js.org/cloudflare/howtos/image
 		"binding": "IMAGES"
-	},
-	"env": {
-		"production": {
-			"vars": {
-				"DATABASE_URL": ""
-			}
-		}
 	}
 }

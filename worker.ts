@@ -4,6 +4,7 @@ import openNextWorker from "./.open-next/worker.js";
 type WorkerEnv = {
   WORKER_SELF_REFERENCE?: Fetcher;
   REMINDER_API_TOKEN?: string;
+  DATABASE_URL?: string;
 };
 
 async function runScheduledReminders(controller: ScheduledController, env: WorkerEnv) {
