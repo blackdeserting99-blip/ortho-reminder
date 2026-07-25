@@ -3,8 +3,6 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/app/lib/prisma";
 
 export async function POST(req: Request) {
-  console.log("🔥 REGISTER VERSION TEST 123");
-
   try {
     const body = await req.json();
 
@@ -22,26 +20,28 @@ export async function POST(req: Request) {
       );
     }
 
-    console.log("CHECKING EXISTING USER");
+    console.log("CHECKING EXISTING USER...");
 
     const existingUser = await prisma.user.findUnique({
-      where: { email },
+      where: {
+        email,
+      },
     });
 
     if (existingUser) {
+      console.log("USER ALREADY EXISTS");
+
       return NextResponse.json(
         { error: "Email already exists" },
         { status: 400 }
       );
     }
 
-    console.log("HASHING PASSWORD");
+    console.log("HASHING PASSWORD...");
 
     const passwordHash = await bcrypt.hash(password, 10);
 
-    console.log("PASSWORD HASH DONE");
-
-    console.log("CREATING USER");
+    console.log("CREATING USER...");
 
     const user = await prisma.user.create({
       data: {
@@ -51,7 +51,7 @@ export async function POST(req: Request) {
       },
     });
 
-    console.log("USER CREATED:", user.id);
+    console.log("REGISTER SUCCESS:", user.id);
 
     return NextResponse.json({
       ok: true,
@@ -60,7 +60,6 @@ export async function POST(req: Request) {
         email: user.email,
       },
     });
-
   } catch (error) {
     console.error("===== REGISTER FAILED =====");
     console.error(error);
@@ -74,4 +73,4 @@ export async function POST(req: Request) {
       { status: 500 }
     );
   }
-}git add app/api/register/route.ts
+}
