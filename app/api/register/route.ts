@@ -1,10 +1,11 @@
-// Cloudflare rebuild trigger
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { prisma } from "@/app/lib/prisma";
 
 export async function POST(req: Request) {
   try {
+    // Lazy load Prisma inside request handler for Cloudflare Workers compatibility
+    const { prisma } = await import("@/app/lib/prisma");
+
     const body = await req.json();
 
     console.log("REGISTER BODY RECEIVED:", {
@@ -63,13 +64,23 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     console.error("===== REGISTER FAILED =====");
-    console.error(error);
+    console.error("Error details:", error);
+
+    // Better error serialization for Cloudflare Workers
+    let errorMessage = "Unknown error";
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    } else if (typeof error === "string") {
+      errorMessage = error;
+    } else if (error && typeof error === "object") {
+      errorMessage = (error as any).message || JSON.stringify(error);
+    }
 
     return NextResponse.json(
       {
         ok: false,
         error: "Register failed",
-        debug: error instanceof Error ? error.message : String(error),
+        debug: errorMessage,
       },
       { status: 500 }
     );
