@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 
 export async function POST(req: Request) {
   try {
-    console.log("REGISTER: Step 1 - Handler called");
+    console.log("REGISTER: Step 1 - Handler called - UPDATED JAN 26");
     
     // Lazy load Prisma inside request handler for Cloudflare Workers compatibility
     const { prisma } = await import("@/app/lib/prisma");
