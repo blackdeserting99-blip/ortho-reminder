@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/app/lib/auth";
-import { prisma } from "@/app/lib/prisma";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 const appointmentSchema = z.object({
   scheduledAt: z.string().datetime(),
@@ -23,12 +25,7 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!prisma) {
-    return NextResponse.json(
-      { error: "Database unavailable" },
-      { status: 500 }
-    );
-  }
+  const { prisma } = await import("@/app/lib/prisma");
 
   const user = await getCurrentUser();
 
@@ -68,7 +65,7 @@ export async function POST(
 
     if (!body) {
       return NextResponse.json(
-        { error: "Request body must be valid JSON" },
+        { error: "Invalid JSON" },
         { status: 400 }
       );
     }
@@ -90,8 +87,8 @@ export async function POST(
         patientId,
         scheduledAt: new Date(parsed.data.scheduledAt),
         status: parsed.data.status,
-        type: parsed.data.type || null,
-        notes: parsed.data.notes || null,
+        type: parsed.data.type ?? null,
+        notes: parsed.data.notes ?? null,
       },
     });
 
@@ -103,10 +100,7 @@ export async function POST(
     return NextResponse.json(
       {
         error: "Failed to create appointment",
-        details:
-          error instanceof Error
-            ? error.message
-            : String(error),
+        details: error instanceof Error ? error.message : String(error),
       },
       { status: 500 }
     );
@@ -118,12 +112,7 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!prisma) {
-    return NextResponse.json(
-      { error: "Database unavailable" },
-      { status: 500 }
-    );
-  }
+  const { prisma } = await import("@/app/lib/prisma");
 
   const user = await getCurrentUser();
 
@@ -176,10 +165,7 @@ export async function GET(
     return NextResponse.json(
       {
         error: "Failed to fetch appointments",
-        details:
-          error instanceof Error
-            ? error.message
-            : String(error),
+        details: error instanceof Error ? error.message : String(error),
       },
       { status: 500 }
     );
