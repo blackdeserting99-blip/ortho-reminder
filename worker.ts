@@ -47,32 +47,9 @@ const worker = openNextWorker as {
 
 export default {
   async fetch(request: Request, env: WorkerEnv, ctx: ExecutionContext) {
-    // Ensure DATABASE_URL is available in process.env for Prisma
-    // The nodejs_compat_populate_process_env flag doesn't reliably work with bundled code
-    if (env.DATABASE_URL) {
-      process.env.DATABASE_URL = env.DATABASE_URL;
-    }
-    if (env.REMINDER_TIME_ZONE) {
-      process.env.REMINDER_TIME_ZONE = env.REMINDER_TIME_ZONE;
-    }
-    if (env.REMINDER_MORNING_HOUR) {
-      process.env.REMINDER_MORNING_HOUR = env.REMINDER_MORNING_HOUR;
-    }
-    
     return worker.fetch(request, env, ctx);
   },
   async scheduled(controller: ScheduledController, env: WorkerEnv, ctx: ExecutionContext) {
-    // Ensure environment variables are set for scheduled tasks
-    if (env.DATABASE_URL) {
-      process.env.DATABASE_URL = env.DATABASE_URL;
-    }
-    if (env.REMINDER_TIME_ZONE) {
-      process.env.REMINDER_TIME_ZONE = env.REMINDER_TIME_ZONE;
-    }
-    if (env.REMINDER_MORNING_HOUR) {
-      process.env.REMINDER_MORNING_HOUR = env.REMINDER_MORNING_HOUR;
-    }
-    
     ctx.waitUntil(runScheduledReminders(controller, env));
   },
 };
