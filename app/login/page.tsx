@@ -50,7 +50,7 @@ export default function LoginPage() {
       }
 
       setSuccess("Logged in successfully. Redirecting...");
-      router.push("/patients");
+      router.push(data.hasWhatsapp ? "/patients" : "/settings/whatsapp");
     } catch (err) {
       setError("Unable to submit login. Please try again.");
     } finally {

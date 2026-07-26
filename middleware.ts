@@ -12,6 +12,12 @@ function isPublicPath(pathname: string) {
   return PUBLIC_PATHS.some((publicPath) => pathname === publicPath || pathname.startsWith(`${publicPath}/`));
 }
 
+const WHATSAPP_SETUP_PATHS = ["/settings/whatsapp", "/api/settings", "/api/logout"];
+
+function isWhatsappSetupPath(pathname: string) {
+  return WHATSAPP_SETUP_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -21,12 +27,25 @@ export async function middleware(request: NextRequest) {
 
   const session = await getSessionFromCookieValue(request.cookies.get(SESSION_COOKIE_NAME)?.value);
 
-if (!session) {
-  return NextResponse.next();
-}
+  // Not logged in → redirect to login
+  if (!session) {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    return NextResponse.redirect(new URL("/login", request.url));
+  }
+
+  // Check whatsapp_configured cookie set after saving number
+  const hasWhatsapp = request.cookies.get("whatsapp_configured")?.value === "1";
+
+  // Logged in but no WhatsApp number set → redirect to setup (except setup paths themselves)
+  if (!hasWhatsapp && !isWhatsappSetupPath(pathname) && !pathname.startsWith("/api/")) {
+    return NextResponse.redirect(new URL("/settings/whatsapp", request.url));
+  }
+
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/((?!api/health).*)"],
+  matcher: ["/((?!api/health|_next/static|_next/image|favicon|logo).*)"],
 };

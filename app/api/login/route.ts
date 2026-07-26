@@ -60,14 +60,28 @@ export async function POST(req: Request) {
     // Create session
     await createSessionCookie(user.id);
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       ok: true,
+      hasWhatsapp: !!user.whatsappPhone,
       user: {
         id: user.id,
         email: user.email,
         name: user.name,
       },
     });
+
+    // Set whatsapp_configured cookie so middleware can check without DB hit
+    if (user.whatsappPhone) {
+      response.cookies.set("whatsapp_configured", "1", {
+        httpOnly: false,
+        secure: true,
+        sameSite: "lax",
+        maxAge: 60 * 60 * 24 * 7,
+        path: "/",
+      });
+    }
+
+    return response;
   } catch (error) {
     let errorMessage = "Unknown error";
     if (error instanceof Error) {
