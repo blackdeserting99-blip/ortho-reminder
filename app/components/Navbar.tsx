@@ -11,6 +11,7 @@ type AuthUser = {
   id: string;
   name: string | null;
   email: string;
+  whatsappPhone: string | null;
 };
 
 export default function Navbar() {
@@ -101,18 +102,29 @@ export default function Navbar() {
               </button>
 
               {open ? (
-                <div className="absolute right-0 mt-2 w-56 rounded-2xl border border-teal-100 bg-white p-2 shadow-xl">
+                <div className="absolute right-0 mt-2 w-64 rounded-2xl border border-teal-100 bg-white p-2 shadow-xl">
+                  {/* Account info */}
                   <div className="rounded-xl bg-[#ecfdf8] px-3 py-3">
                     <div className="text-sm font-semibold text-[#0f766e]">{user.name || user.email}</div>
-                    <div className="mt-1 text-xs text-[#0f766e]/80">{user.email}</div>
+                    <div className="mt-0.5 text-xs text-[#0f766e]/80">{user.email}</div>
+                    {/* WhatsApp number */}
+                    <div className="mt-2 flex items-center justify-between gap-2 rounded-lg border border-teal-200 bg-white px-2 py-1.5">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-sm">💬</span>
+                        <span className="truncate text-xs font-medium text-slate-700">
+                          {user.whatsappPhone ?? "Not set"}
+                        </span>
+                      </div>
+                      <Link
+                        href="/settings/whatsapp"
+                        onClick={() => setOpen(false)}
+                        className="shrink-0 rounded-md bg-teal-600 px-2 py-0.5 text-[11px] font-semibold text-white hover:bg-teal-700"
+                      >
+                        Change
+                      </Link>
+                    </div>
                   </div>
                   <div className="mt-2 space-y-1">
-                    <button type="button" className="flex w-full items-center rounded-xl px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-[#ecfdf8] hover:text-[#0f766e]">
-                      My Account
-                    </button>
-                    <button type="button" className="flex w-full items-center rounded-xl px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-[#ecfdf8] hover:text-[#0f766e]">
-                      Settings
-                    </button>
                     <button type="button" onClick={handleLogout} className="flex w-full items-center rounded-xl px-3 py-2 text-sm font-medium text-rose-600 transition hover:bg-rose-50">
                       Logout
                     </button>
