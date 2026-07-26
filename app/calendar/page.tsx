@@ -39,11 +39,52 @@ export default function CalendarPage() {
 
   const normalizeAppointmentDate = (value: string) => {
     if (!value) return "";
+    const raw = value.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+      return raw;
+    }
     const parsed = new Date(value);
     if (!isNaN(parsed.getTime())) {
       return parsed.toISOString().split("T")[0];
     }
     return value;
+  };
+
+  const buildMonthDays = (patients: Patient[]) => {
+    const { daysInMonth: totalDays, year, month } = getDaysInMonth(currentDate);
+    const days: DayAppointments[] = [];
+
+    for (let i = 1; i <= totalDays; i++) {
+      const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(i).padStart(2, "0")}`;
+      const dayPatients = patients
+        .filter(
+          (p: Patient) =>
+            normalizeAppointmentDate(p.appointmentDate) === dateStr &&
+            p.caseStatus !== "archived" &&
+            p.caseStatus !== "finished" &&
+            p.caseStatus !== "retainer"
+        )
+        .map((p: Patient) => ({
+          id: p.id,
+          name: p.name,
+          time: p.appointmentTime || "TBD",
+          clinicName: (p as any).clinicName,
+          clinicColor: (p as any).clinicColor,
+        }))
+        .sort((a: { time: string }, b: { time: string }) => {
+          const timeA = a.time === "TBD" ? "23:59" : convertTo24Hour(a.time);
+          const timeB = b.time === "TBD" ? "23:59" : convertTo24Hour(b.time);
+          return timeA.localeCompare(timeB);
+        });
+
+      days.push({
+        date: dateStr,
+        day: i,
+        patients: dayPatients,
+      });
+    }
+
+    return days;
   };
 
   useEffect(() => {
@@ -58,45 +99,10 @@ export default function CalendarPage() {
           ...p,
           appointmentDate: normalizeAppointmentDate(p.appointmentDate),
         }));
-
-        const { daysInMonth: totalDays, startingDayOfWeek, year, month } = getDaysInMonth(currentDate);
-
-    const days: DayAppointments[] = [];
-
-    for (let i = 1; i <= totalDays; i++) {
-      const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(i).padStart(2, "0")}`;
-      const dayPatients = patients
-        .filter(
-          (p: Patient) =>
-            p.appointmentDate === dateStr &&
-            p.caseStatus !== "archived" &&
-            p.caseStatus !== "finished" &&
-            p.caseStatus !== "retainer"
-        )
-        .map((p: Patient) => ({
-          id: p.id,
-          name: p.name,
-          time: p.appointmentTime || "TBD",
-          clinicName: (p as any).clinicName,
-          clinicColor: (p as any).clinicColor,
-        }))
-        .sort((a: { time: string }, b: { time: string }) => {
-          // Sort by time
-          const timeA = a.time === "TBD" ? "23:59" : convertTo24Hour(a.time);
-          const timeB = b.time === "TBD" ? "23:59" : convertTo24Hour(b.time);
-          return timeA.localeCompare(timeB);
-        });
-
-      days.push({
-        date: dateStr,
-        day: i,
-        patients: dayPatients,
-      });
-    }
-
-        setDaysInMonth(days);
+        setDaysInMonth(buildMonthDays(patients));
       } catch {
-        setDaysInMonth([]);
+        // Keep a complete month grid visible even when appointments fail to load.
+        setDaysInMonth(buildMonthDays([]));
       }
     };
 

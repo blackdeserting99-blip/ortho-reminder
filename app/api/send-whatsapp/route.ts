@@ -1,7 +1,16 @@
 import { NextResponse } from "next/server";
+import { getCurrentUser } from "@/app/lib/auth";
 import { sendWhatsAppText } from "@/app/lib/whatsapp";
 
 export async function POST(request: Request) {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json(
+      { error: "Unauthorized" },
+      { status: 401 }
+    );
+  }
+
   const body = await request.json().catch(() => null);
   if (!body) {
     return NextResponse.json(

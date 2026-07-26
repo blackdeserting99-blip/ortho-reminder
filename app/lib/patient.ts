@@ -105,6 +105,9 @@ export function savePatients(patients: Patient[]) {
 
 export function normalizeDateIso(value: string): string {
   if (!value) return "";
+  const raw = value.trim();
+  // Preserve plain ISO date strings as-is to avoid timezone shifts.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
   return parsed.toISOString().split("T")[0];
@@ -152,10 +155,6 @@ export function validatePatientRecord(
   existingPatients: Patient[] = []
 ) {
   const errors: string[] = [];
-  // Only require patient name for creation. All other fields are optional.
-  if (!patient.name?.trim()) {
-    errors.push("Patient name is required.");
-  }
 
   return { valid: errors.length === 0, errors };
 }

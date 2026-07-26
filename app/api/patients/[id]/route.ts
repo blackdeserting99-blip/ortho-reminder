@@ -284,13 +284,6 @@ const patient = await prisma.patient.findFirst({
       return NextResponse.json(result);
     }
 
-    // Not found under the current user. Check fallback by id to log details.
-    const fallback = await prisma.patient.findUnique({ where: { id: patientId } });
-    if (fallback) {
-      console.log('[DEBUG][GET /api/patients/[id]] ownership mismatch: patient found but userId differs. patientId:', fallback.id, 'patient.userId:', (fallback as any).userId);
-      return NextResponse.json(fallback);
-    }
-
     console.log('[DEBUG][GET /api/patients/[id]] patient not found in DB for id:', patientId);
     return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
   } catch (error) {
@@ -534,9 +527,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
 
     // Return the updated patient including visits
-    const reloaded = await prisma.patient.findUnique({
+    const reloaded = await prisma.patient.findFirst({
       where: {
         id: patientId,
+        userId: user.id,
       },
       include: {
         visits: true,

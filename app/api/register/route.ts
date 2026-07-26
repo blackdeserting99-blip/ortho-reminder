@@ -22,9 +22,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           ok: false,
-          error: "Database not configured",
-          debug: "DATABASE_URL not set in Cloudflare environment. Please set it in Cloudflare Pages project settings.",
-          env_database_url: process.env.DATABASE_URL,
+          error: "Registration is temporarily unavailable.",
         },
         { status: 503 }
       );
@@ -94,20 +92,12 @@ export async function POST(req: Request) {
       },
     });
   } catch (error) {
-    let errorMessage = "Unknown error";
-    if (error instanceof Error) {
-      errorMessage = error.message;
-    } else if (typeof error === "string") {
-      errorMessage = error;
-    } else if (error && typeof error === "object") {
-      errorMessage = (error as any).message || JSON.stringify(error);
-    }
+    console.error("[REGISTER ERROR]", error);
 
     return NextResponse.json(
       {
         ok: false,
-        error: "Register failed",
-        debug: errorMessage,
+        error: "Registration failed. Please try again.",
       },
       { status: 500 }
     );

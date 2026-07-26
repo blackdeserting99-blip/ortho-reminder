@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/app/lib/auth";
 import { prisma } from "@/app/lib/prisma";
+import { neon } from "@neondatabase/serverless";
 
 const DEFAULT_APPOINTMENT_TIME = "04:00 PM";
 
@@ -66,8 +67,8 @@ function parseAppointmentDateTime(dateValue?: string, timeValue?: string) {
 }
 
 const patientSchema = z.object({
-  // Only require the patient name. Everything else is optional.
-  name: z.string().min(1, "Patient name is required"),
+  // Name can be empty; API will apply a default fallback.
+  name: z.string().optional(),
   phone: z.string().optional(),
   dateOfBirth: z.string().datetime().optional(),
   gender: z.enum(["MALE", "FEMALE"]).optional(),
@@ -112,6 +113,14 @@ function getCaseStatusFromMetadata(metadata: unknown) {
   return "active" as const;
 }
 
+function getSqlClient() {
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error("DATABASE_URL is not configured");
+  }
+  return neon(connectionString);
+}
+
 export async function GET() {
   try {
     console.log("STEP 1", "GET /api/patients start");
@@ -128,24 +137,51 @@ export async function GET() {
 
     console.log("STEP 3", "user authenticated, querying patients");
 
-    const patients = await prisma.patient.findMany({
-      where: {
-        userId: user.id,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-      include: {
-        visits: {
-          orderBy: [{ id: 'desc' }],
-          take: 1,
+    let patients: any[] = [];
+    try {
+      patients = await prisma.patient.findMany({
+        where: {
+          userId: user.id,
         },
-        appointments: {
-          orderBy: [{ id: "desc" }],
-          take: 1,
+        orderBy: {
+          createdAt: "desc",
         },
-      },
-    });
+        include: {
+          visits: {
+            orderBy: [{ id: "desc" }],
+            take: 1,
+          },
+          appointments: {
+            orderBy: [{ id: "desc" }],
+            take: 1,
+          },
+        },
+      });
+    } catch {
+      const sql = getSqlClient();
+      const rows = await sql`
+        SELECT
+          p.*,
+          (
+            SELECT a."scheduledAt"
+            FROM "Appointment" a
+            WHERE a."patientId" = p.id
+            ORDER BY a.id DESC
+            LIMIT 1
+          ) AS "latestScheduledAt"
+        FROM "Patient" p
+        WHERE p."userId" = ${user.id}
+        ORDER BY p."createdAt" DESC
+      `;
+
+      patients = rows.map((row: any) => ({
+        ...row,
+        visits: [],
+        appointments: row.latestScheduledAt
+          ? [{ scheduledAt: new Date(row.latestScheduledAt) }]
+          : [],
+      }));
+    }
 
     const patientsWithAppointment = patients.map((patient) => {
       let appointmentDate = null;
@@ -163,7 +199,7 @@ export async function GET() {
         ...patient,
         caseStatus: getCaseStatusFromMetadata(patient.metadata),
         treatment: patient.treatmentCategory,
-        visits: (patient.visits || []).map((visit) => ({
+        visits: (patient.visits || []).map((visit: any) => ({
           ...visit,
           date: formatDateIso(visit.visitDate),
           time: visit.nextAppointment ? formatAppointmentTime(visit.nextAppointment) : null,
@@ -213,7 +249,26 @@ export async function POST(request: Request) {
     console.log('[DEBUG][POST /api/patients] authenticated user id:', user.id);
 
     console.log("STEP 3");
-    const body = await request.json().catch(() => null);
+    const bodyText = await request.text();
+    let body: unknown = null;
+
+    try {
+      body = JSON.parse(bodyText);
+    } catch {
+      try {
+        const fixedBody = bodyText
+          .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":')
+          .replace(/:\s*([^{,}\[\]":\s]+?)([,}])/g, (match, value, end) => {
+            if (value === "true" || value === "false" || value === "null" || !isNaN(value)) {
+              return `:${value}${end}`;
+            }
+            return `:"${value}"${end}`;
+          });
+        body = JSON.parse(fixedBody);
+      } catch {
+        body = null;
+      }
+    }
     console.log("STEP 4", body);
 
     if (!body) {
@@ -227,6 +282,8 @@ export async function POST(request: Request) {
     }
 
     console.log("STEP 5", parseResult.data);
+
+    const normalizedName = (parseResult.data.name || "").trim() || "Unnamed Patient";
 
     const treatmentCategory =
       parseResult.data.treatmentCategory ?? parseResult.data.treatment ?? null;
@@ -242,45 +299,129 @@ export async function POST(request: Request) {
       );
     }
 
-    const patient = await prisma.patient.create({
-      data: {
-        userId: user.id,
-        // Provide defaults for DB-required fields when absent in the request.
-        name: parseResult.data.name,
-        phone: parseResult.data.phone ?? "",
-        dateOfBirth: parseResult.data.dateOfBirth ? new Date(parseResult.data.dateOfBirth) : null,
-        gender: parseResult.data.gender ?? null,
-        address: parseResult.data.address ?? null,
-        occupation: parseResult.data.occupation ?? null,
-        treatmentCategory,
-        bracketType: parseResult.data.bracketType ?? null,
-        caseSheet: parseResult.data.caseSheet ?? null,
-        firstAppointment: parseResult.data.firstAppointment ?? false,
-        notes: parseResult.data.notes ?? null,
-        plannedNotes: parseResult.data.plannedNotes ?? null,
-        totalFee: parseResult.data.totalFee ?? null,
-        retainerFee: parseResult.data.retainerFee ?? null,
-        elasticEnabled: parseResult.data.elasticEnabled ?? false,
-        elasticType: parseResult.data.elasticType ?? null,
-        tadsNote: parseResult.data.tadsNote ?? null,
-        myofunctionalType: parseResult.data.myofunctionalType ?? null,
-        myofunctionalProgram: parseResult.data.myofunctionalProgram ?? null,
-        clearAlignersPlan: parseResult.data.clearAlignersPlan ?? null,
-        metadata: {
-          caseStatus: parseResult.data.caseStatus || "active",
-        },
-      },
-    });
-
-    if (appointmentDateTime) {
-      await prisma.appointment.create({
+    let patient: any;
+    try {
+      patient = await prisma.patient.create({
         data: {
-          patientId: patient.id,
-          scheduledAt: appointmentDateTime,
-          status: "SCHEDULED",
-          type: "Initial Consultation",
+          userId: user.id,
+          // Provide defaults for DB-required fields when absent in the request.
+          name: normalizedName,
+          phone: parseResult.data.phone ?? "",
+          dateOfBirth: parseResult.data.dateOfBirth ? new Date(parseResult.data.dateOfBirth) : null,
+          gender: parseResult.data.gender ?? null,
+          address: parseResult.data.address ?? null,
+          occupation: parseResult.data.occupation ?? null,
+          treatmentCategory,
+          bracketType: parseResult.data.bracketType ?? null,
+          caseSheet: parseResult.data.caseSheet ?? null,
+          firstAppointment: parseResult.data.firstAppointment ?? false,
+          notes: parseResult.data.notes ?? null,
+          plannedNotes: parseResult.data.plannedNotes ?? null,
+          totalFee: parseResult.data.totalFee ?? null,
+          retainerFee: parseResult.data.retainerFee ?? null,
+          elasticEnabled: parseResult.data.elasticEnabled ?? false,
+          elasticType: parseResult.data.elasticType ?? null,
+          tadsNote: parseResult.data.tadsNote ?? null,
+          myofunctionalType: parseResult.data.myofunctionalType ?? null,
+          myofunctionalProgram: parseResult.data.myofunctionalProgram ?? null,
+          clearAlignersPlan: parseResult.data.clearAlignersPlan ?? null,
+          metadata: {
+            caseStatus: parseResult.data.caseStatus || "active",
+          },
         },
       });
+
+      if (appointmentDateTime) {
+        await prisma.appointment.create({
+          data: {
+            patientId: patient.id,
+            scheduledAt: appointmentDateTime,
+            status: "SCHEDULED",
+            type: "Initial Consultation",
+          },
+        });
+      }
+    } catch {
+      const sql = getSqlClient();
+
+      const inserted = await sql`
+        INSERT INTO "Patient" (
+          "userId",
+          name,
+          phone,
+          "treatmentStatus",
+          "dateOfBirth",
+          gender,
+          address,
+          occupation,
+          "treatmentCategory",
+          "bracketType",
+          "caseSheet",
+          "firstAppointment",
+          notes,
+          "plannedNotes",
+          "totalFee",
+          "retainerFee",
+          "elasticEnabled",
+          "elasticType",
+          "tadsNote",
+          "myofunctionalType",
+          "myofunctionalProgram",
+          "clearAlignersPlan",
+          metadata,
+          "createdAt",
+          "updatedAt"
+        ) VALUES (
+          ${user.id},
+          ${normalizedName},
+          ${parseResult.data.phone ?? ""},
+          ${"PLANNED"},
+          ${parseResult.data.dateOfBirth ? new Date(parseResult.data.dateOfBirth) : null},
+          ${parseResult.data.gender ?? null},
+          ${parseResult.data.address ?? null},
+          ${parseResult.data.occupation ?? null},
+          ${treatmentCategory},
+          ${parseResult.data.bracketType ?? null},
+          ${parseResult.data.caseSheet ?? null},
+          ${parseResult.data.firstAppointment ?? false},
+          ${parseResult.data.notes ?? null},
+          ${parseResult.data.plannedNotes ?? null},
+          ${parseResult.data.totalFee ?? null},
+          ${parseResult.data.retainerFee ?? null},
+          ${parseResult.data.elasticEnabled ?? false},
+          ${parseResult.data.elasticType ?? null},
+          ${parseResult.data.tadsNote ?? null},
+          ${parseResult.data.myofunctionalType ?? null},
+          ${parseResult.data.myofunctionalProgram ?? null},
+          ${parseResult.data.clearAlignersPlan ?? null},
+          ${{ caseStatus: parseResult.data.caseStatus || "active" }},
+          ${new Date()},
+          ${new Date()}
+        )
+        RETURNING *
+      `;
+
+      patient = inserted?.[0];
+
+      if (appointmentDateTime && patient?.id) {
+        await sql`
+          INSERT INTO "Appointment" (
+            "patientId",
+            "scheduledAt",
+            status,
+            type,
+            "createdAt",
+            "updatedAt"
+          ) VALUES (
+            ${patient.id},
+            ${appointmentDateTime},
+            ${"SCHEDULED"},
+            ${"Initial Consultation"},
+            ${new Date()},
+            ${new Date()}
+          )
+        `;
+      }
     }
 
     console.log('[DEBUG][POST /api/patients] created patient object:', patient);

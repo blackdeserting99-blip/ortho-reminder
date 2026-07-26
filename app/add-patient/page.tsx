@@ -343,11 +343,7 @@ const [totalFee, setTotalFee] = useState("");
         // ignore
       }
       localStorage.removeItem("newPatientCaseSheetDraft");
-      if (created && created.id) {
-        router.push(`/patients/${created.id}`);
-      } else {
-        router.push("/patients");
-      }
+      router.push("/patients");
     } catch (error: any) {
       setValidationErrors([error?.message || "Unable to save the patient right now."]);
     }

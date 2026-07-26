@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { createSessionCookie, SESSION_COOKIE_NAME } from "@/app/lib/session";
+import { createSessionCookie } from "@/app/lib/session";
+import { neon } from "@neondatabase/serverless";
 
 export async function POST(req: Request) {
-  try {
-    // Lazy load Prisma inside request handler for Cloudflare Workers compatibility
-    const { prisma } = await import("@/app/lib/prisma");
+  let parsedEmail = "";
+  let parsedPassword = "";
 
+  try {
     // Read body as text to handle Cloudflare's quote stripping
     const bodyText = await req.text();
     
@@ -27,18 +28,38 @@ export async function POST(req: Request) {
     }
 
     const { email, password } = body;
+    parsedEmail = String(email || "").trim();
+    parsedPassword = String(password || "");
 
-    if (!email || !password) {
+    if (!parsedEmail || !parsedPassword) {
       return NextResponse.json(
         { error: "Email and password required" },
         { status: 400 }
       );
     }
 
-    // Find user by email
-    const user = await prisma.user.findUnique({
-      where: { email },
-    });
+    // Try Prisma first.
+    let user: any = null;
+    try {
+      const { prisma } = await import("@/app/lib/prisma");
+      user = await prisma.user.findUnique({
+        where: { email: parsedEmail },
+      });
+    } catch {
+      // Fallback path for Cloudflare deployments where Prisma engine artifacts are missing.
+      const connectionString = process.env.DATABASE_URL;
+      if (!connectionString) {
+        throw new Error("DATABASE_URL is not configured");
+      }
+      const sql = neon(connectionString);
+      const rows = await sql`
+        SELECT id, email, name, "passwordHash", "whatsappPhone"
+        FROM "User"
+        WHERE email = ${parsedEmail}
+        LIMIT 1
+      `;
+      user = rows?.[0] ?? null;
+    }
 
     if (!user) {
       return NextResponse.json(
@@ -48,7 +69,7 @@ export async function POST(req: Request) {
     }
 
     // Verify password
-    const passwordMatch = await bcrypt.compare(password, user.passwordHash);
+    const passwordMatch = await bcrypt.compare(parsedPassword, user.passwordHash);
 
     if (!passwordMatch) {
       return NextResponse.json(
@@ -83,30 +104,72 @@ export async function POST(req: Request) {
 
     return response;
   } catch (error) {
-    let errorMessage = "Unknown error";
-    if (error instanceof Error) {
-      errorMessage = error.message;
-    } else if (typeof error === "string") {
-      errorMessage = error;
-    } else if (error && typeof error === "object") {
-      errorMessage = (error as any).message || JSON.stringify(error);
+    console.error("[LOGIN ERROR]", error);
+    // Last-resort fallback: if Prisma path failed, try direct SQL login.
+    if (parsedEmail && parsedPassword) {
+      try {
+        const connectionString = process.env.DATABASE_URL;
+        if (!connectionString) {
+          throw new Error("DATABASE_URL is not configured");
+        }
+        const sql = neon(connectionString);
+        const rows = await sql`
+          SELECT id, email, name, "passwordHash", "whatsappPhone"
+          FROM "User"
+          WHERE email = ${parsedEmail}
+          LIMIT 1
+        `;
+        const user = rows?.[0] ?? null;
+
+        if (!user) {
+          return NextResponse.json(
+            { error: "Invalid email or password" },
+            { status: 401 }
+          );
+        }
+
+        const passwordMatch = await bcrypt.compare(parsedPassword, user.passwordHash);
+        if (!passwordMatch) {
+          return NextResponse.json(
+            { error: "Invalid email or password" },
+            { status: 401 }
+          );
+        }
+
+        await createSessionCookie(user.id);
+
+        const response = NextResponse.json({
+          ok: true,
+          hasWhatsapp: !!user.whatsappPhone,
+          user: {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+          },
+        });
+
+        if (user.whatsappPhone) {
+          response.cookies.set("whatsapp_configured", "1", {
+            httpOnly: false,
+            secure: true,
+            sameSite: "lax",
+            maxAge: 60 * 60 * 24 * 7,
+            path: "/",
+          });
+        }
+
+        return response;
+      } catch {
+        // Fall through to diagnostic response below.
+      }
     }
 
     return NextResponse.json(
       {
         ok: false,
-        error: "Login failed",
-        debug: errorMessage,
+        error: "Login failed. Please try again.",
       },
       { status: 500 }
     );
   }
-}
-
-export async function GET() {
-  return NextResponse.json({
-    id: "dev-user",
-    name: "Developer",
-    email: "dev@example.com",
-  });
 }
