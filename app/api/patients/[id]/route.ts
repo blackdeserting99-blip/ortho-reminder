@@ -192,7 +192,7 @@ function buildRetainerDoctorMessage(input: {
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
-
+console.log("CURRENT USER:", user);
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -206,7 +206,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!Number.isFinite(patientId)) {
     return NextResponse.json({ error: "Invalid patient id" }, { status: 400 });
   }
-
+console.log("LOOKING FOR PATIENT:", {
+  patientId,
+  userId: user?.id,
+});
   // Query for patient owned by this user
   try {
 const patient = await prisma.patient.findFirst({
