@@ -3,7 +3,10 @@ import { z } from "zod";
 import { getCurrentUser } from "@/app/lib/auth";
 import { prisma } from "@/app/lib/prisma";
 import { getDoctorWhatsApp } from "@/app/lib/doctor-whatsapp";
-import { sendWhatsAppText } from "@/app/lib/whatsapp";
+import {
+  buildDoctorWhatsAppCredentials,
+  sendWhatsAppText,
+} from "@/app/lib/whatsapp";
 import { neon } from "@neondatabase/serverless";
 import { recordAuditLog } from "@/app/lib/audit";
 
@@ -414,6 +417,20 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "Patient not found" }, { status: 404 });
   }
 
+  const doctor = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: {
+      whatsappAccessToken: true,
+      whatsappPhoneNumberId: true,
+      whatsappBusinessAccountId: true,
+    },
+  });
+  const doctorCredentials = await buildDoctorWhatsAppCredentials({
+    whatsappAccessToken: doctor?.whatsappAccessToken,
+    whatsappPhoneNumberId: doctor?.whatsappPhoneNumberId,
+    whatsappBusinessAccountId: doctor?.whatsappBusinessAccountId,
+  });
+
   const body = await request.json().catch(() => null);
 
   if (!body) {
@@ -532,7 +549,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           patientName: existing.name,
           doctorName,
         });
-        await sendWhatsAppText(patientPhone, patientMessage);
+        await sendWhatsAppText(doctorCredentials, patientPhone, patientMessage);
       }
 
       const doctorPhone = getDoctorWhatsApp({
@@ -546,7 +563,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           appointmentDate: appointmentDateText,
           appointmentTime: appointmentTimeText,
         });
-        await sendWhatsAppText(doctorPhone, doctorMessage);
+          await sendWhatsAppText(doctorCredentials, doctorPhone, doctorMessage);
       }
     }
 

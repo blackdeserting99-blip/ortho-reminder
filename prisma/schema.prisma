@@ -13,6 +13,10 @@ generator client {
     email               String        @unique
     passwordHash        String
     whatsappPhone       String?
+    whatsappBusinessAccountId String?
+    whatsappPhoneNumberId String?
+    whatsappAccessToken String?
+    whatsappConnectedAt DateTime?
     role                UserRole      @default(DOCTOR)
     isDisabled          Boolean       @default(false)
     subscriptionStatus  SubscriptionStatus @default(FREE)

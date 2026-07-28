@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/app/lib/auth";
 import { prisma } from "@/app/lib/prisma";
 import { getDoctorWhatsApp } from "@/app/lib/doctor-whatsapp";
 import {
+  buildDoctorWhatsAppCredentials,
   buildElasticsStartedDoctorMessage,
   buildElasticsStartedPatientMessage,
   buildTadsStartedDoctorMessage,
@@ -46,6 +47,20 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!body) {
     return NextResponse.json({ error: "Request body must be valid JSON." }, { status: 400 });
   }
+
+  const doctor = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: {
+      whatsappAccessToken: true,
+      whatsappPhoneNumberId: true,
+      whatsappBusinessAccountId: true,
+    },
+  });
+  const doctorCredentials = await buildDoctorWhatsAppCredentials({
+    whatsappAccessToken: doctor?.whatsappAccessToken,
+    whatsappPhoneNumberId: doctor?.whatsappPhoneNumberId,
+    whatsappBusinessAccountId: doctor?.whatsappBusinessAccountId,
+  });
 
   const toDateOrNull = (value: unknown): Date | null => {
     if (!value) {
@@ -115,7 +130,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           elasticType: String(nextElastics),
           doctorName,
         });
-        await sendWhatsAppText(patient.phone, patientMessage);
+        await sendWhatsAppText(doctorCredentials, patient.phone, patientMessage);
 
         const doctorPhone = getDoctorWhatsApp({
           clinicPhone: patient.clinic?.phone,
@@ -127,7 +142,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
             patientPhone: patient.phone,
             elasticType: String(nextElastics),
           });
-          await sendWhatsAppText(doctorPhone, doctorMessage);
+          await sendWhatsAppText(doctorCredentials, doctorPhone, doctorMessage);
         }
 
         await prisma.visit.update({
@@ -174,7 +189,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           tadsNote: String(nextTads),
           doctorName,
         });
-        await sendWhatsAppText(patient.phone, patientMessage);
+        await sendWhatsAppText(doctorCredentials, patient.phone, patientMessage);
 
         const doctorPhone = getDoctorWhatsApp({
           clinicPhone: patient.clinic?.phone,
@@ -186,7 +201,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
             patientPhone: patient.phone,
             tadsNote: String(nextTads),
           });
-          await sendWhatsAppText(doctorPhone, doctorMessage);
+          await sendWhatsAppText(doctorCredentials, doctorPhone, doctorMessage);
         }
 
         await prisma.visit.update({

@@ -414,6 +414,135 @@ export type WhatsAppSendResult = {
   error?: string;
 };
 
+export type DoctorWhatsAppCredentials = {
+  accessToken: string;
+  phoneNumberId: string;
+  businessAccountId?: string | null;
+};
+
+const ENCRYPTED_TOKEN_PREFIX = "enc:v1:";
+
+function toBase64(bytes: Uint8Array) {
+  if (typeof Buffer !== "undefined") {
+    return Buffer.from(bytes).toString("base64");
+  }
+
+  let binary = "";
+  for (let i = 0; i < bytes.byteLength; i += 1) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+
+  return btoa(binary);
+}
+
+function fromBase64(value: string) {
+  if (typeof Buffer !== "undefined") {
+    return new Uint8Array(Buffer.from(value, "base64"));
+  }
+
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+
+  return bytes;
+}
+
+async function getEncryptionKey() {
+  const secret = process.env.WHATSAPP_TOKEN_ENCRYPTION_KEY;
+  if (!secret) {
+    return null;
+  }
+
+  const encoder = new TextEncoder();
+  const secretBytes = encoder.encode(secret);
+  const digest = await crypto.subtle.digest("SHA-256", secretBytes);
+
+  return crypto.subtle.importKey("raw", digest, { name: "AES-GCM" }, false, [
+    "encrypt",
+    "decrypt",
+  ]);
+}
+
+export async function encryptWhatsAppAccessToken(token: string) {
+  const raw = (token || "").trim();
+  if (!raw) {
+    return "";
+  }
+
+  const key = await getEncryptionKey();
+  if (!key) {
+    return raw;
+  }
+
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encoded = new TextEncoder().encode(raw);
+  const cipherBuffer = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv },
+    key,
+    encoded
+  );
+
+  return `${ENCRYPTED_TOKEN_PREFIX}${toBase64(iv)}:${toBase64(new Uint8Array(cipherBuffer))}`;
+}
+
+export async function decryptWhatsAppAccessToken(token: string | null | undefined) {
+  const value = (token || "").trim();
+  if (!value) {
+    return "";
+  }
+
+  if (!value.startsWith(ENCRYPTED_TOKEN_PREFIX)) {
+    return value;
+  }
+
+  const payload = value.slice(ENCRYPTED_TOKEN_PREFIX.length);
+  const [ivBase64, cipherBase64] = payload.split(":");
+  if (!ivBase64 || !cipherBase64) {
+    return "";
+  }
+
+  const key = await getEncryptionKey();
+  if (!key) {
+    return "";
+  }
+
+  try {
+    const iv = fromBase64(ivBase64);
+    const cipher = fromBase64(cipherBase64);
+    const plainBuffer = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv },
+      key,
+      cipher
+    );
+    return new TextDecoder().decode(plainBuffer);
+  } catch {
+    return "";
+  }
+}
+
+export async function buildDoctorWhatsAppCredentials(input: {
+  whatsappAccessToken?: string | null;
+  whatsappPhoneNumberId?: string | null;
+  whatsappBusinessAccountId?: string | null;
+}) {
+  const phoneNumberId = (input.whatsappPhoneNumberId || "").trim();
+  const decryptedAccessToken = await decryptWhatsAppAccessToken(
+    input.whatsappAccessToken
+  );
+
+  if (!phoneNumberId || !decryptedAccessToken) {
+    return null;
+  }
+
+  return {
+    accessToken: decryptedAccessToken,
+    phoneNumberId,
+    businessAccountId: input.whatsappBusinessAccountId || null,
+  } as DoctorWhatsAppCredentials;
+}
+
 export function normalizePhone(phone: string) {
   let digits = phone.replace(/\D/g, "");
 
@@ -440,6 +569,7 @@ export function normalizePhone(phone: string) {
 }
 
 export async function sendWhatsAppText(
+  credentials: DoctorWhatsAppCredentials | null | undefined,
   phone: string,
   message: string
 ): Promise<WhatsAppSendResult> {
@@ -454,17 +584,17 @@ export async function sendWhatsAppText(
     };
   }
 
-  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const accessToken = credentials?.accessToken;
+  const phoneNumberId = credentials?.phoneNumberId;
   const apiVersion = process.env.WHATSAPP_API_VERSION || "v21.0";
 
-  // If Meta credentials are not configured, keep the flow non-breaking and
-  // return a simulation result that can be logged/previewed in the dashboard.
+  // Doctor credentials are required for multi-tenant WhatsApp Business sending.
   if (!accessToken || !phoneNumberId) {
     return {
-      ok: true,
+      ok: false,
       provider: "simulation",
       to,
+      error: "Doctor WhatsApp Business credentials are not connected.",
     };
   }
 

@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/app/lib/auth";
-import { sendWhatsAppText } from "@/app/lib/whatsapp";
+import {
+  buildDoctorWhatsAppCredentials,
+  sendWhatsAppText,
+} from "@/app/lib/whatsapp";
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();
@@ -28,7 +31,23 @@ export async function POST(request: Request) {
     );
   }
 
-  const result = await sendWhatsAppText(phone, message);
+  const { prisma } = await import("@/app/lib/prisma");
+  const doctor = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: {
+      whatsappAccessToken: true,
+      whatsappPhoneNumberId: true,
+      whatsappBusinessAccountId: true,
+    },
+  });
+
+  const doctorCredentials = await buildDoctorWhatsAppCredentials({
+    whatsappAccessToken: doctor?.whatsappAccessToken,
+    whatsappPhoneNumberId: doctor?.whatsappPhoneNumberId,
+    whatsappBusinessAccountId: doctor?.whatsappBusinessAccountId,
+  });
+
+  const result = await sendWhatsAppText(doctorCredentials, phone, message);
 
   if (!result.ok) {
     return NextResponse.json(

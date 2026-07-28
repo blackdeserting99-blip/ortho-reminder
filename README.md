@@ -14,6 +14,18 @@ Open [http://localhost:3000](http://localhost:3000) with your browser.
 
 This app uses Next.js App Router, Tailwind CSS, and client-side localStorage persistence for patient data.
 
+## Environment Variables
+
+Set these variables in your deployment environment and local `.env` file:
+
+- `DATABASE_URL`: PostgreSQL connection string.
+- `META_APP_ID`: Meta app ID used to initialize the Facebook SDK.
+- `META_APP_SECRET`: Meta app secret used for OAuth code exchange on the server.
+- `META_EMBEDDED_SIGNUP_CONFIG_ID`: Meta Embedded Signup configuration ID.
+- `CALLBACK_URL`: Redirect URI registered in Meta app settings and used in OAuth code exchange.
+- `WHATSAPP_TOKEN_ENCRYPTION_KEY`: Secret used to encrypt per-doctor WhatsApp access tokens at rest.
+- `WHATSAPP_API_VERSION` (optional): Graph API version. Defaults to `v21.0`.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

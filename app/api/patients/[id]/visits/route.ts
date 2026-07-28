@@ -3,8 +3,10 @@ import { getCurrentUser } from "@/app/lib/auth";
 import { prisma } from "@/app/lib/prisma";
 import { getDoctorWhatsApp } from "@/app/lib/doctor-whatsapp";
 import {
+  buildDoctorWhatsAppCredentials,
   buildElasticsStartedDoctorMessage,
   buildElasticsStartedPatientMessage,
+  type DoctorWhatsAppCredentials,
   buildTadsStartedDoctorMessage,
   buildTadsStartedPatientMessage,
   sendWhatsAppText,
@@ -21,6 +23,7 @@ function getMetadataObject(value: unknown): Record<string, unknown> {
 }
 
 async function sendElasticsStartedNotification(input: {
+  doctorCredentials: DoctorWhatsAppCredentials | null;
   patient: { id: number; name: string; phone: string | null; clinic: { phone: string | null; metadata: unknown } | null };
   elasticType?: string | null;
   visitId: number;
@@ -46,7 +49,7 @@ async function sendElasticsStartedNotification(input: {
     elasticType: input.elasticType,
     doctorName,
   });
-  await sendWhatsAppText(patientPhone, patientMessage);
+  await sendWhatsAppText(input.doctorCredentials, patientPhone, patientMessage);
 
   const doctorPhone = getDoctorWhatsApp({
     clinicPhone: input.patient.clinic?.phone,
@@ -58,7 +61,7 @@ async function sendElasticsStartedNotification(input: {
       patientPhone: input.patient.phone || "-",
       elasticType: input.elasticType,
     });
-    await sendWhatsAppText(doctorPhone, doctorMessage);
+    await sendWhatsAppText(input.doctorCredentials, doctorPhone, doctorMessage);
   }
 
   await prisma.visit.update({
@@ -73,6 +76,7 @@ async function sendElasticsStartedNotification(input: {
 }
 
 async function sendTadsStartedNotification(input: {
+  doctorCredentials: DoctorWhatsAppCredentials | null;
   patient: { id: number; name: string; phone: string | null; clinic: { phone: string | null; metadata: unknown } | null };
   tadsNote?: string | null;
   visitId: number;
@@ -98,7 +102,7 @@ async function sendTadsStartedNotification(input: {
     tadsNote: input.tadsNote,
     doctorName,
   });
-  await sendWhatsAppText(patientPhone, patientMessage);
+  await sendWhatsAppText(input.doctorCredentials, patientPhone, patientMessage);
 
   const doctorPhone = getDoctorWhatsApp({
     clinicPhone: input.patient.clinic?.phone,
@@ -110,7 +114,7 @@ async function sendTadsStartedNotification(input: {
       patientPhone: input.patient.phone || "-",
       tadsNote: input.tadsNote,
     });
-    await sendWhatsAppText(doctorPhone, doctorMessage);
+    await sendWhatsAppText(input.doctorCredentials, doctorPhone, doctorMessage);
   }
 
   await prisma.visit.update({
@@ -165,6 +169,20 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Patient not found" }, { status: 404 });
   }
 
+  const doctor = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: {
+      whatsappAccessToken: true,
+      whatsappPhoneNumberId: true,
+      whatsappBusinessAccountId: true,
+    },
+  });
+  const doctorCredentials = await buildDoctorWhatsAppCredentials({
+    whatsappAccessToken: doctor?.whatsappAccessToken,
+    whatsappPhoneNumberId: doctor?.whatsappPhoneNumberId,
+    whatsappBusinessAccountId: doctor?.whatsappBusinessAccountId,
+  });
+
   return NextResponse.json(
     patient.visits.map((visit) => ({
       ...visit,
@@ -201,6 +219,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!patient) {
     return NextResponse.json({ error: "Patient not found" }, { status: 404 });
   }
+
+  const doctor = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: {
+      whatsappAccessToken: true,
+      whatsappPhoneNumberId: true,
+      whatsappBusinessAccountId: true,
+    },
+  });
+  const doctorCredentials = await buildDoctorWhatsAppCredentials({
+    whatsappAccessToken: doctor?.whatsappAccessToken,
+    whatsappPhoneNumberId: doctor?.whatsappPhoneNumberId,
+    whatsappBusinessAccountId: doctor?.whatsappBusinessAccountId,
+  });
 
   const body = await request.json().catch(() => null);
   if (!body || !body.visitDate) {
@@ -269,6 +301,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     if (visit && hasValue(visit.elastics) && hadElasticsBefore === 0) {
       await sendElasticsStartedNotification({
+        doctorCredentials,
         patient,
         elasticType: visit.elastics,
         visitId: visit.id,
@@ -277,6 +310,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     if (visit && hasValue(visit.tads) && hadTadsBefore === 0) {
       await sendTadsStartedNotification({
+        doctorCredentials,
         patient,
         tadsNote: visit.tads,
         visitId: visit.id,
@@ -321,6 +355,20 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   if (!patient) {
     return NextResponse.json({ error: "Patient not found" }, { status: 404 });
   }
+
+  const doctor = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: {
+      whatsappAccessToken: true,
+      whatsappPhoneNumberId: true,
+      whatsappBusinessAccountId: true,
+    },
+  });
+  const doctorCredentials = await buildDoctorWhatsAppCredentials({
+    whatsappAccessToken: doctor?.whatsappAccessToken,
+    whatsappPhoneNumberId: doctor?.whatsappPhoneNumberId,
+    whatsappBusinessAccountId: doctor?.whatsappBusinessAccountId,
+  });
 
   const body = await request.json().catch(() => null);
   if (!body || !Array.isArray(body)) {
@@ -447,6 +495,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       const firstVisitWithElastics = updatedVisits.find((visit) => hasValue(visit.elastics));
       if (firstVisitWithElastics) {
         await sendElasticsStartedNotification({
+          doctorCredentials,
           patient,
           elasticType: firstVisitWithElastics.elastics,
           visitId: firstVisitWithElastics.id,
@@ -458,6 +507,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       const firstVisitWithTads = updatedVisits.find((visit) => hasValue(visit.tads));
       if (firstVisitWithTads) {
         await sendTadsStartedNotification({
+          doctorCredentials,
           patient,
           tadsNote: firstVisitWithTads.tads,
           visitId: firstVisitWithTads.id,

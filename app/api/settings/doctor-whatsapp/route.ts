@@ -2,13 +2,50 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/app/lib/auth";
 import { normalizePhone } from "@/app/lib/whatsapp";
 
+function maskValue(value: string | null | undefined, visible = 4) {
+  const raw = (value || "").trim();
+  if (!raw) {
+    return "";
+  }
+
+  if (raw.length <= visible) {
+    return "*".repeat(raw.length);
+  }
+
+  return `${"*".repeat(Math.max(raw.length - visible, 0))}${raw.slice(-visible)}`;
+}
+
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  return NextResponse.json({ phone: (user as any).whatsappPhone || "" });
+  const { prisma } = await import("@/app/lib/prisma");
+  const freshUser = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: {
+      whatsappPhone: true,
+      whatsappBusinessAccountId: true,
+      whatsappPhoneNumberId: true,
+      whatsappConnectedAt: true,
+    },
+  });
+
+  const connected = Boolean(
+    freshUser?.whatsappBusinessAccountId && freshUser?.whatsappPhoneNumberId
+  );
+
+  return NextResponse.json({
+    phone: freshUser?.whatsappPhone || "",
+    connected,
+    whatsapp: {
+      connected,
+      connectedAt: freshUser?.whatsappConnectedAt || null,
+      businessAccountIdMasked: maskValue(freshUser?.whatsappBusinessAccountId),
+      phoneNumberIdMasked: maskValue(freshUser?.whatsappPhoneNumberId),
+    },
+  });
 }
 
 export async function PATCH(request: Request) {

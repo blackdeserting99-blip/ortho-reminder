@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/app/lib/auth";
 import { prisma } from "@/app/lib/prisma";
 import { getDoctorWhatsApp } from "@/app/lib/doctor-whatsapp";
 import {
+  buildDoctorWhatsAppCredentials,
   buildRetainerYearOnePatientMessage,
   buildWhatsAppBotMessage,
   sendWhatsAppText,
@@ -403,6 +404,13 @@ export async function POST(request: Request) {
           clinic: {
             select: { phone: true, name: true, metadata: true },
           },
+          user: {
+            select: {
+              whatsappAccessToken: true,
+              whatsappPhoneNumberId: true,
+              whatsappBusinessAccountId: true,
+            },
+          },
         },
       },
     },
@@ -441,9 +449,17 @@ export async function POST(request: Request) {
     },
     select: {
       id: true,
+      userId: true,
       name: true,
       phone: true,
       metadata: true,
+      user: {
+        select: {
+          whatsappAccessToken: true,
+          whatsappPhoneNumberId: true,
+          whatsappBusinessAccountId: true,
+        },
+      },
     },
     take: limit,
   });
@@ -485,6 +501,12 @@ export async function POST(request: Request) {
 
     summary.retainerYearOneEligible += 1;
 
+    const doctorCredentials = await buildDoctorWhatsAppCredentials({
+      whatsappAccessToken: patient.user?.whatsappAccessToken,
+      whatsappPhoneNumberId: patient.user?.whatsappPhoneNumberId,
+      whatsappBusinessAccountId: patient.user?.whatsappBusinessAccountId,
+    });
+
     const message = buildRetainerYearOnePatientMessage({
       patientName: patient.name,
       doctorName: process.env.DOCTOR_DISPLAY_NAME || "Doctor",
@@ -501,7 +523,11 @@ export async function POST(request: Request) {
       continue;
     }
 
-    const sendResult = await sendWhatsAppText(patient.phone, message);
+    const sendResult = await sendWhatsAppText(
+      doctorCredentials,
+      patient.phone,
+      message
+    );
     if (sendResult.ok) {
       summary.retainerYearOneSent += 1;
       await prisma.patient.update({
@@ -522,6 +548,13 @@ export async function POST(request: Request) {
   }
 
   for (const appointment of appointments) {
+    const doctorCredentials = await buildDoctorWhatsAppCredentials({
+      whatsappAccessToken: appointment.patient.user?.whatsappAccessToken,
+      whatsappPhoneNumberId: appointment.patient.user?.whatsappPhoneNumberId,
+      whatsappBusinessAccountId:
+        appointment.patient.user?.whatsappBusinessAccountId,
+    });
+
     const leadDays = getAlignerPrepLeadDays();
     const diffDays = getDiffDaysInTimeZone(baseDate, appointment.scheduledAt, reminderTimeZone);
 
@@ -550,7 +583,11 @@ export async function POST(request: Request) {
         });
 
         if (!dryRun && doctorPhone) {
-          const patchSend = await sendWhatsAppText(doctorPhone, doctorPatchMessage);
+          const patchSend = await sendWhatsAppText(
+            doctorCredentials,
+            doctorPhone,
+            doctorPatchMessage
+          );
           if (patchSend.ok) {
             summary.doctorPatchPrepSent += 1;
             await prisma.appointment.update({
@@ -657,9 +694,13 @@ export async function POST(request: Request) {
       continue;
     }
 
-    const patientSend = await sendWhatsAppText(patientPhone, patientMessage);
+    const patientSend = await sendWhatsAppText(
+      doctorCredentials,
+      patientPhone,
+      patientMessage
+    );
     const doctorSend = doctorPhone
-      ? await sendWhatsAppText(doctorPhone, doctorMessage)
+      ? await sendWhatsAppText(doctorCredentials, doctorPhone, doctorMessage)
       : { ok: true, provider: "simulation" as const, to: "" };
 
     const success = patientSend.ok && doctorSend.ok;

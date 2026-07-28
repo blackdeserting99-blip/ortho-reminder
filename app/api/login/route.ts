@@ -67,7 +67,7 @@ export async function POST(req: Request) {
       }
       const sql = neon(connectionString);
       const rows = await sql`
-        SELECT id, email, name, "passwordHash", "whatsappPhone", role, "isDisabled"
+        SELECT id, email, name, "passwordHash", "whatsappPhone", "whatsappPhoneNumberId", role, "isDisabled"
         FROM "User"
         WHERE email = ${parsedEmail}
         LIMIT 1
@@ -102,9 +102,13 @@ export async function POST(req: Request) {
     // Create session
     await createSessionCookie(user.id);
 
+    const hasWhatsapp = Boolean(
+      user.whatsappPhone || user.whatsappPhoneNumberId
+    );
+
     const response = NextResponse.json({
       ok: true,
-      hasWhatsapp: !!user.whatsappPhone,
+      hasWhatsapp,
       user: {
         id: user.id,
         email: user.email,
@@ -114,7 +118,7 @@ export async function POST(req: Request) {
     });
 
     // Set whatsapp_configured cookie so middleware can check without DB hit
-    if (user.whatsappPhone) {
+    if (hasWhatsapp) {
       response.cookies.set("whatsapp_configured", "1", {
         httpOnly: false,
         secure: true,
@@ -136,7 +140,7 @@ export async function POST(req: Request) {
         }
         const sql = neon(connectionString);
         const rows = await sql`
-          SELECT id, email, name, "passwordHash", "whatsappPhone", role, "isDisabled"
+          SELECT id, email, name, "passwordHash", "whatsappPhone", "whatsappPhoneNumberId", role, "isDisabled"
           FROM "User"
           WHERE email = ${parsedEmail}
           LIMIT 1
@@ -167,9 +171,13 @@ export async function POST(req: Request) {
 
         await createSessionCookie(user.id);
 
+        const hasWhatsapp = Boolean(
+          user.whatsappPhone || user.whatsappPhoneNumberId
+        );
+
         const response = NextResponse.json({
           ok: true,
-          hasWhatsapp: !!user.whatsappPhone,
+          hasWhatsapp,
           user: {
             id: user.id,
             email: user.email,
@@ -178,7 +186,7 @@ export async function POST(req: Request) {
           },
         });
 
-        if (user.whatsappPhone) {
+        if (hasWhatsapp) {
           response.cookies.set("whatsapp_configured", "1", {
             httpOnly: false,
             secure: true,

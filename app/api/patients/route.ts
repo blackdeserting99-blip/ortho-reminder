@@ -5,6 +5,7 @@ import { prisma } from "@/app/lib/prisma";
 import { neon } from "@neondatabase/serverless";
 import { recordAuditLog } from "@/app/lib/audit";
 import {
+  buildDoctorWhatsAppCredentials,
   buildFirstAppointmentConfirmationMessage,
   sendWhatsAppText,
 } from "@/app/lib/whatsapp";
@@ -133,11 +134,26 @@ function getCaseStatusFromMetadata(metadata: unknown) {
 }
 
 function getSqlClient() {
-  const connectionString = process.env.DATABASE_URL;
+  const connectionString =
+    process.env.DATABASE_URL || process.env.NEON_DATABASE_URL;
   if (!connectionString) {
-    throw new Error("DATABASE_URL is not configured");
+    throw new Error("DATABASE_URL/NEON_DATABASE_URL is not configured");
   }
   return neon(connectionString);
+}
+
+function getRuntimeDiagnostics() {
+  return {
+    hasDatabaseUrl: Boolean(process.env.DATABASE_URL),
+    hasNeonDatabaseUrl: Boolean(process.env.NEON_DATABASE_URL),
+    nodeEnv: process.env.NODE_ENV || "unknown",
+    runtime: process.env.NEXT_RUNTIME || "unknown",
+    hasSessionSecret: Boolean(
+      process.env.SESSION_SECRET ||
+        process.env.AUTH_SECRET ||
+        process.env.NEXTAUTH_SECRET
+    ),
+  };
 }
 
 export async function GET() {
@@ -257,6 +273,10 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     console.log("STEP 1", "POST /api/patients start");
+    console.log(
+      "[DEBUG][POST /api/patients] runtime diagnostics:",
+      getRuntimeDiagnostics()
+    );
 
     const user = await getCurrentUser();
     console.log("STEP 2", user);
@@ -321,6 +341,7 @@ export async function POST(request: Request) {
     }
 
     let patient: any;
+    let usedSqlFallback = false;
     try {
       patient = await prisma.patient.create({
         data: {
@@ -368,8 +389,13 @@ export async function POST(request: Request) {
           },
         });
       }
-    } catch {
+    } catch (prismaError) {
+      console.error(
+        "[ERROR][POST /api/patients] prisma create path failed; attempting SQL fallback",
+        prismaError
+      );
       const sql = getSqlClient();
+      usedSqlFallback = true;
 
       const inserted = await sql`
         INSERT INTO "Patient" (
@@ -464,11 +490,38 @@ export async function POST(request: Request) {
     }
 
     console.log('[DEBUG][POST /api/patients] created patient object:', patient);
+    console.log('[DEBUG][POST /api/patients] usedSqlFallback:', usedSqlFallback);
 
     const shouldAttemptFirstAppointmentMessage =
       autoReminderEnabled &&
       Boolean(appointmentDateTime) &&
       Boolean((patient?.phone || "").trim());
+
+    let doctor:
+      | {
+          whatsappAccessToken: string | null;
+          whatsappPhoneNumberId: string | null;
+          whatsappBusinessAccountId: string | null;
+        }
+      | null = null;
+    try {
+      doctor = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: {
+          whatsappAccessToken: true,
+          whatsappPhoneNumberId: true,
+          whatsappBusinessAccountId: true,
+        },
+      });
+    } catch {
+      doctor = null;
+    }
+
+    const doctorCredentials = await buildDoctorWhatsAppCredentials({
+      whatsappAccessToken: doctor?.whatsappAccessToken,
+      whatsappPhoneNumberId: doctor?.whatsappPhoneNumberId,
+      whatsappBusinessAccountId: doctor?.whatsappBusinessAccountId,
+    });
 
     let firstAppointmentNotification: {
       attempted: boolean;
@@ -489,7 +542,11 @@ export async function POST(request: Request) {
             formatAppointmentTime(appointmentDateTime as Date),
         });
 
-        const sendResult = await sendWhatsAppText(patient.phone, confirmationMessage);
+        const sendResult = await sendWhatsAppText(
+          doctorCredentials,
+          patient.phone,
+          confirmationMessage
+        );
         firstAppointmentNotification = {
           attempted: true,
           sent: sendResult.ok,
@@ -557,6 +614,10 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("PATIENT API ERROR");
     console.error(error);
+    console.error(
+      "[ERROR][POST /api/patients] runtime diagnostics:",
+      getRuntimeDiagnostics()
+    );
     if (error instanceof Error) {
       console.error(error.stack);
     }
