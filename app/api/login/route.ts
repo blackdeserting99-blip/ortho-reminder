@@ -58,6 +58,15 @@ export async function POST(req: Request) {
       const { prisma } = await import("@/app/lib/prisma");
       user = await prisma.user.findUnique({
         where: { email: parsedEmail },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          passwordHash: true,
+          whatsappPhone: true,
+          role: true,
+          isDisabled: true,
+        },
       });
     } catch {
       // Fallback path for Cloudflare deployments where Prisma engine artifacts are missing.
@@ -67,7 +76,7 @@ export async function POST(req: Request) {
       }
       const sql = neon(connectionString);
       const rows = await sql`
-        SELECT id, email, name, "passwordHash", "whatsappPhone", "whatsappPhoneNumberId", role, "isDisabled"
+        SELECT id, email, name, "passwordHash", "whatsappPhone", role, "isDisabled"
         FROM "User"
         WHERE email = ${parsedEmail}
         LIMIT 1
@@ -102,9 +111,7 @@ export async function POST(req: Request) {
     // Create session
     await createSessionCookie(user.id);
 
-    const hasWhatsapp = Boolean(
-      user.whatsappPhone || user.whatsappPhoneNumberId
-    );
+    const hasWhatsapp = Boolean(user.whatsappPhone);
 
     const response = NextResponse.json({
       ok: true,
@@ -140,7 +147,7 @@ export async function POST(req: Request) {
         }
         const sql = neon(connectionString);
         const rows = await sql`
-          SELECT id, email, name, "passwordHash", "whatsappPhone", "whatsappPhoneNumberId", role, "isDisabled"
+          SELECT id, email, name, "passwordHash", "whatsappPhone", role, "isDisabled"
           FROM "User"
           WHERE email = ${parsedEmail}
           LIMIT 1
@@ -171,9 +178,7 @@ export async function POST(req: Request) {
 
         await createSessionCookie(user.id);
 
-        const hasWhatsapp = Boolean(
-          user.whatsappPhone || user.whatsappPhoneNumberId
-        );
+        const hasWhatsapp = Boolean(user.whatsappPhone);
 
         const response = NextResponse.json({
           ok: true,
