@@ -4,6 +4,10 @@ import { getCurrentUser } from "@/app/lib/auth";
 import { prisma } from "@/app/lib/prisma";
 import { neon } from "@neondatabase/serverless";
 import { recordAuditLog } from "@/app/lib/audit";
+import {
+  buildFirstAppointmentConfirmationMessage,
+  sendWhatsAppText,
+} from "@/app/lib/whatsapp";
 
 const DEFAULT_APPOINTMENT_TIME = "04:00 PM";
 
@@ -94,10 +98,20 @@ const patientSchema = z.object({
   myofunctionalProgram: z.any().optional(),
   clearAlignersPlan: z.any().optional(),
   caseStatus: z.enum(["active", "retainer", "finished", "cancelled", "archived"]).optional(),
+  autoReminderEnabled: z.boolean().optional(),
+  alignerDaysPerTray: z.number().int().positive().max(30).optional(),
   age: z.number().nonnegative().optional(),
   clinicName: z.string().optional(),
   clinicColor: z.string().optional(),
 });
+
+function getMetadataObject(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return value as Record<string, unknown>;
+}
 
 function getCaseStatusFromMetadata(metadata: unknown) {
   if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
@@ -292,6 +306,8 @@ export async function POST(request: Request) {
 
     const treatmentCategory =
       parseResult.data.treatmentCategory ?? parseResult.data.treatment ?? null;
+    const autoReminderEnabled = parseResult.data.autoReminderEnabled !== false;
+    const alignerDaysPerTray = parseResult.data.alignerDaysPerTray ?? 14;
     const appointmentDateTime = parseAppointmentDateTime(
       parseResult.data.appointmentDate,
       parseResult.data.appointmentTime
@@ -336,6 +352,8 @@ export async function POST(request: Request) {
           clearAlignersPlan: parseResult.data.clearAlignersPlan ?? null,
           metadata: {
             caseStatus: parseResult.data.caseStatus || "active",
+            autoReminderEnabled,
+            alignerDaysPerTray,
           },
         },
       });
@@ -411,7 +429,11 @@ export async function POST(request: Request) {
           ${parseResult.data.myofunctionalType ?? null},
           ${parseResult.data.myofunctionalProgram ?? null},
           ${parseResult.data.clearAlignersPlan ?? null},
-          ${{ caseStatus: parseResult.data.caseStatus || "active" }},
+          ${{
+            caseStatus: parseResult.data.caseStatus || "active",
+            autoReminderEnabled,
+            alignerDaysPerTray,
+          }},
           ${new Date()},
           ${new Date()}
         )
@@ -443,8 +465,84 @@ export async function POST(request: Request) {
 
     console.log('[DEBUG][POST /api/patients] created patient object:', patient);
 
+    const shouldAttemptFirstAppointmentMessage =
+      autoReminderEnabled &&
+      Boolean(appointmentDateTime) &&
+      Boolean((patient?.phone || "").trim());
+
+    let firstAppointmentNotification: {
+      attempted: boolean;
+      sent: boolean;
+      error?: string;
+    } | null = null;
+
+    if (shouldAttemptFirstAppointmentMessage) {
+      const existingMetadata = getMetadataObject(patient.metadata);
+      const remindersSent = getMetadataObject(existingMetadata.remindersSent);
+
+      if (remindersSent.firstAppointmentConfirmation !== true) {
+        const confirmationMessage = buildFirstAppointmentConfirmationMessage({
+          patientName: patient.name,
+          appointmentDate: appointmentDateTime as Date,
+          appointmentTime:
+            parseResult.data.appointmentTime ||
+            formatAppointmentTime(appointmentDateTime as Date),
+        });
+
+        const sendResult = await sendWhatsAppText(patient.phone, confirmationMessage);
+        firstAppointmentNotification = {
+          attempted: true,
+          sent: sendResult.ok,
+          error: sendResult.error,
+        };
+
+        const nextMetadata: Record<string, unknown> = {
+          ...existingMetadata,
+          remindersSent: {
+            ...remindersSent,
+            firstAppointmentConfirmation: sendResult.ok,
+            firstAppointmentConfirmationSentAt: sendResult.ok
+              ? new Date().toISOString()
+              : remindersSent.firstAppointmentConfirmationSentAt,
+            firstAppointmentConfirmationLastError: sendResult.ok
+              ? null
+              : sendResult.error || "Unknown WhatsApp send error",
+          },
+        };
+
+        try {
+          await prisma.patient.update({
+            where: { id: patient.id },
+            data: { metadata: nextMetadata as any },
+          });
+        } catch {
+          try {
+            const sql = getSqlClient();
+            await sql`
+              UPDATE "Patient"
+              SET metadata = ${nextMetadata}::jsonb,
+                  "updatedAt" = ${new Date()}
+              WHERE id = ${patient.id}
+            `;
+          } catch (metadataUpdateError) {
+            console.error(
+              "Failed to persist first appointment reminder metadata:",
+              metadataUpdateError
+            );
+          }
+        }
+
+        patient.metadata = nextMetadata;
+      }
+    }
+
     const responsePayload = { ...patient, id: patient.id, userId: patient.userId };
     console.log('[DEBUG][POST /api/patients] response id:', responsePayload.id);
+
+    if (firstAppointmentNotification) {
+      (responsePayload as any).firstAppointmentNotification =
+        firstAppointmentNotification;
+    }
 
     await recordAuditLog({
       userId: user.id,

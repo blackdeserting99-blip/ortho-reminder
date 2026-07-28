@@ -264,6 +264,22 @@ export function buildWhatsAppBotMessage(
   return `${whenText} من عيادة الدكتور.\nموعدك يوم ${appointmentDate} الساعة ${appointmentTime}.${careText}\n\nإذا كان لديك أي سؤال، راسلنا هنا على هذا الرقم.`;
 }
 
+export function buildFirstAppointmentConfirmationMessage(input: {
+  patientName?: string;
+  appointmentDate: string | Date;
+  appointmentTime?: string;
+}) {
+  const patientName = (input.patientName || "").trim() || "Patient";
+  const appointmentDateValue =
+    input.appointmentDate instanceof Date
+      ? input.appointmentDate.toISOString()
+      : input.appointmentDate;
+  const appointmentDate = formatDateDMY(appointmentDateValue);
+  const appointmentTime = (input.appointmentTime || "04:00 PM").trim();
+
+  return `Hello ${patientName},\nYour first orthodontic appointment has been scheduled for ${appointmentDate} at ${appointmentTime}.\nWe look forward to seeing you.`;
+}
+
 export function buildElasticsStartedPatientMessage(input: {
   patientName?: string;
   elasticType?: string | null;
