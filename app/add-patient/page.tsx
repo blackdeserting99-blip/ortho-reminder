@@ -132,6 +132,10 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
 
   // Tab system
   const [activeTab, setActiveTab] = useState<"new" | "existing">("new");
+  const tabOptions: Array<{ key: "new" | "existing"; label: string }> = [
+    { key: "new", label: "New Patient" },
+    { key: "existing", label: "Existing Patient" },
+  ];
 
   // Existing Patient form states
   const [existingName, setExistingName] = useState("");
@@ -397,28 +401,25 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
         <h1 className="text-4xl font-bold text-teal-700 mb-4">Add Patient</h1>
         
         {/* Tab Navigation */}
-        <div className="flex gap-2 border-b border-slate-200">
-          <button
-            onClick={() => setActiveTab("new")}
-            className={`px-4 py-2 font-medium transition ${
-              activeTab === "new"
-                ? "border-b-2 border-teal-600 text-teal-600"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            New Patient
-          </button>
-          <button
-            onClick={() => setActiveTab("existing")}
-            className={`px-4 py-2 font-medium transition ${
-              activeTab === "existing"
-                ? "border-b-2 border-teal-600 text-teal-600"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            Existing Patient
-          </button>
-        </div>
+        <nav aria-label="Patient form tabs" className="flex gap-2 border-b border-slate-200">
+          {tabOptions.map((tab) => {
+            const isActive = activeTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setActiveTab(tab.key)}
+                className={`px-4 py-2 font-medium transition ${
+                  isActive
+                    ? "border-b-2 border-teal-600 text-teal-600"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </nav>
       </div>
 
       <div className="bg-white p-8 rounded-xl shadow max-w-full w-full mx-auto max-w-2xl text-black">
