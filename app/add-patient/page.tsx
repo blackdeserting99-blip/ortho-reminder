@@ -150,15 +150,20 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
   const [existingTreatmentType, setExistingTreatmentType] = useState("Fixed Braces");
   const [existingTreatment, setExistingTreatment] = useState("Fixed Braces");
   const [existingBracketType, setExistingBracketType] = useState("MBT System");
+  const [existingWireMaterial, setExistingWireMaterial] = useState("NiTi");
   const [existingMyofunctionalType, setExistingMyofunctionalType] = useState("Fixed");
-
-  // Existing patient treatment progress states
+  const [existingUpperDamonWire, setExistingUpperDamonWire] = useState("0.014 CuNiTi");
+  const [existingUpperDamonWireOther, setExistingUpperDamonWireOther] = useState("");
+  const [existingLowerDamonWire, setExistingLowerDamonWire] = useState("0.014 CuNiTi");
+  const [existingLowerDamonWireOther, setExistingLowerDamonWireOther] = useState("");
   const [existingUpperWireGauge, setExistingUpperWireGauge] = useState("16");
   const [existingLowerWireGauge, setExistingLowerWireGauge] = useState("16");
+
+  // Existing patient treatment progress states
   const [existingAlignerProgress, setExistingAlignerProgress] = useState(10);
   const [existingRetainerType, setExistingRetainerType] = useState("Fixed");
 
-  const [existingAppointmentMode, setExistingAppointmentMode] = useState("30 Days");
+  const [existingAppointmentMode, setExistingAppointmentMode] = useState("30");
   const [existingAppointmentDate, setExistingAppointmentDate] = useState("");
   const [existingAppointmentTime, setExistingAppointmentTime] = useState("04:00 PM");
   const [existingFirstAppointment, setExistingFirstAppointment] = useState(false);
@@ -171,34 +176,54 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
   const [timeConflictMessage, setTimeConflictMessage] = useState("");
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
+  const formatCalculatedDate = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
   const getSelectedDate = () => {
     if (appointmentMode === "Manual") return normalizeDateIso(appointmentDate);
 
-    // Clear Aligners Auto mode: schedule after given aligners * wearDays
     if (treatmentType === "Clear Aligners" && appointmentMode === "Auto") {
-      const today = new Date();
       const daysToAdd = Number(givenCount) * Number(alignerWearDays);
-      const future = new Date(today);
+      const future = new Date();
       future.setDate(future.getDate() + daysToAdd);
-      return normalizeDateIso(future.toISOString().split("T")[0]);
+      return formatCalculatedDate(future);
     }
 
-    // If appointmentMode is numeric (e.g., "15 Days" -> 15), parse and add
     const parsed = parseInt(appointmentMode, 10);
     if (!Number.isNaN(parsed)) {
       const future = new Date();
       future.setDate(future.getDate() + parsed);
-      return normalizeDateIso(future.toISOString().split("T")[0]);
+      return formatCalculatedDate(future);
     }
 
-    // Fallback: 30 days
     const fallback = new Date();
     fallback.setDate(fallback.getDate() + 30);
-    return normalizeDateIso(fallback.toISOString().split("T")[0]);
+    return formatCalculatedDate(fallback);
+  };
+
+  const getExistingSelectedDate = () => {
+    if (existingAppointmentMode === "Manual") {
+      return normalizeDateIso(existingAppointmentDate);
+    }
+
+    const parsed = parseInt(existingAppointmentMode, 10);
+    if (!Number.isNaN(parsed)) {
+      const future = new Date();
+      future.setDate(future.getDate() + parsed);
+      return formatCalculatedDate(future);
+    }
+
+    return "";
   };
 
   const selectedDate = getSelectedDate();
+  const existingSelectedDate = getExistingSelectedDate();
   const isFriday = selectedDate && new Date(selectedDate).getDay() === 5;
+  const existingIsFriday = existingSelectedDate && new Date(existingSelectedDate).getDay() === 5;
 
   useEffect(() => {
     const loadExistingPatients = async () => {
@@ -249,6 +274,14 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
     "Frankel",
     "Bionator",
     "Activator",
+  ];
+
+  const damonWireOptions = [
+    "0.014 CuNiTi",
+    "0.014 × 0.025 CuNiTi",
+    "0.018 × 0.025 CuNiTi",
+    "0.019 × 0.025 Stainless Steel",
+    "Other",
   ];
 
   const savePatient = async () => {
@@ -387,6 +420,76 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
         // ignore
       }
       localStorage.removeItem("newPatientCaseSheetDraft");
+      router.push("/patients");
+    } catch (error: any) {
+      setValidationErrors([error?.message || "Unable to save the patient right now."]);
+    }
+  };
+
+  const saveExistingPatient = async () => {
+    const trimmedName = existingName.trim();
+    const trimmedPhone = existingPhone.trim();
+
+    if (!trimmedName || !trimmedPhone) {
+      setValidationErrors(["Patient name and contact number are required."]);
+      return;
+    }
+
+    const finalTreatment =
+      existingTreatmentType === "Myofunctional Appliance"
+        ? existingTreatment
+        : existingTreatmentType;
+
+    const newPatient = {
+      name: trimmedName,
+      phone: trimmedPhone,
+      address: existingAddress.trim() || undefined,
+      occupation: existingOccupation.trim() || undefined,
+      age: existingAge ? Number(existingAge) : undefined,
+      clinicName: existingClinicEnabled ? existingClinicName.trim() || undefined : undefined,
+      clinicColor: existingClinicEnabled ? existingClinicColor : undefined,
+      treatment: finalTreatment,
+      treatmentCategory: existingTreatmentType,
+      bracketType: existingTreatmentType === "Fixed Braces" ? existingBracketType : undefined,
+      wireMaterial:
+        existingTreatmentType === "Fixed Braces" && existingBracketType !== "Damon System"
+          ? existingWireMaterial
+          : undefined,
+      myofunctionalType: existingTreatmentType === "Myofunctional Appliance" ? existingMyofunctionalType : undefined,
+      appointmentDate: existingSelectedDate || undefined,
+      appointmentTime: existingAppointmentTime || undefined,
+      firstAppointment: existingFirstAppointment,
+      notes: existingNotes.trim() || undefined,
+      plannedNotes: "",
+      totalFee: existingTotalFee ? Number(existingTotalFee) : undefined,
+      totalPaid: existingAlreadyPaid ? Number(existingAlreadyPaid) : undefined,
+      retainerFee: undefined,
+      elasticEnabled: false,
+      elasticType: undefined,
+      tadsNote: undefined,
+      caseStatus: "active",
+      clearAlignersPlan: undefined,
+      myofunctionalProgram: undefined,
+      caseSheet: "",
+      attachments: [],
+    };
+
+    try {
+      const response = await fetch("/api/patients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newPatient),
+      });
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        setValidationErrors([data?.error || "Unable to save the patient right now."]);
+        return;
+      }
+
+      setValidationErrors([]);
+      setConflictWarning("");
       router.push("/patients");
     } catch (error: any) {
       setValidationErrors([error?.message || "Unable to save the patient right now."]);
@@ -865,59 +968,105 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
 
             {existingTreatmentType === "Fixed Braces" && (
               <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h3 className="font-semibold text-slate-700 mb-3"><div className="mt-4">
-  <label className="block mb-2">
-    Bracket System
-  </label>
+                <h3 className="font-semibold text-slate-700 mb-3">Current Braces Stage</h3>
+                <div className="mt-4">
+                  <label className="block mb-2">Bracket System</label>
+                  <select
+                    value={existingBracketType}
+                    onChange={(e) => setExistingBracketType(e.target.value)}
+                    className="w-full border p-3 rounded"
+                  >
+                    <option>MBT System</option>
+                    <option>Roth System</option>
+                    <option>Damon System</option>
+                  </select>
+                </div>
 
-  <select
-    value={bracketType}
-    onChange={(e) => setBracketType(e.target.value)}
-    className="w-full border p-3 rounded"
-  >
-    <option>MBT System</option>
-    <option>Roth System</option>
-    <option>Damon System</option>
-  </select>
-</div>
+                <div className="mt-4">
+                  {existingBracketType !== "Damon System" && (
+                    <>
+                      <label className="block mb-2">Wire Material</label>
+                      <select
+                        value={existingWireMaterial}
+                        onChange={(e) => setExistingWireMaterial(e.target.value)}
+                        className="w-full border p-3 rounded"
+                      >
+                        <option value="NiTi">NiTi</option>
+                        <option value="Stainless Steel">Stainless Steel (SS)</option>
+                      </select>
 
+                      <div className="grid grid-cols-2 gap-3 mt-4">
+                        <div>
+                          <label className="block text-sm mb-2">Upper Wire Gauge</label>
+                          <select value={existingUpperWireGauge} onChange={(e) => setExistingUpperWireGauge(e.target.value)} className="w-full border p-2 rounded text-sm">
+                            {["12", "14", "16", "18", "16x22", "17x25", "18x25"].map((g) => (
+                              <option key={g} value={g}>{g}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm mb-2">Lower Wire Gauge</label>
+                          <select value={existingLowerWireGauge} onChange={(e) => setExistingLowerWireGauge(e.target.value)} className="w-full border p-2 rounded text-sm">
+                            {["12", "14", "16", "18", "16x22", "17x25", "18x25"].map((g) => (
+                              <option key={g} value={g}>{g}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    </>
+                  )}
 
-<div className="mt-4">
-  <label className="block mb-2">
-    Wire Material
-  </label>
+                  {existingBracketType === "Damon System" && (
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div>
+                        <label className="block mb-2">Upper Damon Wire</label>
+                        <select
+                          value={existingUpperDamonWire}
+                          onChange={(e) => setExistingUpperDamonWire(e.target.value)}
+                          className="w-full border p-3 rounded"
+                        >
+                          {damonWireOptions.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                        {existingUpperDamonWire === "Other" && (
+                          <input
+                            type="text"
+                            value={existingUpperDamonWireOther}
+                            onChange={(e) => setExistingUpperDamonWireOther(e.target.value)}
+                            className="mt-2 w-full border p-3 rounded"
+                            placeholder="Enter upper custom Damon wire"
+                          />
+                        )}
+                      </div>
 
-  <select
-    value={wireMaterial}
-    onChange={(e) => setWireMaterial(e.target.value)}
-    className="w-full border p-3 rounded"
-  >
-    <option value="NiTi">
-      NiTi
-    </option>
-
-    <option value="Stainless Steel">
-      Stainless Steel (SS)
-    </option>
-  </select>
-</div>Current Braces Stage</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm mb-2">Upper Wire Gauge</label>
-                    <select value={existingUpperWireGauge} onChange={(e) => setExistingUpperWireGauge(e.target.value)} className="w-full border p-2 rounded text-sm">
-                      {["12", "14", "16", "18", "16x22", "17x25", "18x25"].map((g) => (
-                        <option key={g} value={g}>{g}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm mb-2">Lower Wire Gauge</label>
-                    <select value={existingLowerWireGauge} onChange={(e) => setExistingLowerWireGauge(e.target.value)} className="w-full border p-2 rounded text-sm">
-                      {["12", "14", "16", "18", "16x22", "17x25", "18x25"].map((g) => (
-                        <option key={g} value={g}>{g}</option>
-                      ))}
-                    </select>
-                  </div>
+                      <div>
+                        <label className="block mb-2">Lower Damon Wire</label>
+                        <select
+                          value={existingLowerDamonWire}
+                          onChange={(e) => setExistingLowerDamonWire(e.target.value)}
+                          className="w-full border p-3 rounded"
+                        >
+                          {damonWireOptions.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                        {existingLowerDamonWire === "Other" && (
+                          <input
+                            type="text"
+                            value={existingLowerDamonWireOther}
+                            onChange={(e) => setExistingLowerDamonWireOther(e.target.value)}
+                            className="mt-2 w-full border p-3 rounded"
+                            placeholder="Enter lower custom Damon wire"
+                          />
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -995,12 +1144,23 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
             <div className="mb-4">
               <label className="block mb-2">Next Appointment Date</label>
               <select value={existingAppointmentMode} onChange={(e) => setExistingAppointmentMode(e.target.value)} className="w-full border p-3 rounded">
-                <option>15</option>
-                <option>30</option>
-                <option>45</option>
-                <option>60</option>
-                <option>Manual</option>
+                <option value="15">15 Days</option>
+                <option value="30">30 Days</option>
+                <option value="45">45 Days</option>
+                <option value="60">60 Days</option>
+                <option value="Manual">Manual</option>
               </select>
+            </div>
+
+            <div className="mb-6">
+              <div className="bg-teal-50 border rounded-lg p-3">
+                <strong>Selected Date:</strong> {existingSelectedDate || "-"}
+              </div>
+              {existingIsFriday && (
+                <div className="mt-2 bg-red-100 border border-red-300 text-red-700 p-3 rounded">
+                  Note: This appointment is scheduled on Friday
+                </div>
+              )}
             </div>
 
             {existingAppointmentMode === "Manual" && (
@@ -1045,7 +1205,7 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
               )}
             </div>
 
-            <button type="button" onClick={() => console.log("Save existing patient")} className="bg-teal-600 text-white px-6 py-3 rounded-lg relative z-10">
+            <button type="button" onClick={saveExistingPatient} className="bg-teal-600 text-white px-6 py-3 rounded-lg relative z-10">
               Save Existing Patient
             </button>
           </>
