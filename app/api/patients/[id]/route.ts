@@ -4,6 +4,8 @@ import { getCurrentUser } from "@/app/lib/auth";
 import { prisma } from "@/app/lib/prisma";
 import { getDoctorWhatsApp } from "@/app/lib/doctor-whatsapp";
 import { sendWhatsAppText } from "@/app/lib/whatsapp";
+import { neon } from "@neondatabase/serverless";
+import { recordAuditLog } from "@/app/lib/audit";
 
 const DEFAULT_APPOINTMENT_TIME = "04:00 PM";
 
@@ -111,6 +113,7 @@ const patientSchema = z.object({
   notes: z.string().optional(),
   plannedNotes: z.string().optional(),
   totalFee: z.number().nonnegative().optional(),
+  totalPaid: z.number().nonnegative().optional(),
   retainerFee: z.number().nonnegative().optional(),
   elasticEnabled: z.boolean().optional(),
   elasticType: z.string().optional(),
@@ -121,6 +124,9 @@ const patientSchema = z.object({
   caseStatus: z.enum(["active", "retainer", "finished", "cancelled", "archived"]).optional(),
   autoReminderEnabled: z.boolean().optional(),
   alignerDaysPerTray: z.number().int().positive().max(30).optional(),
+  age: z.number().int().nonnegative().max(120).optional(),
+  clinicName: z.string().optional(),
+  clinicColor: z.string().optional(),
 });
 
 function getMetadataObject(value: unknown): Record<string, unknown> {
@@ -188,6 +194,14 @@ function buildRetainerDoctorMessage(input: {
     `Retainer follow-up: ${input.appointmentDate} ${input.appointmentTime}`,
     "Case has been switched from active treatment to retainer phase.",
   ].join("\n");
+}
+
+function getSqlClient() {
+  const connectionString = process.env.DATABASE_URL || process.env.NEON_DATABASE_URL;
+  if (!connectionString || connectionString === "undefined") {
+    throw new Error("DATABASE_URL is not configured");
+  }
+  return neon(connectionString);
 }
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -288,7 +302,85 @@ const patient = await prisma.patient.findFirst({
     return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
   } catch (error) {
     console.error('========== PRISMA ERROR ==========', error);
-    return NextResponse.json({ error: 'Internal Server Error', details: String(error) }, { status: 500 });
+
+    try {
+      const sql = getSqlClient();
+
+      const patientRows = await sql`
+        SELECT p.*
+        FROM "Patient" p
+        WHERE p.id = ${patientId} AND p."userId" = ${user.id}
+        LIMIT 1
+      `;
+
+      const patient = patientRows?.[0];
+      if (!patient) {
+        return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
+      }
+
+      const visits = await sql`
+        SELECT *
+        FROM "Visit"
+        WHERE "patientId" = ${patientId}
+        ORDER BY id ASC
+      `;
+
+      const latestAppointmentRows = await sql`
+        SELECT "scheduledAt"
+        FROM "Appointment"
+        WHERE "patientId" = ${patientId}
+        ORDER BY id DESC
+        LIMIT 1
+      `;
+
+      let appointmentDate = null;
+      let appointmentTime = null;
+      const latestVisit = visits.length > 0 ? visits[visits.length - 1] : null;
+      const nextApptFromVisit = latestVisit?.nextAppointment ? new Date(latestVisit.nextAppointment) : null;
+      const nextApptFromAppointment = latestAppointmentRows?.[0]?.scheduledAt
+        ? new Date(latestAppointmentRows[0].scheduledAt)
+        : null;
+      const nextAppt = nextApptFromVisit || nextApptFromAppointment;
+
+      if (nextAppt) {
+        appointmentDate = formatDateIso(nextAppt);
+        appointmentTime = formatAppointmentTime(nextAppt);
+      }
+
+      const mappedVisits = visits.map((visit: any) => {
+        const visitDate = visit.visitDate ? new Date(visit.visitDate) : null;
+        const nextDateValue = visit.nextAppointment ? new Date(visit.nextAppointment) : null;
+        return {
+          ...visit,
+          date: visitDate ? formatDateIso(visitDate) : null,
+          time: nextDateValue ? formatAppointmentTime(nextDateValue) : null,
+          visitNotes: visit.treatmentNotes,
+          plannedNotes: visit.plannedTreatment,
+          payment: Number(visit.paymentCollected ?? 0),
+          upperWire: visit.upperArch,
+          lowerWire: visit.lowerArch,
+          elasticEnabled: Boolean(visit.elastics),
+          elasticType: visit.elastics,
+          tadsNote: visit.tads,
+          nextDate: nextDateValue ? formatDateIso(nextDateValue) : null,
+          nextTime: nextDateValue ? formatAppointmentTime(nextDateValue) : null,
+        };
+      });
+
+      return NextResponse.json({
+        ...patient,
+        treatment: patient.treatmentCategory,
+        visits: mappedVisits,
+        appointmentDate,
+        appointmentTime,
+        caseStatus: getCaseStatusFromMetadata(patient.metadata),
+        autoReminderEnabled: getMetadataObject(patient.metadata).autoReminderEnabled !== false,
+        alignerDaysPerTray: Number(getMetadataObject(patient.metadata).alignerDaysPerTray || 14),
+      });
+    } catch (fallbackError) {
+      console.error('========== SQL FALLBACK ERROR ==========', fallbackError);
+      return NextResponse.json({ error: 'Internal Server Error', details: String(fallbackError) }, { status: 500 });
+    }
   }
 }
 
@@ -576,6 +668,13 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   }
 
   await prisma.patient.delete({ where: { id: patientId } });
+
+  await recordAuditLog({
+    userId: user.id,
+    action: "DOCTOR_DELETED_PATIENT",
+    targetType: "PATIENT",
+    targetId: String(patientId),
+  });
 
   return NextResponse.json({ success: true });
 }

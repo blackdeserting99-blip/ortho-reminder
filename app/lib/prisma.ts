@@ -1,16 +1,18 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaNeon } from "@prisma/adapter-neon";
 
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined;
+};
+
 function createPrismaClient() {
   const connectionString = process.env.DATABASE_URL;
 
   if (!connectionString) {
-    throw new Error(
-      "DATABASE_URL environment variable is not set."
-    );
+    throw new Error("DATABASE_URL environment variable is not set.");
   }
 
-  console.log("Creating Prisma client for current request");
+  console.log("Initializing Prisma singleton");
 
   return new PrismaClient({
     adapter: new PrismaNeon({
@@ -19,16 +21,10 @@ function createPrismaClient() {
   });
 }
 
-export const prisma = new Proxy({} as PrismaClient, {
-  get(_target, prop: string | symbol) {
-    const client = createPrismaClient();
+export const prisma =
+  globalForPrisma.prisma ??
+  createPrismaClient();
 
-    const value = (client as any)[prop];
-
-    if (typeof value === "function") {
-      return value.bind(client);
-    }
-
-    return value;
-  },
-});
+if (process.env.NODE_ENV !== "production") {
+  globalForPrisma.prisma = prisma;
+}

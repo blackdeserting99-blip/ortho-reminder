@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Sidebar from "../../components/Sidebar";
 import DateInput from "../../components/DateInput";
+import { CLINIC_COLORS } from "../../lib/patient";
 
 export default function EditPatientPage() {
   const router = useRouter();
@@ -23,6 +24,8 @@ export default function EditPatientPage() {
   };
 const [address, setAddress] = useState("");
 const [age, setAge] = useState("");
+const [clinicName, setClinicName] = useState("");
+const [clinicColor, setClinicColor] = useState(CLINIC_COLORS[0]);
 const [treatment, setTreatment] = useState("");
 const [bracketType, setBracketType] = useState("");
   const [appointmentDate, setAppointmentDate] =
@@ -50,6 +53,8 @@ const [bracketType, setBracketType] = useState("");
           setPhone(patient.phone || "");
           setAddress(patient.address || "");
           setAge(patient.age ? patient.age.toString() : "");
+          setClinicName(patient.clinicName || "");
+          setClinicColor(patient.clinicColor || CLINIC_COLORS[0]);
           setTreatment(patient.treatment || "");
           setBracketType(patient.bracketType || "");
           setAppointmentDate(patient.appointmentDate || "");
@@ -78,6 +83,8 @@ const [bracketType, setBracketType] = useState("");
           phone,
           address,
           age: age ? Number(age) : undefined,
+          clinicName: clinicName.trim() || undefined,
+          clinicColor: clinicName.trim() ? clinicColor : undefined,
           treatment,
           bracketType: treatment === "Fixed Braces" ? bracketType : undefined,
           appointmentDate,
@@ -153,6 +160,35 @@ const [bracketType, setBracketType] = useState("");
                     min="0"
                     max="120"
                   />
+                </div>
+              </div>
+
+              <div className="grid gap-6 md:grid-cols-2">
+                <div>
+                  <label className="block mb-2 text-sm font-medium text-slate-700">Clinic Name</label>
+                  <input
+                    type="text"
+                    value={clinicName}
+                    onChange={(e) => setClinicName(e.target.value)}
+                    className="w-full border p-3 rounded"
+                    placeholder="e.g., Al Noor Clinic"
+                  />
+                </div>
+                <div>
+                  <label className="block mb-2 text-sm font-medium text-slate-700">Clinic Color</label>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {CLINIC_COLORS.map((color) => (
+                      <button
+                        key={color}
+                        type="button"
+                        onClick={() => setClinicColor(color)}
+                        className={`w-7 h-7 rounded-full border-2 transition ${
+                          clinicColor === color ? "border-slate-900 scale-110" : "border-transparent"
+                        }`}
+                        style={{ backgroundColor: color }}
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>

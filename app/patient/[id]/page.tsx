@@ -79,6 +79,9 @@ export default function PatientProfilePage() {
   const [appointmentMode, setAppointmentMode] = useState("30 Days");
   const [manualDate, setManualDate] = useState("");
   const [manualTime, setManualTime] = useState("");
+  const [editingFinancial, setEditingFinancial] = useState(false);
+  const [tempTotalFee, setTempTotalFee] = useState("");
+  const [tempTotalPaid, setTempTotalPaid] = useState("");
 
   useEffect(() => {
     const loadPatient = async () => {
@@ -95,6 +98,8 @@ export default function PatientProfilePage() {
           setManualDate(foundPatient.appointmentDate || "");
           setManualTime(foundPatient.appointmentTime || "");
           setAppointmentMode(foundPatient.appointmentDate ? "Manual" : "30 Days");
+          setTempTotalFee(String(foundPatient.totalFee || 0));
+          setTempTotalPaid(String(foundPatient.totalPaid || 0));
         }
       } catch {
         setPatient(null);
@@ -150,6 +155,37 @@ export default function PatientProfilePage() {
       // keep current view intact on error
     }
     setTreatmentActive(false);
+  };
+
+  const saveFinancial = async () => {
+    try {
+      const newTotalFee = Number(tempTotalFee) || 0;
+      const newTotalPaid = Number(tempTotalPaid) || 0;
+
+      const response = await fetch(`/api/patients/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          totalFee: newTotalFee,
+          totalPaid: newTotalPaid,
+        }),
+      });
+      if (!response.ok) {
+        throw new Error("Update failed");
+      }
+      setPatient((prev) =>
+        prev
+          ? {
+              ...prev,
+              totalFee: newTotalFee,
+              totalPaid: newTotalPaid,
+            }
+          : null
+      );
+    } catch {
+      // keep current view intact on error
+    }
+    setEditingFinancial(false);
   };
 
   const printReceipt = () => {
@@ -642,25 +678,108 @@ export default function PatientProfilePage() {
 
           {/* Financial Summary */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
-            <h2 className="text-xl font-bold text-slate-900 mb-6">Financial Summary</h2>
-            <div className="space-y-4">
-              <div>
-                <p className="text-sm text-slate-500">Total Fee</p>
-                <p className="text-2xl font-bold text-slate-900">{overallTotalFee.toLocaleString()} IQD</p>
-              </div>
-              <div className="bg-emerald-50 rounded-lg p-3 border border-emerald-200">
-                <p className="text-sm text-emerald-600">Paid</p>
-                <p className="text-xl font-bold text-emerald-700">{totalPaid.toLocaleString()} IQD</p>
-              </div>
-              <div className="bg-amber-50 rounded-lg p-3 border border-amber-200">
-                <p className="text-sm text-amber-700">Additional Fees Total</p>
-                <p className="text-xl font-bold text-amber-800">{additionalFeesTotal.toLocaleString()} IQD</p>
-              </div>
-              <div className="bg-red-50 rounded-lg p-3 border border-red-200">
-                <p className="text-sm text-red-600">Remaining</p>
-                <p className="text-xl font-bold text-red-700">{remaining.toLocaleString()} IQD</p>
-              </div>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-slate-900">Financial Summary</h2>
+              {!editingFinancial && (
+                <button
+                  onClick={() => setEditingFinancial(true)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm font-medium transition"
+                >
+                  Edit Payment
+                </button>
+              )}
             </div>
+
+            {editingFinancial ? (
+              <div className="space-y-4 bg-slate-50 rounded-lg p-4 border border-slate-200">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    Total Treatment Fee (IQD)
+                  </label>
+                  <input
+                    type="text"
+                    value={tempTotalFee ? Number(tempTotalFee).toLocaleString() : ""}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, "");
+                      setTempTotalFee(digits);
+                    }}
+                    placeholder="0"
+                    className="w-full border border-slate-300 p-3 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    Total Amount Already Paid (Historical - IQD)
+                  </label>
+                  <input
+                    type="text"
+                    value={tempTotalPaid ? Number(tempTotalPaid).toLocaleString() : ""}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, "");
+                      setTempTotalPaid(digits);
+                    }}
+                    placeholder="0"
+                    className="w-full border border-slate-300 p-3 rounded-lg"
+                  />
+                </div>
+                <div className="pt-2 border-t border-slate-200 space-y-2">
+                  <p className="text-xs text-slate-600">Preview after save:</p>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className="bg-white p-2 rounded border border-slate-200">
+                      <p className="text-slate-600">Total Fee</p>
+                      <p className="font-bold text-slate-900">{Number(tempTotalFee).toLocaleString()} IQD</p>
+                    </div>
+                    <div className="bg-white p-2 rounded border border-slate-200">
+                      <p className="text-slate-600">Already Paid</p>
+                      <p className="font-bold text-emerald-700">{Number(tempTotalPaid).toLocaleString()} IQD</p>
+                    </div>
+                  </div>
+                  <div className="bg-white p-2 rounded border border-slate-200 text-center">
+                    <p className="text-slate-600 text-xs">Remaining</p>
+                    <p className="font-bold text-red-700 text-lg">
+                      {Math.max((Number(tempTotalFee) || 0) - (Number(tempTotalPaid) || 0), 0).toLocaleString()} IQD
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <button
+                    onClick={saveFinancial}
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition"
+                  >
+                    Save Changes
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditingFinancial(false);
+                      setTempTotalFee(String(patient?.totalFee || 0));
+                      setTempTotalPaid(String(patient?.totalPaid || 0));
+                    }}
+                    className="bg-slate-300 hover:bg-slate-400 text-slate-900 px-4 py-2 rounded-lg font-medium transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm text-slate-500">Total Fee</p>
+                  <p className="text-2xl font-bold text-slate-900">{overallTotalFee.toLocaleString()} IQD</p>
+                </div>
+                <div className="bg-emerald-50 rounded-lg p-3 border border-emerald-200">
+                  <p className="text-sm text-emerald-600">Paid</p>
+                  <p className="text-xl font-bold text-emerald-700">{totalPaid.toLocaleString()} IQD</p>
+                </div>
+                <div className="bg-amber-50 rounded-lg p-3 border border-amber-200">
+                  <p className="text-sm text-amber-700">Additional Fees Total</p>
+                  <p className="text-xl font-bold text-amber-800">{additionalFeesTotal.toLocaleString()} IQD</p>
+                </div>
+                <div className="bg-red-50 rounded-lg p-3 border border-red-200">
+                  <p className="text-sm text-red-600">Remaining</p>
+                  <p className="text-xl font-bold text-red-700">{remaining.toLocaleString()} IQD</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

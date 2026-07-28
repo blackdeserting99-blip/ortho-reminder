@@ -11,6 +11,7 @@ type Patient = {
         id: number;
         name: string;
         phone: string;
+        age?: number;
         treatment: string;
         bracketType?: string;
         appointmentDate: string;
@@ -568,6 +569,13 @@ type AlignerPatchNotification = {
                               {patient.name}
                             </Link>
                             <div className="text-sm text-gray-500 mt-1">📞 {patient.phone}</div>
+                            {patient.age && <div className="text-xs text-gray-500 mt-0.5">Age: {patient.age}</div>}
+                            {patient.clinicName && (
+                              <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
+                                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: patient.clinicColor || '#ddd' }} />
+                                <span>{patient.clinicName}</span>
+                              </div>
+                            )}
                           </td>
                           <td className="py-4 px-4">
                             <div className="font-semibold text-gray-900">
@@ -759,6 +767,13 @@ type AlignerPatchNotification = {
                               {patient.name}
                             </Link>
                             <div className="text-sm text-gray-500 mt-1">📞 {patient.phone}</div>
+                            {patient.age && <div className="text-xs text-gray-500 mt-0.5">Age: {patient.age}</div>}
+                            {patient.clinicName && (
+                              <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
+                                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: patient.clinicColor || '#ddd' }} />
+                                <span>{patient.clinicName}</span>
+                              </div>
+                            )}
                           </td>
                           <td className="py-4 px-4">
                             <div className="font-semibold text-gray-900">
@@ -916,6 +931,13 @@ type AlignerPatchNotification = {
                 <div className="text-sm text-gray-500">
                   📞 {patient.phone}
                 </div>
+                {patient.age && <div className="text-xs text-gray-500 mt-0.5">Age: {patient.age}</div>}
+                {patient.clinicName && (
+                  <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
+                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: patient.clinicColor || '#ddd' }} />
+                    <span>{patient.clinicName}</span>
+                  </div>
+                )}
               </td>
 
               <td className="py-4 px-4">

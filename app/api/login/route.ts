@@ -3,6 +3,20 @@ import bcrypt from "bcryptjs";
 import { createSessionCookie } from "@/app/lib/session";
 import { neon } from "@neondatabase/serverless";
 
+function getDatabaseUrl() {
+  const primary = process.env.DATABASE_URL;
+  if (primary && primary !== "undefined" && primary.trim().length > 0) {
+    return primary;
+  }
+
+  const fallback = process.env.NEON_DATABASE_URL;
+  if (fallback && fallback !== "undefined" && fallback.trim().length > 0) {
+    return fallback;
+  }
+
+  return null;
+}
+
 export async function POST(req: Request) {
   let parsedEmail = "";
   let parsedPassword = "";
@@ -47,13 +61,13 @@ export async function POST(req: Request) {
       });
     } catch {
       // Fallback path for Cloudflare deployments where Prisma engine artifacts are missing.
-      const connectionString = process.env.DATABASE_URL;
+      const connectionString = getDatabaseUrl();
       if (!connectionString) {
         throw new Error("DATABASE_URL is not configured");
       }
       const sql = neon(connectionString);
       const rows = await sql`
-        SELECT id, email, name, "passwordHash", "whatsappPhone"
+        SELECT id, email, name, "passwordHash", "whatsappPhone", role, "isDisabled"
         FROM "User"
         WHERE email = ${parsedEmail}
         LIMIT 1
@@ -65,6 +79,13 @@ export async function POST(req: Request) {
       return NextResponse.json(
         { error: "Invalid email or password" },
         { status: 401 }
+      );
+    }
+
+    if ((user as any).isDisabled) {
+      return NextResponse.json(
+        { error: "Account disabled. Contact support." },
+        { status: 403 }
       );
     }
 
@@ -88,6 +109,7 @@ export async function POST(req: Request) {
         id: user.id,
         email: user.email,
         name: user.name,
+        role: (user as any).role || "DOCTOR",
       },
     });
 
@@ -108,13 +130,13 @@ export async function POST(req: Request) {
     // Last-resort fallback: if Prisma path failed, try direct SQL login.
     if (parsedEmail && parsedPassword) {
       try {
-        const connectionString = process.env.DATABASE_URL;
+        const connectionString = getDatabaseUrl();
         if (!connectionString) {
           throw new Error("DATABASE_URL is not configured");
         }
         const sql = neon(connectionString);
         const rows = await sql`
-          SELECT id, email, name, "passwordHash", "whatsappPhone"
+          SELECT id, email, name, "passwordHash", "whatsappPhone", role, "isDisabled"
           FROM "User"
           WHERE email = ${parsedEmail}
           LIMIT 1
@@ -125,6 +147,13 @@ export async function POST(req: Request) {
           return NextResponse.json(
             { error: "Invalid email or password" },
             { status: 401 }
+          );
+        }
+
+        if ((user as any).isDisabled) {
+          return NextResponse.json(
+            { error: "Account disabled. Contact support." },
+            { status: 403 }
           );
         }
 
@@ -145,6 +174,7 @@ export async function POST(req: Request) {
             id: user.id,
             email: user.email,
             name: user.name,
+            role: (user as any).role || "DOCTOR",
           },
         });
 

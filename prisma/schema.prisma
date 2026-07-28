@@ -13,6 +13,10 @@ generator client {
     email               String        @unique
     passwordHash        String
     whatsappPhone       String?
+    role                UserRole      @default(DOCTOR)
+    isDisabled          Boolean       @default(false)
+    subscriptionStatus  SubscriptionStatus @default(FREE)
+    subscriptionEndDate DateTime?
     createdAt           DateTime      @default(now())
     updatedAt           DateTime      @updatedAt
     createdAppointments Appointment[] @relation("AppointmentCreatedBy")
@@ -29,6 +33,21 @@ generator client {
     updatedPayments     Payment[]     @relation("PaymentUpdatedBy")
     createdVisits       Visit[]       @relation("VisitCreatedBy")
     updatedVisits       Visit[]       @relation("VisitUpdatedBy")
+    auditLogs           AuditLog[]
+  }
+
+  model AuditLog {
+    id         Int      @id @default(autoincrement())
+    userId     String
+    action     String
+    targetType String
+    targetId   String
+    createdAt  DateTime @default(now())
+    user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@index([userId])
+    @@index([createdAt])
+    @@index([targetType, targetId])
   }
 
   model Clinic {
@@ -59,6 +78,9 @@ generator client {
     name                 String
     phone                String
     address              String?
+    age                  Int?
+    clinicName           String?
+    clinicColor          String?
     dateOfBirth          DateTime?
     gender               Gender?
     occupation           String?
@@ -70,6 +92,7 @@ generator client {
     notes                String?
     plannedNotes         String?
     totalFee             Float?
+    totalPaid            Float?
     retainerFee          Float?
     elasticEnabled       Boolean         @default(false)
     elasticType          String?
@@ -267,4 +290,16 @@ generator client {
   enum Gender {
     MALE
     FEMALE
+  }
+
+  enum UserRole {
+    ADMIN
+    DOCTOR
+  }
+
+  enum SubscriptionStatus {
+    FREE
+    ACTIVE
+    EXPIRED
+    SUSPENDED
   }

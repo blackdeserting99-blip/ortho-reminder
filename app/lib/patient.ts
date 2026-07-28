@@ -45,6 +45,7 @@ export type Patient = {
   treatmentCategory?: string;
   bracketType?: string;
   caseSheet?: string;
+    wireMaterial?: string;
   attachments?: AttachedPhoto[];
   appointmentDate: string;
   appointmentTime?: string;
@@ -52,6 +53,7 @@ export type Patient = {
   notes?: string;
   plannedNotes?: string;
   totalFee?: number;
+  totalPaid?: number;
   retainerFee?: number;
   elasticEnabled?: boolean;
   elasticType?: string;

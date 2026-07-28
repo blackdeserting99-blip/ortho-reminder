@@ -12,7 +12,9 @@ type Patient = {
   name: string;
   treatment: string;
   phone: string;
-
+  age?: number;
+  clinicName?: string;
+  clinicColor?: string;
   caseStatus?:
     | "active"
     | "retainer"
@@ -142,7 +144,14 @@ export default function FinishedCasesPage() {
                     >
                       <div>
                         <div className="font-bold">{patient.name}</div>
+                        {patient.age && <div className="text-sm text-gray-500">Age: {patient.age}</div>}
                         <div className="text-gray-600">{patient.treatment}</div>
+                        {patient.clinicName && (
+                          <div className="text-sm text-gray-500 mt-1 flex items-center gap-1">
+                            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: patient.clinicColor || '#ddd' }} />
+                            <span>{patient.clinicName}</span>
+                          </div>
+                        )}
                         <div className="text-green-700 font-semibold">✅ Finished</div>
                       </div>
                       <div className="flex gap-2 flex-wrap">

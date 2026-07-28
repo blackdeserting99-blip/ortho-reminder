@@ -45,7 +45,8 @@ const [clinicColor, setClinicColor] = useState(CLINIC_COLORS[0]);
 
   const [bracketType, setBracketType] =
     useState("MBT System");
-
+const [wireMaterial, setWireMaterial] =
+  useState("NiTi");
   const [caseSheet, setCaseSheet] = useState("");
   const [caseSheetAttachments, setCaseSheetAttachments] = useState<any[]>([]);
 
@@ -124,9 +125,43 @@ const [showNotes, setShowNotes] =
   useState(false);
 
 const [totalFee, setTotalFee] = useState("");
+const [alreadyPaid, setAlreadyPaid] = useState("");
   const [additionalEnabled, setAdditionalEnabled] = useState(false);
   const [additionalAmount, setAdditionalAmount] = useState("");
   const [additionalReason, setAdditionalReason] = useState("");
+
+  // Tab system
+  const [activeTab, setActiveTab] = useState<"new" | "existing">("new");
+
+  // Existing Patient form states
+  const [existingName, setExistingName] = useState("");
+  const [existingPhone, setExistingPhone] = useState("");
+  const [existingAddress, setExistingAddress] = useState("");
+  const [existingAge, setExistingAge] = useState("");
+  const [existingOccupation, setExistingOccupation] = useState("");
+  const [existingClinicEnabled, setExistingClinicEnabled] = useState(false);
+  const [existingClinicName, setExistingClinicName] = useState("");
+  const [existingClinicColor, setExistingClinicColor] = useState(CLINIC_COLORS[0]);
+
+  const [existingTreatmentType, setExistingTreatmentType] = useState("Fixed Braces");
+  const [existingTreatment, setExistingTreatment] = useState("Fixed Braces");
+  const [existingBracketType, setExistingBracketType] = useState("MBT System");
+  const [existingMyofunctionalType, setExistingMyofunctionalType] = useState("Fixed");
+
+  // Existing patient treatment progress states
+  const [existingUpperWireGauge, setExistingUpperWireGauge] = useState("16");
+  const [existingLowerWireGauge, setExistingLowerWireGauge] = useState("16");
+  const [existingAlignerProgress, setExistingAlignerProgress] = useState(10);
+  const [existingRetainerType, setExistingRetainerType] = useState("Fixed");
+
+  const [existingAppointmentMode, setExistingAppointmentMode] = useState("30 Days");
+  const [existingAppointmentDate, setExistingAppointmentDate] = useState("");
+  const [existingAppointmentTime, setExistingAppointmentTime] = useState("04:00 PM");
+  const [existingFirstAppointment, setExistingFirstAppointment] = useState(false);
+  const [existingNotes, setExistingNotes] = useState("");
+
+  const [existingTotalFee, setExistingTotalFee] = useState("");
+  const [existingAlreadyPaid, setExistingAlreadyPaid] = useState("");
   const [retainerFee, setRetainerFee] = useState("");
   const [conflictWarning, setConflictWarning] = useState("");
   const [timeConflictMessage, setTimeConflictMessage] = useState("");
@@ -242,6 +277,10 @@ const [totalFee, setTotalFee] = useState("");
       treatment: finalTreatment,
       treatmentCategory: treatmentType,
       bracketType: treatmentType === "Fixed Braces" ? bracketType : undefined,
+      wireMaterial:
+  treatmentType === "Fixed Braces"
+    ? wireMaterial
+    : undefined,
       caseSheet: caseSheet || "",
       attachments: caseSheetAttachments,
       appointmentDate: finalDate,
@@ -250,6 +289,7 @@ const [totalFee, setTotalFee] = useState("");
       notes: notes.trim(),
       plannedNotes: plannedNotesEnabled ? plannedNotes.trim() : "",
       totalFee: Number(totalFee) || 0,
+      totalPaid: Number(alreadyPaid) || 0,
       retainerFee: Number(retainerFee) || 0,
       elasticEnabled: false,
       elasticType: "",
@@ -353,29 +393,36 @@ const [totalFee, setTotalFee] = useState("");
     <div className="flex flex-col md:flex-row min-h-screen bg-gray-100">
       <Sidebar />
       <main className="flex-1 p-6 md:p-8 w-full">
-      <h1 className="text-4xl font-bold text-teal-700 mb-8">
-        New Patient
-      </h1>
+      <div className="mb-6">
+        <h1 className="text-4xl font-bold text-teal-700 mb-4">Add Patient</h1>
+        
+        {/* Tab Navigation */}
+        <div className="flex gap-2 border-b border-slate-200">
+          <button
+            onClick={() => setActiveTab("new")}
+            className={`px-4 py-2 font-medium transition ${
+              activeTab === "new"
+                ? "border-b-2 border-teal-600 text-teal-600"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            New Patient
+          </button>
+          <button
+            onClick={() => setActiveTab("existing")}
+            className={`px-4 py-2 font-medium transition ${
+              activeTab === "existing"
+                ? "border-b-2 border-teal-600 text-teal-600"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            Existing Patient
+          </button>
+        </div>
+      </div>
 
       <div className="bg-white p-8 rounded-xl shadow max-w-full w-full mx-auto max-w-2xl text-black">
 
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h2 className="text-xl font-semibold text-slate-900">New Patient</h2>
-            <p className="text-sm text-slate-500">Create a patient record directly, or open the dedicated orthodontic case sheet page first.</p>
-          </div>
-          <div className="flex flex-col gap-3 sm:items-end">
-            <Link
-              href="/case-sheet"
-              className="inline-flex items-center justify-center rounded-full bg-teal-600 px-5 py-3 text-sm font-medium text-white shadow-sm hover:bg-teal-700"
-            >
-              Open case sheet page
-            </Link>
-            <p className="text-xs text-slate-500 max-w-sm text-right">
-              The case sheet is saved as a draft. If you fill it first, it will attach when you save the new patient.
-            </p>
-          </div>
-        </div>
         {validationErrors.length > 0 && (
           <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700">
             <p className="font-semibold">Please fix the following:</p>
@@ -386,746 +433,624 @@ const [totalFee, setTotalFee] = useState("");
             </ul>
           </div>
         )}
-        {conflictWarning && (
-          <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-800">
-            {conflictWarning}
-          </div>
-        )}
-        {caseSheet && (
-          <div className="mb-4 rounded-2xl border border-teal-200 bg-teal-50 p-4 text-slate-700">
-            <p className="font-medium">Case sheet draft loaded.</p>
-            <p className="text-sm">Continue on this page to save the new patient, or edit the draft on the case sheet page.</p>
-          </div>
-        )}
 
-        <div className="mb-4">
-          <label className="block mb-2">
-            Patient Name
-          </label>
-
-          <input
-            type="text"
-            value={name}
-            onChange={(e) =>
-              setName(e.target.value)
-            }
-            className="w-full border p-3 rounded"
-          />
-        </div>
-
-        <div className="mb-4">
-          <label className="block mb-2">
-            Contact Number
-          </label>
-
-          <input
-            type="tel"
-            inputMode="tel"
-            value={phone}
-            onChange={(e) => setPhone(formatPhoneInput(e.target.value))}
-            className="w-full border p-3 rounded"
-            placeholder="e.g., 0770 123 4567"
-          />
-        </div>
-<div className="mb-4">
-  <label className="block mb-2">
-    Address
-  </label>
-
-  <input
-    type="text"
-    value={address}
-    onChange={(e) =>
-      setAddress(e.target.value)
-    }
-    className="w-full border p-3 rounded"
-    placeholder="Patient address"
-  />
-</div>
-
-<div className="mb-4">
-  <label className="block mb-2">
-    Age (years)
-  </label>
-
-  <input
-    type="number"
-    value={age}
-    onChange={(e) =>
-      setAge(e.target.value)
-    }
-    className="w-full border p-3 rounded"
-    placeholder="e.g., 25"
-    min="0"
-    max="120"
-  />
-</div>
-
-<div className="mb-4">
-  <label className="block mb-2">
-    Occupation
-  </label>
-
-  <input
-    type="text"
-    value={occupation}
-    onChange={(e) =>
-      setOccupation(e.target.value)
-    }
-    className="w-full border p-3 rounded"
-    placeholder="Patient occupation"
-  />
-</div>
-
-<div className="mb-4">
-  <label className="flex items-center gap-2">
-    <input
-      type="checkbox"
-      checked={clinicEnabled}
-      onChange={(e) => setClinicEnabled(e.target.checked)}
-    />
-    Choose Clinic
-  </label>
-
-  {clinicEnabled && (
-    <div className="mt-3 space-y-3">
-      <div>
-        <label className="block mb-2">Clinic Name</label>
-        <input
-          type="text"
-          value={clinicName}
-          onChange={(e) => setClinicName(e.target.value)}
-          className="w-full border p-3 rounded"
-          placeholder="Clinic name"
-        />
-      </div>
-
-      <div>
-        <label className="block mb-2">Color Coding</label>
-        <div className="flex items-center gap-2 flex-wrap">
-          {CLINIC_COLORS.map((c) => {
-            const selected = c === clinicColor;
-            return (
-              <button
-                key={c}
-                type="button"
-                onClick={() => setClinicColor(c)}
-                title={c}
-                className={`w-8 h-8 rounded-full ${selected ? 'ring-2 ring-offset-1 ring-teal-500' : 'border border-slate-200'}`}
-                style={{ backgroundColor: c }}
-              />
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  )}
-</div>
-
-        <div className="mb-4">
-          <label className="block mb-2">
-            Treatment
-          </label>
-
-          <select
-            value={treatmentType}
-            onChange={(e) => {
-              const value = e.target.value;
-
-              setTreatmentType(value);
-
-              if (
-                value !==
-                "Myofunctional Appliance"
-              ) {
-                setTreatment(value);
-              } else {
-                setTreatment("Hyrax");
-              }
-            }}
-            className="w-full border p-3 rounded"
-          >
-            <option>Fixed Braces</option>
-<option>Clear Aligners</option>
-<option>Retainers</option>
-<option>
-  Myofunctional Appliance
-</option>
-</select>
-
-{treatmentType === "Fixed Braces" && (
-  <div className="mt-4">
-    <label className="block mb-2">
-      Bracket System
-    </label>
-
-    <select
-      value={bracketType}
-      onChange={(e) =>
-        setBracketType(e.target.value)
-      }
-      className="w-full border p-3 rounded"
-    >
-      <option>MBT System</option>
-      <option>Roth System</option>
-      <option>Damon System</option>
-    </select>
-  </div>
-)}
-{treatmentType === "Retainers" && (
-  <div className="mt-4">
-    <label className="block mb-2">Retainer Fee</label>
-    <div className="flex items-center gap-2">
-      <input type="text" value={retainerFee ? Number(retainerFee).toLocaleString() : retainerFee} onChange={(e) => setRetainerFee(e.target.value.replace(/\D/g, ""))} placeholder="0" className="flex-1 border p-3 rounded" />
-      <span className="font-semibold text-slate-700">IQD</span>
-    </div>
-    <p className="text-sm text-slate-500 mt-2">This will be recorded as the retainer charge for this patient.</p>
-  </div>
-)}
-</div>
-
-        {treatmentType ===
-          "Myofunctional Appliance" && (
+        {/* ===== NEW PATIENT TAB ===== */}
+        {activeTab === "new" && (
           <>
+            <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">New Patient</h2>
+                <p className="text-sm text-slate-500">Create a patient record directly, or open the dedicated orthodontic case sheet page first.</p>
+              </div>
+              <div className="flex flex-col gap-3 sm:items-end">
+                <Link
+                  href="/case-sheet"
+                  className="inline-flex items-center justify-center rounded-full bg-teal-600 px-5 py-3 text-sm font-medium text-white shadow-sm hover:bg-teal-700"
+                >
+                  Open case sheet page
+                </Link>
+                <p className="text-xs text-slate-500 max-w-sm text-right">
+                  The case sheet is saved as a draft. If you fill it first, it will attach when you save the new patient.
+                </p>
+              </div>
+            </div>
+
+            {caseSheet && (
+              <div className="mb-4 rounded-2xl border border-teal-200 bg-teal-50 p-4 text-slate-700">
+                <p className="font-medium">Case sheet draft loaded.</p>
+                <p className="text-sm">Continue on this page to save the new patient, or edit the draft on the case sheet page.</p>
+              </div>
+            )}
+
             <div className="mb-4">
-              <label className="block mb-2">
-                Myofunctional Type
-              </label>
-
-              <select
-                value={MyofunctionalType}
-                onChange={(e) => {
-                  const value =
-                    e.target.value;
-
-                  setMyofunctionalType(
-                    value
-                  );
-
-                  if (
-                    value === "Fixed"
-                  ) {
-                    setTreatment(
-                      "Hyrax"
-                    );
-                  } else {
-                    setTreatment(
-                      "Twin Block"
-                    );
-                  }
-                }}
-                className="w-full border p-3 rounded"
-              >
-                <option value="Fixed">
-                  Fixed
-                </option>
-
-                <option value="Removable">
-                  Removable
-                </option>
-              </select>
+              <label className="block mb-2">Patient Name</label>
+              <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full border p-3 rounded" />
             </div>
 
             <div className="mb-4">
-              <label className="block mb-2">
-                Appliance
-              </label>
-
-              <select
-                value={treatment}
-                onChange={(e) =>
-                  setTreatment(
-                    e.target.value
-                  )
-                }
-                className="w-full border p-3 rounded"
-              >
-                {MyofunctionalType ===
-                "Fixed"
-                  ? fixedAppliances.map(
-                      (
-                        appliance
-                      ) => (
-                        <option
-                          key={
-                            appliance
-                          }
-                        >
-                          {appliance}
-                        </option>
-                      )
-                    )
-                  : removableAppliances.map(
-                      (
-                        appliance
-                      ) => (
-                        <option
-                          key={
-                            appliance
-                          }
-                        >
-                          {appliance}
-                        </option>
-                      )
-                    )}
-              </select>
+              <label className="block mb-2">Contact Number</label>
+              <input type="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(formatPhoneInput(e.target.value))} className="w-full border p-3 rounded" placeholder="e.g., 0770 123 4567" />
             </div>
 
-              <div className="mb-6 bg-slate-50 border border-slate-200 rounded-xl p-4">
-                <div className="text-sm font-semibold text-slate-700 mb-3">
-                  Myofunctional activation plan
+            <div className="mb-4">
+              <label className="block mb-2">Address</label>
+              <input type="text" value={address} onChange={(e) => setAddress(e.target.value)} className="w-full border p-3 rounded" placeholder="Patient address" />
+            </div>
+
+            <div className="mb-4">
+              <label className="block mb-2">Age (years)</label>
+              <input type="number" value={age} onChange={(e) => setAge(e.target.value)} className="w-full border p-3 rounded" placeholder="e.g., 25" min="0" max="120" />
+            </div>
+
+            <div className="mb-4">
+              <label className="block mb-2">Occupation</label>
+              <input type="text" value={occupation} onChange={(e) => setOccupation(e.target.value)} className="w-full border p-3 rounded" placeholder="Patient occupation" />
+            </div>
+
+            <div className="mb-4">
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={clinicEnabled} onChange={(e) => setClinicEnabled(e.target.checked)} />
+                Choose Clinic
+              </label>
+              {clinicEnabled && (
+                <div className="mt-3 space-y-3">
+                  <div>
+                    <label className="block mb-2">Clinic Name</label>
+                    <input type="text" value={clinicName} onChange={(e) => setClinicName(e.target.value)} className="w-full border p-3 rounded" placeholder="Clinic name" />
+                  </div>
+                  <div>
+                    <label className="block mb-2">Color Coding</label>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {CLINIC_COLORS.map((c) => {
+                        const selected = c === clinicColor;
+                        return (
+                          <button key={c} type="button" onClick={() => setClinicColor(c)} title={c} className={`w-8 h-8 rounded-full ${selected ? 'ring-2 ring-offset-1 ring-teal-500' : 'border border-slate-200'}`} style={{ backgroundColor: c }} />
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
+              )}
+            </div>
 
-                <div className="flex gap-2 mb-4">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setMyofunctionalMode("daily")
-                    }
-                    className={`px-3 py-2 rounded-lg border ${
-                      myofunctionalMode === "daily"
-                        ? "border-teal-600 bg-teal-50 text-teal-700"
-                        : "border-slate-300 bg-white text-slate-700"
-                    }`}
-                  >
-                    Daily
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setMyofunctionalMode("weekly")
-                    }
-                    className={`px-3 py-2 rounded-lg border ${
-                      myofunctionalMode === "weekly"
-                        ? "border-teal-600 bg-teal-50 text-teal-700"
-                        : "border-slate-300 bg-white text-slate-700"
-                    }`}
-                  >
-                    Weekly
-                  </button>
+            <div className="mb-4">
+              <label className="block mb-2">Treatment</label>
+              <select value={treatmentType} onChange={(e) => { const value = e.target.value; setTreatmentType(value); if (value !== "Myofunctional Appliance") { setTreatment(value); } else { setTreatment("Hyrax"); } }} className="w-full border p-3 rounded">
+                <option>Fixed Braces</option>
+                <option>Clear Aligners</option>
+                <option>Retainers</option>
+                <option>Myofunctional Appliance</option>
+              </select>
+
+              {treatmentType === "Fixed Braces" && (
+                <div className="mt-4">
+                  <label className="block mb-2">Bracket System</label>
+                  <select value={bracketType} onChange={(e) => setBracketType(e.target.value)} className="w-full border p-3 rounded">
+                    <option>MBT System</option>
+                    <option>Roth System</option>
+                    <option>Damon System</option>
+                  </select>
+      
+                </div>
+              )}
+
+              {treatmentType === "Retainers" && (
+                <div className="mt-4">
+                  <label className="block mb-2">Retainer Fee</label>
+                  <div className="flex items-center gap-2">
+                    <input type="text" value={retainerFee ? Number(retainerFee).toLocaleString() : retainerFee} onChange={(e) => setRetainerFee(e.target.value.replace(/\D/g, ""))} placeholder="0" className="flex-1 border p-3 rounded" />
+                    <span className="font-semibold text-slate-700">IQD</span>
+                  </div>
+                  <p className="text-sm text-slate-500 mt-2">This will be recorded as the retainer charge for this patient.</p>
+                </div>
+              )}
+            </div>
+
+            {treatmentType === "Myofunctional Appliance" && (
+              <>
+                <div className="mb-4">
+                  <label className="block mb-2">Myofunctional Type</label>
+                  <select value={MyofunctionalType} onChange={(e) => { const value = e.target.value; setMyofunctionalType(value); if (value === "Fixed") { setTreatment("Hyrax"); } else { setTreatment("Twin Block"); } }} className="w-full border p-3 rounded">
+                    <option value="Fixed">Fixed</option>
+                    <option value="Removable">Removable</option>
+                  </select>
                 </div>
 
                 <div className="mb-4">
-                  <label className="block mb-2">
-                    How many times?
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={10}
-                    value={myofunctionalCount}
-                    onChange={(e) => {
-                      const value = Number(e.target.value);
-                      setMyofunctionalCount(
-                        value > 10 ? 10 : value < 1 ? 1 : value
-                      );
-                      if (
-                        myofunctionalMode === "weekly" &&
-                        myofunctionalWeeklyDays.length > value
-                      ) {
-                        setMyofunctionalWeeklyDays(
-                          myofunctionalWeeklyDays.slice(0, value)
-                        );
-                      }
-                    }}
-                    className="w-full border p-3 rounded"
-                  />
+                  <label className="block mb-2">Appliance</label>
+                  <select value={treatment} onChange={(e) => setTreatment(e.target.value)} className="w-full border p-3 rounded">
+                    {(MyofunctionalType === "Fixed" ? fixedAppliances : removableAppliances).map((appliance) => (
+                      <option key={appliance}>{appliance}</option>
+                    ))}
+                  </select>
                 </div>
 
-                {myofunctionalMode === "daily" ? (
-                  <div className="mb-4">
-                    <label className="block mb-2">
-                      Choose daily timing
-                    </label>
-                    <select
-                      value={myofunctionalDailyOption}
-                      onChange={(e) =>
-                        setMyofunctionalDailyOption(
-                          e.target.value as
-                            | "day"
-                            | "night"
-                            | "day and night"
-                            | "2 day"
-                            | "2 night"
-                        )
-                      }
-                      className="w-full border p-3 rounded"
-                    >
-                      <option value="day">
-                        1 time - day
-                      </option>
-                      <option value="night">
-                        1 time - night
-                      </option>
-                      <option value="day and night">
-                        2 times - day and night
-                      </option>
-                      <option value="2 day">
-                        2 times - day only
-                      </option>
-                      <option value="2 night">
-                        2 times - night only
-                      </option>
-                    </select>
+                <div className="mb-6 bg-slate-50 border border-slate-200 rounded-xl p-4">
+                  <div className="text-sm font-semibold text-slate-700 mb-3">Myofunctional activation plan</div>
+                  <div className="flex gap-2 mb-4">
+                    <button type="button" onClick={() => setMyofunctionalMode("daily")} className={`px-3 py-2 rounded-lg border ${myofunctionalMode === "daily" ? "border-teal-600 bg-teal-50 text-teal-700" : "border-slate-300 bg-white text-slate-700"}`}>Daily</button>
+                    <button type="button" onClick={() => setMyofunctionalMode("weekly")} className={`px-3 py-2 rounded-lg border ${myofunctionalMode === "weekly" ? "border-teal-600 bg-teal-50 text-teal-700" : "border-slate-300 bg-white text-slate-700"}`}>Weekly</button>
                   </div>
-                ) : (
+
                   <div className="mb-4">
-                    <div className="block mb-2">
-                      Choose the weekdays to activate
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      {[
-                        "Sunday",
-                        "Monday",
-                        "Tuesday",
-                        "Wednesday",
-                        "Thursday",
-                        "Friday",
-                        "Saturday",
-                      ].map((day) => (
-                        <button
-                          key={day}
-                          type="button"
-                          onClick={() => {
-                            setMyofunctionalWeeklyDays((current) => {
-                              if (current.includes(day)) {
-                                return current.filter(
-                                  (item) => item !== day
-                                );
-                              }
-                              if (current.length >= myofunctionalCount) {
-                                return current;
-                              }
-                              return [...current, day];
-                            });
-                          }}
-                          className={`rounded-lg border px-3 py-2 text-sm text-slate-700 ${
-                            myofunctionalWeeklyDays.includes(day)
-                              ? "border-teal-600 bg-teal-50"
-                              : "border-slate-300 bg-white"
-                          }`}
-                        >
-                          {day}
-                        </button>
-                      ))}
-                    </div>
-                    <p className="text-xs text-slate-500 mt-2">
-                      Select up to {myofunctionalCount} day(s).
-                    </p>
+                    <label className="block mb-2">How many times?</label>
+                    <input type="number" min={1} max={10} value={myofunctionalCount} onChange={(e) => { const value = Number(e.target.value); setMyofunctionalCount(value > 10 ? 10 : value < 1 ? 1 : value); if (myofunctionalMode === "weekly" && myofunctionalWeeklyDays.length > value) { setMyofunctionalWeeklyDays(myofunctionalWeeklyDays.slice(0, value)); } }} className="w-full border p-3 rounded" />
                   </div>
-                )}
-              </div>
-            </>
-          )}
 
-        {treatmentType === "Clear Aligners" && (
-          <div className="mb-6 bg-slate-50 border border-slate-200 rounded-xl p-4">
-            <div className="text-sm font-semibold text-slate-700 mb-3">Clear Aligners plan</div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center mb-3">
-              <div>
-                <label className="block mb-1 text-sm">Planned total aligners</label>
-                <input
-                  type="number"
-                  min={1}
-                  value={plannedAligners}
-                  onChange={(e) => setPlannedAligners(Number(e.target.value) || 0)}
-                  className="w-full border p-2 rounded"
-                />
-              </div>
-
-              <div>
-                <label className="block mb-1 text-sm">Mark given at this visit</label>
-                <div className="flex items-center gap-2">
-                  <div className="text-sm text-slate-600">Click dots below to mark</div>
+                  {myofunctionalMode === "daily" ? (
+                    <div className="mb-4">
+                      <label className="block mb-2">Choose daily timing</label>
+                      <select value={myofunctionalDailyOption} onChange={(e) => setMyofunctionalDailyOption(e.target.value as | "day" | "night" | "day and night" | "2 day" | "2 night")} className="w-full border p-3 rounded">
+                        <option value="day">1 time - day</option>
+                        <option value="night">1 time - night</option>
+                        <option value="day and night">2 times - day and night</option>
+                        <option value="2 day">2 times - day only</option>
+                        <option value="2 night">2 times - night only</option>
+                      </select>
+                    </div>
+                  ) : (
+                    <div className="mb-4">
+                      <div className="block mb-2">Choose the weekdays to activate</div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map((day) => (
+                          <button key={day} type="button" onClick={() => { setMyofunctionalWeeklyDays((current) => { if (current.includes(day)) { return current.filter((item) => item !== day); } if (current.length >= myofunctionalCount) { return current; } return [...current, day]; }); }} className={`rounded-lg border px-3 py-2 text-sm text-slate-700 ${myofunctionalWeeklyDays.includes(day) ? "border-teal-600 bg-teal-50" : "border-slate-300 bg-white"}`}>
+                            {day}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-xs text-slate-500 mt-2">Select up to {myofunctionalCount} day(s).</p>
+                    </div>
+                  )}
                 </div>
-              </div>
-
-              <div>
-                <label className="block mb-1 text-sm">Days per aligner</label>
-                <div className="flex items-center gap-2">
-                  <button type="button" onClick={() => setAlignerWearDays((v) => Math.max(1, v - 1))} className="px-3 py-1 bg-white border rounded">-</button>
-                  <input type="number" min={1} value={alignerWearDays} onChange={(e) => setAlignerWearDays(Number(e.target.value) || 0)} className="w-20 text-center border p-2 rounded" />
-                  <button type="button" onClick={() => setAlignerWearDays((v) => v + 1)} className="px-3 py-1 bg-white border rounded">+</button>
-                </div>
-              </div>
-            </div>
-
-            <div className="mb-3">
-              <label className="block mb-1 text-sm">Aligners (total)</label>
-              <div className="flex flex-wrap gap-2">
-                {Array.from({ length: Math.max(0, plannedAligners) }).map((_, i) => {
-                  const selected = i < givenCount;
-                  return (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => setGivenCount((cur) => (cur === i + 1 ? i : i + 1))}
-                      title={`Aligner ${i + 1}`}
-                      className={`w-3 h-3 rounded-full transition-colors ${selected ? 'bg-teal-700' : 'bg-slate-300'}`}
-                    />
-                  );
-                })}
-              </div>
-              <div className="text-sm text-slate-700 mt-2">Given this visit: <strong>{givenCount}</strong></div>
-            </div>
-
-            <div className="text-sm text-slate-700">
-              Next appointment (auto): <strong>{treatmentType === "Clear Aligners" ? `${givenCount * alignerWearDays} days from today` : "N/A"}</strong>
-            </div>
-          </div>
-        )}
-
-          <div className="mb-4">
-            <label className="block mb-2">
-              Next Appointment Date
-            </label>
-
-            <select
-              value={appointmentMode}
-              onChange={(e) => setAppointmentMode(e.target.value)}
-              className="w-full border p-3 rounded"
-            >
-              {treatmentType === "Clear Aligners" ? (
-                <>
-                  <option>Auto</option>
-                  <option>Manual</option>
-                </>
-              ) : (
-                <>
-                  <option>15</option>
-                  <option>30</option>
-                  <option>45</option>
-                  <option>60</option>
-                  <option>Manual</option>
-                </>
-              )}
-            </select>
-            {isFriday && (
-              <p className="text-sm text-orange-700 mt-2">
-                Note: The selected appointment falls on Friday.
-              </p>
+              </>
             )}
-          </div>
 
-          {appointmentMode === "Manual" && (
+            {treatmentType === "Clear Aligners" && (
+              <div className="mb-6 bg-slate-50 border border-slate-200 rounded-xl p-4">
+                <div className="text-sm font-semibold text-slate-700 mb-3">Clear Aligners plan</div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center mb-3">
+                  <div>
+                    <label className="block mb-1 text-sm">Planned total aligners</label>
+                    <input type="number" min={1} value={plannedAligners} onChange={(e) => setPlannedAligners(Number(e.target.value) || 0)} className="w-full border p-2 rounded" />
+                  </div>
+                  <div>
+                    <label className="block mb-1 text-sm">Mark given at this visit</label>
+                    <div className="flex items-center gap-2">
+                      <div className="text-sm text-slate-600">Click dots below to mark</div>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block mb-1 text-sm">Days per aligner</label>
+                    <div className="flex items-center gap-2">
+                      <button type="button" onClick={() => setAlignerWearDays((v) => Math.max(1, v - 1))} className="px-3 py-1 bg-white border rounded">-</button>
+                      <input type="number" min={1} value={alignerWearDays} onChange={(e) => setAlignerWearDays(Number(e.target.value) || 0)} className="w-20 text-center border p-2 rounded" />
+                      <button type="button" onClick={() => setAlignerWearDays((v) => v + 1)} className="px-3 py-1 bg-white border rounded">+</button>
+                    </div>
+                  </div>
+                </div>
+                <div className="mb-3">
+                  <label className="block mb-1 text-sm">Aligners (total)</label>
+                  <div className="flex flex-wrap gap-2">
+                    {Array.from({ length: Math.max(0, plannedAligners) }).map((_, i) => {
+                      const selected = i < givenCount;
+                      return (
+                        <button key={i} type="button" onClick={() => setGivenCount((cur) => (cur === i + 1 ? i : i + 1))} title={`Aligner ${i + 1}`} className={`w-3 h-3 rounded-full transition-colors ${selected ? 'bg-teal-700' : 'bg-slate-300'}`} />
+                      );
+                    })}
+                  </div>
+                  <div className="text-sm text-slate-700 mt-2">Given this visit: <strong>{givenCount}</strong></div>
+                </div>
+                <div className="text-sm text-slate-700">
+                  Next appointment (auto): <strong>{treatmentType === "Clear Aligners" ? `${givenCount * alignerWearDays} days from today` : "N/A"}</strong>
+                </div>
+              </div>
+            )}
+
             <div className="mb-4">
-              <label className="block mb-2">
-                Appointment Date
-              </label>
+              <label className="block mb-2">Next Appointment Date</label>
+              <select value={appointmentMode} onChange={(e) => setAppointmentMode(e.target.value)} className="w-full border p-3 rounded">
+                {treatmentType === "Clear Aligners" ? (
+                  <>
+                    <option>Auto</option>
+                    <option>Manual</option>
+                  </>
+                ) : (
+                  <>
+                    <option>15</option>
+                    <option>30</option>
+                    <option>45</option>
+                    <option>60</option>
+                    <option>Manual</option>
+                  </>
+                )}
+              </select>
+              {isFriday && (
+                <p className="text-sm text-orange-700 mt-2">
+                  Note: The selected appointment falls on Friday.
+                </p>
+              )}
+            </div>
 
-              <DateInput
-                value={appointmentDate}
-                onChange={setAppointmentDate}
-                className="w-full border p-3 rounded"
-              />
+            {appointmentMode === "Manual" && (
+              <div className="mb-4">
+                <label className="block mb-2">Appointment Date</label>
+                <DateInput value={appointmentDate} onChange={setAppointmentDate} className="w-full border p-3 rounded" />
                 {isFriday && (
                   <p className="text-sm text-orange-700 mt-2">
                     Note: The selected appointment falls on Friday.
                   </p>
                 )}
-            </div>
-          )}
-
-          <div className="mb-6">
-            <div className="bg-teal-50 border rounded-lg p-3">
-              <strong>Selected Date:</strong>{" "}
-
-              {selectedDate || "-"}
-            </div>
-
-            {isFriday && (
-              <div className="mt-2 bg-red-100 border border-red-300 text-red-700 p-3 rounded">
-                Note: This appointment is scheduled on Friday
               </div>
             )}
-          </div>
 
-        <div className="mb-4">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={firstAppointment}
-              onChange={(e) =>
-                setFirstAppointment(
-                  e.target.checked
-                )
-              }
-            />
-            First Appointment
-          </label>
-        </div>
+            <div className="mb-6">
+              <div className="bg-teal-50 border rounded-lg p-3">
+                <strong>Selected Date:</strong> {selectedDate || "-"}
+              </div>
+              {isFriday && (
+                <div className="mt-2 bg-red-100 border border-red-300 text-red-700 p-3 rounded">
+                  Note: This appointment is scheduled on Friday
+                </div>
+              )}
+            </div>
 
-        {firstAppointment && (
-          <div className="mb-4">
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={plannedNotesEnabled}
-                onChange={(e) =>
-                  setPlannedNotesEnabled(
-                    e.target.checked
-                  )
-                }
-              />
-              Planned Notes for first visit
-            </label>
-            {plannedNotesEnabled && (
-              <textarea
-                value={plannedNotes}
-                onChange={(e) =>
-                  setPlannedNotes(e.target.value)
-                }
-                rows={4}
-                placeholder="Enter a future note for the first appointment"
-                className="w-full border p-3 rounded mt-3"
-              />
+            <div className="mb-4">
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={firstAppointment} onChange={(e) => setFirstAppointment(e.target.checked)} />
+                First Appointment
+              </label>
+            </div>
+
+            {firstAppointment && (
+              <div className="mb-4">
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={plannedNotesEnabled} onChange={(e) => setPlannedNotesEnabled(e.target.checked)} />
+                  Planned Notes for first visit
+                </label>
+                {plannedNotesEnabled && (
+                  <textarea value={plannedNotes} onChange={(e) => setPlannedNotes(e.target.value)} rows={4} placeholder="Enter a future note for the first appointment" className="w-full border p-3 rounded mt-3" />
+                )}
+              </div>
             )}
-          </div>
+
+            <div className="mb-4">
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={showNotes} onChange={(e) => setShowNotes(e.target.checked)} />
+                Treatment Notes
+              </label>
+            </div>
+
+            {showNotes && (
+              <div className="mb-4">
+                <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={5} placeholder="Write treatment notes..." className="w-full border p-3 rounded" />
+              </div>
+            )}
+
+            <div className="mb-4">
+              <label className="block mb-2">Total Treatment Fee (Optional)</label>
+              <div className="flex items-center gap-2">
+                <input type="text" value={totalFee ? Number(totalFee).toLocaleString() : ""} onChange={(e) => { const digits = e.target.value.replace(/\D/g, ""); setTotalFee(digits); }} placeholder="1,500,000" className="flex-1 border p-3 rounded" />
+                <span className="font-semibold text-slate-700">IQD</span>
+              </div>
+              <p className="text-sm text-gray-500 mt-1">Optional field.</p>
+            </div>
+
+            <div className="mb-4">
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={additionalEnabled} onChange={(e) => setAdditionalEnabled(e.target.checked)} />
+                Additional payment
+              </label>
+              {additionalEnabled && (
+                <div className="mt-3 space-y-2">
+                  <div>
+                    <label className="block mb-1 text-sm">Additional fees</label>
+                    <div className="flex items-center gap-2">
+                      <input type="text" value={additionalAmount ? Number(additionalAmount).toLocaleString() : ""} onChange={(e) => setAdditionalAmount(e.target.value.replace(/\D/g, ""))} placeholder="0" className="flex-1 border p-3 rounded" />
+                      <span className="font-semibold text-slate-700">IQD</span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">This amount will be added to total paid.</p>
+                  </div>
+                  <div>
+                    <label className="block mb-1 text-sm">Reason for additional fee</label>
+                    <input type="text" value={additionalReason} onChange={(e) => setAdditionalReason(e.target.value)} className="w-full border p-2 rounded" />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="mb-6">
+              <label className="block mb-2">Appointment Time</label>
+              <select value={appointmentTime} onChange={(e) => setAppointmentTime(e.target.value)} className="w-full border p-3 rounded">
+                <option>09:00 AM</option>
+                <option>10:00 AM</option>
+                <option>11:00 AM</option>
+                <option>12:00 PM</option>
+                <option>01:00 PM</option>
+                <option>02:00 PM</option>
+                <option>03:00 PM</option>
+                <option>04:00 PM</option>
+                <option>05:00 PM</option>
+                <option>06:00 PM</option>
+                <option>07:00 PM</option>
+                <option>08:00 PM</option>
+                <option>09:00 PM</option>
+                <option>10:00 PM</option>
+              </select>
+              {timeConflictMessage && (
+                <p className="text-sm text-red-700 mt-2">{timeConflictMessage}</p>
+              )}
+            </div>
+
+            {conflictWarning && (
+              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700">
+                {conflictWarning}
+              </div>
+            )}
+
+            <button type="button" onClick={savePatient} className="bg-teal-600 text-white px-6 py-3 rounded-lg relative z-10">
+              Save Patient
+            </button>
+          </>
         )}
 
-       <div className="mb-4">
+        {/* ===== EXISTING PATIENT TAB ===== */}
+        {activeTab === "existing" && (
+          <>
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold text-slate-900 mb-4">Existing Patient</h2>
+              <p className="text-sm text-slate-500">Add a patient who is already in treatment to track their progress.</p>
+            </div>
 
-  <label className="flex items-center gap-2">
-    <input
-      type="checkbox"
-      checked={showNotes}
-      onChange={(e) =>
-        setShowNotes(
-          e.target.checked
-        )
-      }
-    />
+            <div className="mb-4">
+              <label className="block mb-2">Patient Name</label>
+              <input type="text" value={existingName} onChange={(e) => setExistingName(e.target.value)} className="w-full border p-3 rounded" placeholder="Patient name" />
+            </div>
 
-    Treatment Notes
+            <div className="mb-4">
+              <label className="block mb-2">Contact Number</label>
+              <input type="tel" inputMode="tel" value={existingPhone} onChange={(e) => setExistingPhone(formatPhoneInput(e.target.value))} className="w-full border p-3 rounded" placeholder="e.g., 0770 123 4567" />
+            </div>
+
+            <div className="mb-4">
+              <label className="block mb-2">Address</label>
+              <input type="text" value={existingAddress} onChange={(e) => setExistingAddress(e.target.value)} className="w-full border p-3 rounded" placeholder="Patient address" />
+            </div>
+
+            <div className="mb-4">
+              <label className="block mb-2">Age (years)</label>
+              <input type="number" value={existingAge} onChange={(e) => setExistingAge(e.target.value)} className="w-full border p-3 rounded" placeholder="e.g., 25" min="0" max="120" />
+            </div>
+
+            <div className="mb-4">
+              <label className="block mb-2">Occupation</label>
+              <input type="text" value={existingOccupation} onChange={(e) => setExistingOccupation(e.target.value)} className="w-full border p-3 rounded" placeholder="Patient occupation" />
+            </div>
+
+            <div className="mb-4">
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={existingClinicEnabled} onChange={(e) => setExistingClinicEnabled(e.target.checked)} />
+                Choose Clinic
+              </label>
+              {existingClinicEnabled && (
+                <div className="mt-3 space-y-3">
+                  <div>
+                    <label className="block mb-2">Clinic Name</label>
+                    <input type="text" value={existingClinicName} onChange={(e) => setExistingClinicName(e.target.value)} className="w-full border p-3 rounded" placeholder="Clinic name" />
+                  </div>
+                  <div>
+                    <label className="block mb-2">Color Coding</label>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {CLINIC_COLORS.map((c) => {
+                        const selected = c === existingClinicColor;
+                        return (
+                          <button key={c} type="button" onClick={() => setExistingClinicColor(c)} title={c} className={`w-8 h-8 rounded-full ${selected ? 'ring-2 ring-offset-1 ring-teal-500' : 'border border-slate-200'}`} style={{ backgroundColor: c }} />
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="mb-4">
+              <label className="block mb-2">Treatment Type</label>
+              <select value={existingTreatmentType} onChange={(e) => { const value = e.target.value; setExistingTreatmentType(value); if (value !== "Myofunctional Appliance") { setExistingTreatment(value); } else { setExistingTreatment("Hyrax"); } }} className="w-full border p-3 rounded">
+                <option>Fixed Braces</option>
+                <option>Clear Aligners</option>
+                <option>Retainers</option>
+                <option>Myofunctional Appliance</option>
+              </select>
+            </div>
+
+            {existingTreatmentType === "Fixed Braces" && (
+              <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h3 className="font-semibold text-slate-700 mb-3"><div className="mt-4">
+  <label className="block mb-2">
+    Bracket System
   </label>
 
+  <select
+    value={bracketType}
+    onChange={(e) => setBracketType(e.target.value)}
+    className="w-full border p-3 rounded"
+  >
+    <option>MBT System</option>
+    <option>Roth System</option>
+    <option>Damon System</option>
+  </select>
 </div>
 
-{showNotes && (
-  <div className="mb-4">
 
-    <textarea
-      value={notes}
-      onChange={(e) =>
-        setNotes(e.target.value)
-      }
-      rows={5}
-      placeholder="Write treatment notes..."
-      className="w-full border p-3 rounded"
-    />
+<div className="mt-4">
+  <label className="block mb-2">
+    Wire Material
+  </label>
 
-  </div>
-)}
+  <select
+    value={wireMaterial}
+    onChange={(e) => setWireMaterial(e.target.value)}
+    className="w-full border p-3 rounded"
+  >
+    <option value="NiTi">
+      NiTi
+    </option>
 
-        <div className="mb-4">
-          <label className="block mb-2">
-            Total Treatment Fee (Optional)
-          </label>
-
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              value={totalFee ? Number(totalFee).toLocaleString() : ""}
-              onChange={(e) => {
-                const digits = e.target.value.replace(/\D/g, "");
-                setTotalFee(digits);
-              }}
-              placeholder="1,500,000"
-              className="flex-1 border p-3 rounded"
-            />
-            <span className="font-semibold text-slate-700">IQD</span>
-          </div>
-
-          <p className="text-sm text-gray-500 mt-1">
-            Optional field.
-          </p>
-        </div>
-
-        <div className="mb-4">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={additionalEnabled}
-              onChange={(e) => setAdditionalEnabled(e.target.checked)}
-            />
-            Additional payment
-          </label>
-
-          {additionalEnabled && (
-            <div className="mt-3 space-y-2">
-              <div>
-                <label className="block mb-1 text-sm">Additional fees</label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={additionalAmount ? Number(additionalAmount).toLocaleString() : ""}
-                    onChange={(e) => setAdditionalAmount(e.target.value.replace(/\D/g, ""))}
-                    placeholder="0"
-                    className="flex-1 border p-3 rounded"
-                  />
-                  <span className="font-semibold text-slate-700">IQD</span>
+    <option value="Stainless Steel">
+      Stainless Steel (SS)
+    </option>
+  </select>
+</div>Current Braces Stage</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm mb-2">Upper Wire Gauge</label>
+                    <select value={existingUpperWireGauge} onChange={(e) => setExistingUpperWireGauge(e.target.value)} className="w-full border p-2 rounded text-sm">
+                      {["12", "14", "16", "18", "16x22", "17x25", "18x25"].map((g) => (
+                        <option key={g} value={g}>{g}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm mb-2">Lower Wire Gauge</label>
+                    <select value={existingLowerWireGauge} onChange={(e) => setExistingLowerWireGauge(e.target.value)} className="w-full border p-2 rounded text-sm">
+                      {["12", "14", "16", "18", "16x22", "17x25", "18x25"].map((g) => (
+                        <option key={g} value={g}>{g}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-                <p className="text-xs text-slate-500 mt-1">This amount will be added to total paid.</p>
               </div>
-              <div>
-                <label className="block mb-1 text-sm">Reason for additional fee</label>
-                <input type="text" value={additionalReason} onChange={(e) => setAdditionalReason(e.target.value)} className="w-full border p-2 rounded" />
+            )}
+
+            {existingTreatmentType === "Clear Aligners" && (
+              <div className="mb-4 bg-green-50 border border-green-200 rounded-lg p-4">
+                <h3 className="font-semibold text-slate-700 mb-3">Aligner Progress</h3>
+                <label className="block text-sm mb-2">Aligner Number (current)</label>
+                <input type="number" min={1} value={existingAlignerProgress} onChange={(e) => setExistingAlignerProgress(Number(e.target.value) || 0)} className="w-full border p-2 rounded" />
+              </div>
+            )}
+
+            {existingTreatmentType === "Myofunctional Appliance" && (
+              <div className="mb-4 bg-purple-50 border border-purple-200 rounded-lg p-4">
+                <h3 className="font-semibold text-slate-700 mb-3">Appliance Type</h3>
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <button type="button" onClick={() => setExistingMyofunctionalType("Fixed")} className={`px-3 py-2 rounded-lg border ${existingMyofunctionalType === "Fixed" ? "border-purple-600 bg-purple-100 text-purple-700" : "border-slate-300 bg-white text-slate-700"}`}>Fixed</button>
+                  <button type="button" onClick={() => setExistingMyofunctionalType("Removable")} className={`px-3 py-2 rounded-lg border ${existingMyofunctionalType === "Removable" ? "border-purple-600 bg-purple-100 text-purple-700" : "border-slate-300 bg-white text-slate-700"}`}>Removable</button>
+                </div>
+                <label className="block text-sm mb-2">Appliance</label>
+                <select value={existingTreatment} onChange={(e) => setExistingTreatment(e.target.value)} className="w-full border p-2 rounded text-sm">
+                  {(existingMyofunctionalType === "Fixed" ? fixedAppliances : removableAppliances).map((appliance) => (
+                    <option key={appliance} value={appliance}>{appliance}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {existingTreatmentType === "Retainers" && (
+              <div className="mb-4 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <h3 className="font-semibold text-slate-700 mb-3">Retainer Type</h3>
+                <select value={existingRetainerType} onChange={(e) => setExistingRetainerType(e.target.value)} className="w-full border p-2 rounded">
+                  <option>Fixed</option>
+                  <option>Removable</option>
+                  <option>Bonded</option>
+                </select>
+              </div>
+            )}
+
+            <div className="mb-4">
+              <label className="block mb-2">Total Treatment Fee</label>
+              <div className="flex items-center gap-2">
+                <input type="text" value={existingTotalFee ? Number(existingTotalFee).toLocaleString() : ""} onChange={(e) => { const digits = e.target.value.replace(/\D/g, ""); setExistingTotalFee(digits); }} placeholder="1,500,000" className="flex-1 border p-3 rounded" />
+                <span className="font-semibold text-slate-700">IQD</span>
               </div>
             </div>
-          )}
-        </div>
 
-        <div className="mb-6">
-          <label className="block mb-2">
-            Appointment Time
-          </label>
+            <div className="mb-4">
+              <label className="block mb-2 font-medium">Amount Already Paid (Historical)</label>
+              <p className="text-sm text-gray-500 mb-2">Enter the total amount this patient paid before being added to the system.</p>
+              <div className="flex items-center gap-2">
+                <input type="text" value={existingAlreadyPaid ? Number(existingAlreadyPaid).toLocaleString() : ""} onChange={(e) => { const digits = e.target.value.replace(/\D/g, ""); setExistingAlreadyPaid(digits); }} placeholder="0" className="flex-1 border p-3 rounded" />
+                <span className="font-semibold text-slate-700">IQD</span>
+              </div>
+              {(Number(existingTotalFee) > 0 || Number(existingAlreadyPaid) > 0) && (
+                <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Total Fee</span>
+                    <span className="font-medium">{(Number(existingTotalFee) || 0).toLocaleString()} IQD</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Already Paid</span>
+                    <span className="font-medium text-emerald-700">{(Number(existingAlreadyPaid) || 0).toLocaleString()} IQD</span>
+                  </div>
+                  <div className="flex justify-between border-t border-slate-200 pt-1 mt-1">
+                    <span className="font-semibold text-slate-700">Remaining</span>
+                    <span className="font-bold text-rose-600">
+                      {Math.max((Number(existingTotalFee) || 0) - (Number(existingAlreadyPaid) || 0), 0).toLocaleString()} IQD
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
 
-          <select
-            value={appointmentTime}
-            onChange={(e) =>
-              setAppointmentTime(
-                e.target.value
-              )
-            }
-            className="w-full border p-3 rounded"
-          >
-            <option>09:00 AM</option>
-            <option>10:00 AM</option>
-            <option>11:00 AM</option>
-            <option>12:00 PM</option>
-            <option>01:00 PM</option>
-            <option>02:00 PM</option>
-            <option>03:00 PM</option>
-            <option>04:00 PM</option>
-            <option>05:00 PM</option>
-            <option>06:00 PM</option>
-            <option>07:00 PM</option>
-            <option>08:00 PM</option>
-            <option>09:00 PM</option>
-            <option>10:00 PM</option>
-          </select>
-          {timeConflictMessage && (
-            <p className="text-sm text-red-700 mt-2">{timeConflictMessage}</p>
-          )}
-        </div>
+            <div className="mb-4">
+              <label className="block mb-2">Next Appointment Date</label>
+              <select value={existingAppointmentMode} onChange={(e) => setExistingAppointmentMode(e.target.value)} className="w-full border p-3 rounded">
+                <option>15</option>
+                <option>30</option>
+                <option>45</option>
+                <option>60</option>
+                <option>Manual</option>
+              </select>
+            </div>
 
-        {conflictWarning && (
-          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700">
-            {conflictWarning}
-          </div>
+            {existingAppointmentMode === "Manual" && (
+              <div className="mb-4">
+                <label className="block mb-2">Appointment Date</label>
+                <DateInput value={existingAppointmentDate} onChange={setExistingAppointmentDate} className="w-full border p-3 rounded" />
+              </div>
+            )}
+
+            <div className="mb-4">
+              <label className="block mb-2">Appointment Time</label>
+              <select value={existingAppointmentTime} onChange={(e) => setExistingAppointmentTime(e.target.value)} className="w-full border p-3 rounded">
+                <option>09:00 AM</option>
+                <option>10:00 AM</option>
+                <option>11:00 AM</option>
+                <option>12:00 PM</option>
+                <option>01:00 PM</option>
+                <option>02:00 PM</option>
+                <option>03:00 PM</option>
+                <option>04:00 PM</option>
+                <option>05:00 PM</option>
+                <option>06:00 PM</option>
+                <option>07:00 PM</option>
+                <option>08:00 PM</option>
+              </select>
+            </div>
+
+            <div className="mb-4">
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={existingFirstAppointment} onChange={(e) => setExistingFirstAppointment(e.target.checked)} />
+                First Appointment
+              </label>
+            </div>
+
+            <div className="mb-4">
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={existingNotes ? true : false} onChange={(e) => setExistingNotes(e.target.checked ? existingNotes : "")} />
+                Treatment Notes
+              </label>
+              {existingNotes || true && (
+                <textarea value={existingNotes} onChange={(e) => setExistingNotes(e.target.value)} rows={4} placeholder="Write treatment notes..." className="w-full border p-3 rounded mt-2" />
+              )}
+            </div>
+
+            <button type="button" onClick={() => console.log("Save existing patient")} className="bg-teal-600 text-white px-6 py-3 rounded-lg relative z-10">
+              Save Existing Patient
+            </button>
+          </>
         )}
-
-        <button
-          type="button"
-          onClick={savePatient}
-          className="bg-teal-600 text-white px-6 py-3 rounded-lg relative z-10"
-        >
-          Save Patient
-        </button>
-
-      </div>
+            </div>
     </main>
-    </div>
+  </div>
   );
 }

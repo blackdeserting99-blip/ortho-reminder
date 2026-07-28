@@ -10,6 +10,9 @@ type Patient = {
   name: string;
   phone: string;
   treatment: string;
+  age?: number;
+  clinicName?: string;
+  clinicColor?: string;
   appointmentDate: string;
   appointmentTime?: string;
 
@@ -104,7 +107,14 @@ export default function ArchivePage() {
                   className="border-b"
                 >
                   <td className="p-4">
-                    {patient.name}
+                    <div>{patient.name}</div>
+                    {patient.age && <div className="text-sm text-gray-500">Age: {patient.age}</div>}
+                    {patient.clinicName && (
+                      <div className="text-sm text-gray-500 mt-1 flex items-center gap-1">
+                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: patient.clinicColor || '#ddd' }} />
+                        <span>{patient.clinicName}</span>
+                      </div>
+                    )}
                   </td>
 
                   <td className="p-4">

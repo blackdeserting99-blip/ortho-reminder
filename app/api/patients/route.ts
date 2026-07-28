@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/app/lib/auth";
 import { prisma } from "@/app/lib/prisma";
 import { neon } from "@neondatabase/serverless";
+import { recordAuditLog } from "@/app/lib/audit";
 
 const DEFAULT_APPOINTMENT_TIME = "04:00 PM";
 
@@ -84,6 +85,7 @@ const patientSchema = z.object({
   notes: z.string().optional(),
   plannedNotes: z.string().optional(),
   totalFee: z.number().nonnegative().optional(),
+  totalPaid: z.number().nonnegative().optional(),
   retainerFee: z.number().nonnegative().optional(),
   elasticEnabled: z.boolean().optional(),
   elasticType: z.string().optional(),
@@ -92,6 +94,9 @@ const patientSchema = z.object({
   myofunctionalProgram: z.any().optional(),
   clearAlignersPlan: z.any().optional(),
   caseStatus: z.enum(["active", "retainer", "finished", "cancelled", "archived"]).optional(),
+  age: z.number().nonnegative().optional(),
+  clinicName: z.string().optional(),
+  clinicColor: z.string().optional(),
 });
 
 function getCaseStatusFromMetadata(metadata: unknown) {
@@ -307,6 +312,9 @@ export async function POST(request: Request) {
           // Provide defaults for DB-required fields when absent in the request.
           name: normalizedName,
           phone: parseResult.data.phone ?? "",
+          age: parseResult.data.age ?? null,
+          clinicName: parseResult.data.clinicName ?? null,
+          clinicColor: parseResult.data.clinicColor ?? null,
           dateOfBirth: parseResult.data.dateOfBirth ? new Date(parseResult.data.dateOfBirth) : null,
           gender: parseResult.data.gender ?? null,
           address: parseResult.data.address ?? null,
@@ -318,6 +326,7 @@ export async function POST(request: Request) {
           notes: parseResult.data.notes ?? null,
           plannedNotes: parseResult.data.plannedNotes ?? null,
           totalFee: parseResult.data.totalFee ?? null,
+          totalPaid: parseResult.data.totalPaid ?? null,
           retainerFee: parseResult.data.retainerFee ?? null,
           elasticEnabled: parseResult.data.elasticEnabled ?? false,
           elasticType: parseResult.data.elasticType ?? null,
@@ -349,6 +358,9 @@ export async function POST(request: Request) {
           "userId",
           name,
           phone,
+          age,
+          "clinicName",
+          "clinicColor",
           "treatmentStatus",
           "dateOfBirth",
           gender,
@@ -361,6 +373,7 @@ export async function POST(request: Request) {
           notes,
           "plannedNotes",
           "totalFee",
+          "totalPaid",
           "retainerFee",
           "elasticEnabled",
           "elasticType",
@@ -375,6 +388,9 @@ export async function POST(request: Request) {
           ${user.id},
           ${normalizedName},
           ${parseResult.data.phone ?? ""},
+          ${parseResult.data.age ?? null},
+          ${parseResult.data.clinicName ?? null},
+          ${parseResult.data.clinicColor ?? null},
           ${"PLANNED"},
           ${parseResult.data.dateOfBirth ? new Date(parseResult.data.dateOfBirth) : null},
           ${parseResult.data.gender ?? null},
@@ -387,6 +403,7 @@ export async function POST(request: Request) {
           ${parseResult.data.notes ?? null},
           ${parseResult.data.plannedNotes ?? null},
           ${parseResult.data.totalFee ?? null},
+          ${parseResult.data.totalPaid ?? null},
           ${parseResult.data.retainerFee ?? null},
           ${parseResult.data.elasticEnabled ?? false},
           ${parseResult.data.elasticType ?? null},
@@ -428,6 +445,13 @@ export async function POST(request: Request) {
 
     const responsePayload = { ...patient, id: patient.id, userId: patient.userId };
     console.log('[DEBUG][POST /api/patients] response id:', responsePayload.id);
+
+    await recordAuditLog({
+      userId: user.id,
+      action: "DOCTOR_CREATED_PATIENT",
+      targetType: "PATIENT",
+      targetId: String(responsePayload.id),
+    });
 
     // Return the created patient explicitly including id and userId to avoid
     // any client-side ambiguity about the returned shape.

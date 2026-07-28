@@ -11,6 +11,9 @@ type Patient = {
   name: string;
   treatment: string;
   phone: string;
+  age?: number;
+  clinicName?: string;
+  clinicColor?: string;
   appointmentDate: string;
   appointmentTime?: string;
   retainerChecked?: boolean;
@@ -139,6 +142,13 @@ export default function RetainersPage() {
                         <td className="p-4 align-top">
                           <div className="font-semibold text-slate-900">{patient.name}</div>
                           <div className="text-sm text-slate-500 mt-1">{patient.phone}</div>
+                          {patient.age && <div className="text-xs text-slate-500 mt-1">Age: {patient.age}</div>}
+                          {patient.clinicName && (
+                            <div className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: patient.clinicColor || '#ddd' }} />
+                              <span>{patient.clinicName}</span>
+                            </div>
+                          )}
                         </td>
                         <td className="p-4 align-top">
                           <div className="font-medium text-slate-900">{patient.treatment}</div>
