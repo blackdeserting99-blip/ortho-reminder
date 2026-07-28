@@ -1,18 +1,28 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaNeon } from "@prisma/adapter-neon";
 
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
+type GlobalForPrisma = typeof globalThis & {
+  prisma?: PrismaClient;
 };
 
-function createPrismaClient() {
-  const connectionString = process.env.DATABASE_URL;
+const globalForPrisma = globalThis as GlobalForPrisma;
 
-  if (!connectionString) {
-    throw new Error("DATABASE_URL environment variable is not set.");
+function getConnectionString() {
+  const connectionString = process.env.DATABASE_URL || process.env.NEON_DATABASE_URL;
+
+  if (!connectionString || connectionString === "undefined") {
+    return null;
   }
 
-  console.log("Initializing Prisma singleton");
+  return connectionString;
+}
+
+function createPrismaClient() {
+  const connectionString = getConnectionString();
+
+  if (!connectionString) {
+    throw new Error("DATABASE_URL is not configured");
+  }
 
   return new PrismaClient({
     adapter: new PrismaNeon({
@@ -21,10 +31,19 @@ function createPrismaClient() {
   });
 }
 
-export const prisma =
-  globalForPrisma.prisma ??
-  createPrismaClient();
+export function getPrismaClient() {
+  if (!globalForPrisma.prisma) {
+    globalForPrisma.prisma = createPrismaClient();
+  }
 
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
+  return globalForPrisma.prisma;
 }
+
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_target, prop, receiver) {
+    const client = getPrismaClient();
+    const value = Reflect.get(client, prop, receiver);
+
+    return typeof value === "function" ? value.bind(client) : value;
+  },
+});
