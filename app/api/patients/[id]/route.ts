@@ -207,6 +207,15 @@ function getSqlClient() {
   return neon(connectionString);
 }
 
+function getRuntimeDiagnostics() {
+  return {
+    hasDatabaseUrl: Boolean(process.env.DATABASE_URL),
+    hasNeonDatabaseUrl: Boolean(process.env.NEON_DATABASE_URL),
+    nodeEnv: process.env.NODE_ENV || "unknown",
+    runtime: process.env.NEXT_RUNTIME || "unknown",
+  };
+}
+
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
 console.log("CURRENT USER:", user);
@@ -388,6 +397,7 @@ const patient = await prisma.patient.findFirst({
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  console.log("[DEBUG][PATCH /api/patients/[id]] runtime diagnostics:", getRuntimeDiagnostics());
   const user = await getCurrentUser();
 
   if (!user) {
@@ -417,14 +427,28 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "Patient not found" }, { status: 404 });
   }
 
-  const doctor = await prisma.user.findUnique({
-    where: { id: user.id },
-    select: {
-      whatsappAccessToken: true,
-      whatsappPhoneNumberId: true,
-      whatsappBusinessAccountId: true,
-    },
-  });
+  let doctor:
+    | {
+        whatsappAccessToken: string | null;
+        whatsappPhoneNumberId: string | null;
+        whatsappBusinessAccountId: string | null;
+      }
+    | null = null;
+  try {
+    doctor = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: {
+        whatsappAccessToken: true,
+        whatsappPhoneNumberId: true,
+        whatsappBusinessAccountId: true,
+      },
+    });
+  } catch (doctorLookupError) {
+    console.error(
+      "[ERROR][PATCH /api/patients/[id]] doctor WhatsApp credential lookup failed; continuing without credentials",
+      doctorLookupError
+    );
+  }
   const doctorCredentials = await buildDoctorWhatsAppCredentials({
     whatsappAccessToken: doctor?.whatsappAccessToken,
     whatsappPhoneNumberId: doctor?.whatsappPhoneNumberId,

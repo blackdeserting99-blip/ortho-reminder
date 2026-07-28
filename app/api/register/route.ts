@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
+import { neon } from "@neondatabase/serverless";
 
 // Get DATABASE_URL from environment or use fallback
 const getDatabaseUrl = () => {
@@ -15,8 +16,24 @@ const getDatabaseUrl = () => {
   return null;
 };
 
+const getSqlClient = () => {
+  const url = getDatabaseUrl();
+  if (!url) {
+    throw new Error("DATABASE_URL/NEON_DATABASE_URL is not configured");
+  }
+  return neon(url);
+};
+
+const getRuntimeDiagnostics = () => ({
+  hasDatabaseUrl: Boolean(process.env.DATABASE_URL),
+  hasNeonDatabaseUrl: Boolean(process.env.NEON_DATABASE_URL),
+  nodeEnv: process.env.NODE_ENV || "unknown",
+  runtime: process.env.NEXT_RUNTIME || "unknown",
+});
+
 export async function POST(req: Request) {
   try {
+    console.log("[DEBUG][POST /api/register] runtime diagnostics:", getRuntimeDiagnostics());
     const dbUrl = getDatabaseUrl();
     if (!dbUrl) {
       return NextResponse.json(
@@ -63,9 +80,23 @@ export async function POST(req: Request) {
       );
     }
 
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
-    });
+    let existingUser: { id: string } | null = null;
+    try {
+      existingUser = await prisma.user.findUnique({
+        where: { email },
+        select: { id: true },
+      });
+    } catch (findError) {
+      console.error("[REGISTER ERROR][prisma.findUnique]", findError);
+      const sql = getSqlClient();
+      const rows = await sql`
+        SELECT id
+        FROM "User"
+        WHERE email = ${String(email).trim()}
+        LIMIT 1
+      `;
+      existingUser = rows?.[0] ? { id: String(rows[0].id) } : null;
+    }
 
     if (existingUser) {
       return NextResponse.json(
@@ -76,13 +107,49 @@ export async function POST(req: Request) {
 
     const passwordHash = await bcrypt.hash(password, 10);
 
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        passwordHash,
-      },
-    });
+    let user: { id: string; email: string };
+    try {
+      const created = await prisma.user.create({
+        data: {
+          name,
+          email,
+          passwordHash,
+        },
+        select: {
+          id: true,
+          email: true,
+        },
+      });
+      user = created;
+    } catch (createError) {
+      console.error("[REGISTER ERROR][prisma.create]", createError);
+      const sql = getSqlClient();
+      const rows = await sql`
+        INSERT INTO "User" (
+          name,
+          email,
+          "passwordHash",
+          "createdAt",
+          "updatedAt"
+        ) VALUES (
+          ${String(name).trim()},
+          ${String(email).trim()},
+          ${passwordHash},
+          NOW(),
+          NOW()
+        )
+        RETURNING id, email
+      `;
+
+      if (!rows?.[0]) {
+        throw new Error("SQL fallback register insert returned no row");
+      }
+
+      user = {
+        id: String(rows[0].id),
+        email: String(rows[0].email),
+      };
+    }
 
     return NextResponse.json({
       ok: true,
@@ -93,6 +160,7 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     console.error("[REGISTER ERROR]", error);
+    console.error("[REGISTER ERROR][runtime diagnostics]", getRuntimeDiagnostics());
 
     return NextResponse.json(
       {
