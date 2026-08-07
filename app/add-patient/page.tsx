@@ -13,6 +13,7 @@ import {
   validatePatientRecord,
   CLINIC_COLORS,
 } from "../lib/patient";
+import { getCaseSheetDraftStorageKey, getCurrentUserId, migrateCaseSheetDraftStorageKey } from "../lib/draft";
 
 export default function AddPatientPage() {
   const router = useRouter();
@@ -49,13 +50,35 @@ const [wireMaterial, setWireMaterial] =
   useState("NiTi");
   const [caseSheet, setCaseSheet] = useState("");
   const [caseSheetAttachments, setCaseSheetAttachments] = useState<any[]>([]);
+  const [draftStorageKey, setDraftStorageKey] = useState<string>("newPatientCaseSheetDraft");
+  const [draftKeyLoaded, setDraftKeyLoaded] = useState(false);
 
   const [appointmentMode, setAppointmentMode] =
     useState("30 Days");
   useEffect(() => {
+    let cancelled = false;
+
+    getCurrentUserId().then((userId) => {
+      if (cancelled) return;
+      setDraftStorageKey(migrateCaseSheetDraftStorageKey(userId || undefined));
+      setDraftKeyLoaded(true);
+    }).catch(() => {
+      if (cancelled) return;
+      setDraftStorageKey(getCaseSheetDraftStorageKey(undefined));
+      setDraftKeyLoaded(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!draftKeyLoaded) return;
+
     try {
       const draft = JSON.parse(
-        localStorage.getItem("newPatientCaseSheetDraft") || "null"
+        localStorage.getItem(draftStorageKey) || "null"
       );
 
       if (
@@ -70,7 +93,9 @@ const [wireMaterial, setWireMaterial] =
         if (typeof draft.name === "string" && draft.name.trim()) {
           setName(draft.name);
         }
-        if (typeof draft.mobile === "string" && draft.mobile.trim()) {
+        if (typeof draft.phone === "string" && draft.phone.trim()) {
+          setPhone(draft.phone);
+        } else if (typeof draft.mobile === "string" && draft.mobile.trim()) {
           setPhone(draft.mobile);
         } else if (typeof draft.homePhone === "string" && draft.homePhone.trim()) {
           setPhone(draft.homePhone);
@@ -91,7 +116,7 @@ const [wireMaterial, setWireMaterial] =
     } catch (error) {
       console.warn("Failed to load case sheet draft", error);
     }
-  }, []);
+  }, [draftKeyLoaded, draftStorageKey]);
   const [appointmentDate, setAppointmentDate] =
     useState("");
 
@@ -393,19 +418,62 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
           id: undefined,
           createdAt: undefined,
           updatedAt: undefined,
+          caseSheetAttachments: (newPatient.attachments ?? []).map((photo) => ({
+            id: photo.id,
+            name: photo.name,
+            originalName: photo.name,
+            dataUrl: photo.dataUrl,
+            mimeType: photo.dataUrl?.startsWith("data:image/") ? photo.dataUrl.split(";")[0].replace("data:", "") : "image/jpeg",
+            fileType: "PHOTO",
+            category: "Other",
+            uploadedAt: new Date().toISOString(),
+            source: "case-sheet",
+          })),
+          attachments: undefined,
         }),
       });
 
       if (!response.ok) {
-        // Try to show server-provided error details for debugging and clearer UX.
+        // Show server-provided error details for better UX.
         let msg = "Unable to save the patient right now.";
+        let details: any = null;
         try {
           const data = await response.json();
           if (data && data.error) msg = data.error;
-          else if (data && data.details) msg = JSON.stringify(data.details);
+          if (data && data.details) details = data.details;
         } catch (e) {
           // ignore JSON parse errors
         }
+
+        if (details) {
+          if (typeof details === "string") {
+            setValidationErrors([details]);
+          } else if (typeof details === "object") {
+            const detailMessages: string[] = [];
+            const flatten = (value: any, prefix?: string) => {
+              if (Array.isArray(value)) {
+                value.forEach((item) => flatten(item, prefix));
+                return;
+              }
+              if (typeof value === "object" && value !== null) {
+                Object.entries(value).forEach(([key, child]) => {
+                  const label = prefix ? `${prefix}.${key}` : key;
+                  flatten(child, label);
+                });
+                return;
+              }
+              if (typeof value === "string" && value.trim()) {
+                detailMessages.push(prefix ? `${prefix}: ${value}` : value);
+              }
+            };
+            flatten(details);
+            if (detailMessages.length > 0) {
+              setValidationErrors(detailMessages);
+              return;
+            }
+          }
+        }
+
         setValidationErrors([msg]);
         return;
       }
@@ -419,7 +487,7 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
       } catch (e) {
         // ignore
       }
-      localStorage.removeItem("newPatientCaseSheetDraft");
+      localStorage.removeItem(draftStorageKey);
       router.push("/patients");
     } catch (error: any) {
       setValidationErrors([error?.message || "Unable to save the patient right now."]);
@@ -428,10 +496,9 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
 
   const saveExistingPatient = async () => {
     const trimmedName = existingName.trim();
-    const trimmedPhone = existingPhone.trim();
 
-    if (!trimmedName || !trimmedPhone) {
-      setValidationErrors(["Patient name and contact number are required."]);
+    if (!trimmedName) {
+      setValidationErrors(["Patient name is required."]);
       return;
     }
 
@@ -442,7 +509,7 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
 
     const newPatient = {
       name: trimmedName,
-      phone: trimmedPhone,
+      phone: existingPhone.trim() || undefined,
       address: existingAddress.trim() || undefined,
       occupation: existingOccupation.trim() || undefined,
       age: existingAge ? Number(existingAge) : undefined,
@@ -470,8 +537,23 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
       caseStatus: "active",
       clearAlignersPlan: undefined,
       myofunctionalProgram: undefined,
-      caseSheet: "",
-      attachments: [],
+      caseSheet: caseSheet || undefined,
+      caseSheetAttachments: caseSheetAttachments.length
+        ? caseSheetAttachments.map((photo) => ({
+            id: photo.id,
+            name: photo.name,
+            originalName: photo.name,
+            dataUrl: photo.dataUrl,
+            mimeType:
+              photo.dataUrl?.startsWith("data:image/")
+                ? photo.dataUrl.split(";")[0].replace("data:", "")
+                : photo.mimeType || "application/octet-stream",
+            fileType: photo.fileType || "PHOTO",
+            category: photo.category || "Other",
+            uploadedAt: photo.uploadedAt || new Date().toISOString(),
+            source: photo.source || "case-sheet",
+          }))
+        : undefined,
     };
 
     try {
@@ -900,10 +982,30 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
         {/* ===== EXISTING PATIENT TAB ===== */}
         {activeTab === "existing" && (
           <>
-            <div className="mb-6">
-              <h2 className="text-xl font-semibold text-slate-900 mb-4">Existing Patient</h2>
-              <p className="text-sm text-slate-500">Add a patient who is already in treatment to track their progress.</p>
+            <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900 mb-4">Existing Patient</h2>
+                <p className="text-sm text-slate-500">Add a patient who is already in treatment to track their progress.</p>
+              </div>
+              <div className="flex flex-col gap-3 sm:items-end">
+                <Link
+                  href="/case-sheet"
+                  className="inline-flex items-center justify-center rounded-full bg-teal-600 px-5 py-3 text-sm font-medium text-white shadow-sm hover:bg-teal-700"
+                >
+                  Open case sheet page
+                </Link>
+                <p className="text-xs text-slate-500 max-w-sm text-right">
+                  The case sheet is saved as a draft. If you fill it first, it will attach when you save the existing patient.
+                </p>
+              </div>
             </div>
+
+            {caseSheet && (
+              <div className="mb-4 rounded-2xl border border-teal-200 bg-teal-50 p-4 text-slate-700">
+                <p className="font-medium">Case sheet draft loaded.</p>
+                <p className="text-sm">Continue on this page to save the existing patient, or edit the draft on the case sheet page.</p>
+              </div>
+            )}
 
             <div className="mb-4">
               <label className="block mb-2">Patient Name</label>
