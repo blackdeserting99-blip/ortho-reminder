@@ -39,3 +39,7 @@ export async function getCurrentUserId(): Promise<string | null> {
 
   return null;
 }
+
+export function getPatientCaseSheetDraftStorageKey(patientId: string) {
+  return `${PATIENT_CASE_SHEET_DRAFT_KEY_PREFIX}:patient:${patientId}`;
+}

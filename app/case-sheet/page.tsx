@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import DateInput from "../components/DateInput";
@@ -9,6 +10,7 @@ import OrthoPhotoChart, {
   ORTHO_PHOTO_UPLOAD_SLOTS,
   type OrthoPhotoSlotKey,
 } from "../components/OrthoPhotoChart";
+import { getCaseSheetDraftStorageKey, getCurrentUserId, getPatientCaseSheetDraftStorageKey, migrateCaseSheetDraftStorageKey } from "../lib/draft";
 
 type EruptionStatus = Record<string, "present" | "not-present">;
 type AttachedPhoto = {
@@ -353,13 +355,45 @@ function normalizeAttachments(attachments: AttachedPhoto[]) {
 }
 
 export default function CaseSheetPage() {
+  const params = useParams<{ id?: string }>();
+  const patientId = params?.id ? String(params.id) : null;
   const [draft, setDraft] = useState<CaseSheetDraft>(initialDraft);
   const [loaded, setLoaded] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [draftStorageKey, setDraftStorageKey] = useState<string>("newPatientCaseSheetDraft");
+  const [draftKeyLoaded, setDraftKeyLoaded] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+
+    if (patientId) {
+      setDraftStorageKey(getPatientCaseSheetDraftStorageKey(patientId));
+      setDraftKeyLoaded(true);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    getCurrentUserId().then((userId) => {
+      if (cancelled) return;
+      setDraftStorageKey(migrateCaseSheetDraftStorageKey(userId || undefined));
+      setDraftKeyLoaded(true);
+    }).catch(() => {
+      if (cancelled) return;
+      setDraftStorageKey(getCaseSheetDraftStorageKey(undefined));
+      setDraftKeyLoaded(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [patientId]);
+
+  useEffect(() => {
+    if (!draftKeyLoaded) return;
+
     try {
-      const saved = localStorage.getItem("newPatientCaseSheetDraft");
+      const saved = localStorage.getItem(draftStorageKey);
       if (saved) {
         const parsed = JSON.parse(saved);
         setDraft((prev) => ({
@@ -376,7 +410,7 @@ export default function CaseSheetPage() {
       console.warn("Failed to load case sheet draft", error);
     }
     setLoaded(true);
-  }, []);
+  }, [draftKeyLoaded, draftStorageKey]);
 
   useEffect(() => {
     if (!loaded) return;
@@ -390,13 +424,91 @@ export default function CaseSheetPage() {
         draftPresent: true,
         updatedAt: new Date().toISOString(),
       };
-      localStorage.setItem("newPatientCaseSheetDraft", JSON.stringify(payload));
+      localStorage.setItem(draftStorageKey, JSON.stringify(payload));
       setSavedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
     } else {
-      localStorage.removeItem("newPatientCaseSheetDraft");
+      localStorage.removeItem(draftStorageKey);
       setSavedAt(null);
     }
   }, [draft, loaded]);
+
+  useEffect(() => {
+    if (!patientId || !loaded) return;
+
+    const syncCaseSheet = async () => {
+      try {
+        const response = await fetch(`/api/patients/${patientId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            caseSheet: draft.caseSheetText || "",
+            caseSheetAttachments: draft.attachments.map((photo) => ({
+              id: photo.id,
+              name: photo.name,
+              originalName: photo.name,
+              dataUrl: photo.dataUrl,
+              mimeType: "image/jpeg",
+              fileType: "PHOTO",
+              category: "Other",
+              uploadedAt: new Date().toISOString(),
+              source: "case-sheet",
+            })),
+          }),
+        });
+
+        if (!response.ok) {
+          console.warn("Failed to persist case sheet data", response.status);
+        }
+      } catch (error) {
+        console.warn("Failed to persist case sheet data", error);
+      }
+    };
+
+    const timeout = window.setTimeout(() => {
+      void syncCaseSheet();
+    }, 400);
+
+    return () => window.clearTimeout(timeout);
+  }, [draft.caseSheetText, draft.attachments, loaded, patientId]);
+
+  useEffect(() => {
+    if (!patientId || !loaded) return;
+
+    const loadExistingCaseSheet = async () => {
+      try {
+        const response = await fetch(`/api/patients/${patientId}`, { cache: "no-store" });
+        if (!response.ok) return;
+        const data = await response.json().catch(() => null);
+        if (!data) return;
+
+        const attachments = Array.isArray(data.caseSheetAttachments)
+          ? normalizeAttachments(
+              data.caseSheetAttachments.map((photo: any) => ({
+                id: photo.id ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                name: photo.name || photo.originalName || "Photo",
+                dataUrl: photo.dataUrl || "",
+                slotKey: photo.slotKey,
+              }))
+            )
+          : [];
+
+        setDraft(() => ({
+          ...initialDraft,
+          ...(typeof data.name === "string" ? { name: data.name } : {}),
+          ...(typeof data.age !== "undefined" ? { age: String(data.age) } : {}),
+          ...(typeof data.phone === "string" ? { phone: data.phone } : {}),
+          ...(typeof data.address === "string" ? { homeAddress: data.address } : {}),
+          ...(typeof data.occupation === "string" ? { occupation: data.occupation } : {}),
+          ...(typeof data.caseSheet === "string" ? { caseSheetText: data.caseSheet } : {}),
+          attachments,
+        }));
+      } catch (error) {
+        console.warn("Failed to load patient case sheet data", error);
+      }
+    };
+
+    void loadExistingCaseSheet();
+  }, [loaded, patientId]);
 
   const update = <T extends keyof CaseSheetDraft>(field: T, value: CaseSheetDraft[T]) => {
     setDraft((prev) => ({ ...prev, [field]: value }));
@@ -411,7 +523,7 @@ export default function CaseSheetPage() {
 
   const resetDraft = () => {
     setDraft(initialDraft);
-    localStorage.removeItem("newPatientCaseSheetDraft");
+    localStorage.removeItem(draftStorageKey);
     setSavedAt(null);
   };
 
@@ -1346,8 +1458,11 @@ export default function CaseSheetPage() {
               </button>
             </div>
             <div className="mt-8 flex justify-center">
-              <Link href="/add-patient" className="rounded-full bg-emerald-600 px-6 py-3 text-sm font-medium text-white hover:bg-emerald-700">
-                Continue to Patient Page
+              <Link
+                href={patientId ? `/patients/${patientId}` : "/add-patient"}
+                className="rounded-full bg-emerald-600 px-6 py-3 text-sm font-medium text-white hover:bg-emerald-700"
+              >
+                {patientId ? "Back to Patient Profile" : "Continue to Patient Page"}
               </Link>
             </div>
       </main>
