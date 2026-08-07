@@ -65,9 +65,9 @@ type AlignerPatchNotification = {
       const [upcomingClinicSearch, setUpcomingClinicSearch] = useState("");
       const [overdueClinicSearch, setOverdueClinicSearch] = useState("");
       const [expandedSections, setExpandedSections] = useState<Record<"today" | "upcoming" | "overdue", boolean>>({
-        today: true,
-        upcoming: true,
-        overdue: true,
+        today: false,
+        upcoming: false,
+        overdue: false,
       });
       const [alignerAlerts, setAlignerAlerts] = useState<AlignerPatchNotification[]>([]);
       const [dismissedAlignerAlertIds, setDismissedAlignerAlertIds] = useState<string[]>([]);
@@ -472,7 +472,11 @@ type AlignerPatchNotification = {
 <div className="space-y-4">
 <div ref={todaySectionRef} className="bg-gradient-to-br from-white via-cyan-50 to-teal-50 rounded-2xl shadow-sm border border-cyan-100 p-5 md:p-6">
     <div className="flex items-center justify-between mb-6">
- <div className="flex items-center gap-3">
+ <button
+   type="button"
+   onClick={() => setExpandedSections((prev) => ({ ...prev, today: !prev.today }))}
+   className="flex items-center gap-3 text-left"
+ >
   <div className="text-3xl">📅</div>
 
   <div>
@@ -484,7 +488,7 @@ type AlignerPatchNotification = {
       Appointments scheduled today
     </p>
   </div>
-</div>
+</button>
   <div className="flex items-center gap-2">
     <span className="bg-teal-100 text-teal-600 px-3 py-2 rounded-full text-base font-bold">
       {todayPatients.length}
@@ -563,7 +567,7 @@ type AlignerPatchNotification = {
                         <tr key={patient.id} className="hover:bg-gray-50">
                           <td className="py-4 px-4">
                             <Link
-                              href={`/patient/${patient.id}`}
+                              href={`/patients/${patient.id}`}
                               className="font-semibold text-gray-900 hover:text-teal-600"
                             >
                               {patient.name}
@@ -628,7 +632,11 @@ type AlignerPatchNotification = {
             </div>
            <div ref={upcomingSectionRef} className="bg-gradient-to-br from-white via-cyan-50 to-teal-50 rounded-2xl shadow-sm border border-cyan-100 p-5 md:p-6">
    <div className="flex items-center justify-between mb-6">
-  <div className="flex items-center gap-3 mb-3">
+  <button
+    type="button"
+    onClick={() => setExpandedSections((prev) => ({ ...prev, upcoming: !prev.upcoming }))}
+    className="flex items-center gap-3 mb-3 text-left"
+  >
 <div className="text-3xl">⏳</div>
   <div>
 <h2 className="text-xl font-semibold text-gray-900">
@@ -639,7 +647,7 @@ type AlignerPatchNotification = {
         {upcomingMode === "Manual" ? "Manual date search" : `Next ${upcomingMode}`}
     </p>
   </div>
-</div>
+</button>
 
   <div className="flex items-center gap-2">
     <span className="bg-orange-100 text-orange-600 px-3 py-2 rounded-full text-base font-bold">
@@ -761,7 +769,7 @@ type AlignerPatchNotification = {
                         <tr key={patient.id} className="hover:bg-orange-50/50">
                           <td className="py-4 px-4">
                             <Link
-                              href={`/patient/${patient.id}`}
+                              href={`/patients/${patient.id}`}
                               className="font-semibold text-gray-900 hover:text-teal-600"
                             >
                               {patient.name}
@@ -812,7 +820,11 @@ type AlignerPatchNotification = {
 <div ref={overdueSectionRef} className="bg-white rounded-2xl shadow-sm p-6 mt-8">
       <div className="flex items-center justify-between mb-6">
   <div>
-<div className="flex items-center gap-3 mb-3">
+<button
+  type="button"
+  onClick={() => setExpandedSections((prev) => ({ ...prev, overdue: !prev.overdue }))}
+  className="flex items-center gap-3 mb-3 text-left"
+>
 <div className="text-3xl">🚨</div>
   <div>
 <h2 className="text-xl font-semibold text-gray-900">
@@ -823,7 +835,7 @@ type AlignerPatchNotification = {
   Overdue visits
     </p>
   </div>
-</div>
+</button>
 <p className="text-sm text-gray-500 mt-1">
         Patients with overdue appointments
     </p>
@@ -922,7 +934,7 @@ type AlignerPatchNotification = {
             >
               <td className="py-4 px-4">
                 <Link
-                  href={`/patient/${patient.id}`}
+                  href={`/patients/${patient.id}`}
                   className="font-semibold text-gray-900 hover:text-teal-600"
                 >
                   {patient.name}
