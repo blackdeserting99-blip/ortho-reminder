@@ -427,7 +427,6 @@ const patient = await prisma.patient.findFirst({
       console.error('========== SQL FALLBACK ERROR ==========', fallbackError);
       return NextResponse.json({ error: 'Internal Server Error', details: String(fallbackError) }, { status: 500 });
     }
-  }
   } catch (error) {
     return jsonRouteError("GET /api/patients/[id]", error);
   }

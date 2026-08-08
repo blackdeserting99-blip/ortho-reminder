@@ -541,11 +541,11 @@ export default function PatientProfilePage() {
               <div className="mt-2 text-sm text-slate-700">
                 <div>
                   <strong>Upper Wire:</strong>{" "}
-                  {lastVisitOrFallback?.upperWire || (patient?.wireSettings?.upperDamonWire || (patient?.wireSettings?.upperWireGauge ? `${patient.wireSettings.upperWireGauge} ${patient.wireSettings.upperWireMaterial || ""}` : null)) ?? "—"}
+                  {(lastVisitOrFallback?.upperWire || (patient?.wireSettings?.upperDamonWire || (patient?.wireSettings?.upperWireGauge ? `${patient.wireSettings.upperWireGauge} ${patient.wireSettings.upperWireMaterial || ""}` : null))) ?? "—"}
                 </div>
                 <div>
                   <strong>Lower Wire:</strong>{" "}
-                  {lastVisitOrFallback?.lowerWire || (patient?.wireSettings?.lowerDamonWire || (patient?.wireSettings?.lowerWireGauge ? `${patient.wireSettings.lowerWireGauge} ${patient.wireSettings.lowerWireMaterial || ""}` : null)) ?? "—"}
+                  {(lastVisitOrFallback?.lowerWire || (patient?.wireSettings?.lowerDamonWire || (patient?.wireSettings?.lowerWireGauge ? `${patient.wireSettings.lowerWireGauge} ${patient.wireSettings.lowerWireMaterial || ""}` : null))) ?? "—"}
                 </div>
                 <div><strong>Elastics:</strong> {lastVisitOrFallback?.elastics ?? patient?.elasticType ?? (patient?.elasticEnabled ? "Enabled" : "—")}</div>
                 <div><strong>TADs:</strong> {lastVisitOrFallback?.tads ?? patient?.tadsNote ?? "—"}</div>
