@@ -5,12 +5,12 @@ import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import DateInput from "../components/DateInput";
-import PrintableCaseSheet from "./PrintableCaseSheet";
 import OrthoPhotoChart, {
   ORTHO_PHOTO_UPLOAD_SLOTS,
   type OrthoPhotoSlotKey,
 } from "../components/OrthoPhotoChart";
-import { getCaseSheetDraftStorageKey, getCurrentUserId, getPatientCaseSheetDraftStorageKey, migrateCaseSheetDraftStorageKey } from "../lib/draft";
+import { getCaseSheetDraftStorageKey, getCurrentUserId, getExistingCaseSheetDraftStorageKey, getPatientCaseSheetDraftStorageKey, migrateCaseSheetDraftStorageKey } from "../lib/draft";
+import PrintableCaseSheet from "./PrintableCaseSheet";
 
 type EruptionStatus = Record<string, "present" | "not-present">;
 type AttachedPhoto = {
@@ -361,12 +361,29 @@ export default function CaseSheetPage() {
   const [loaded, setLoaded] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [draftStorageKey, setDraftStorageKey] = useState<string>("newPatientCaseSheetDraft");
+  const [existingDraftStorageKey, setExistingDraftStorageKey] = useState<string>("existingPatientCaseSheetDraft");
   const [draftKeyLoaded, setDraftKeyLoaded] = useState(false);
+  const [localDraftExists, setLocalDraftExists] = useState(false);
+  const [existingDraftExists, setExistingDraftExists] = useState(false);
+  const [remoteDraftLoaded, setRemoteDraftLoaded] = useState(!patientId);
+  const [isDirty, setIsDirty] = useState(false);
+  const [useExistingDraftKey, setUseExistingDraftKey] = useState(false);
+  const [continueToHref, setContinueToHref] = useState("/add-patient?tab=new");
+  const [continueToLabel, setContinueToLabel] = useState("Continue to Patient Page");
+
+  useEffect(() => {
+    setDraft(initialDraft);
+    setLoaded(false);
+    setSavedAt(null);
+    setLocalDraftExists(false);
+    setIsDirty(false);
+  }, [patientId]);
 
   useEffect(() => {
     let cancelled = false;
 
     if (patientId) {
+      setRemoteDraftLoaded(false);
       setDraftStorageKey(getPatientCaseSheetDraftStorageKey(patientId));
       setDraftKeyLoaded(true);
       return () => {
@@ -374,13 +391,24 @@ export default function CaseSheetPage() {
       };
     }
 
+    const requestedTab = typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("tab")
+      : null;
+    setUseExistingDraftKey(requestedTab === "existing");
+
     getCurrentUserId().then((userId) => {
       if (cancelled) return;
-      setDraftStorageKey(migrateCaseSheetDraftStorageKey(userId || undefined));
+      const resolvedNewKey = migrateCaseSheetDraftStorageKey(userId || undefined);
+      const resolvedExistingKey = getExistingCaseSheetDraftStorageKey(userId || undefined);
+      setExistingDraftStorageKey(resolvedExistingKey);
+      setDraftStorageKey(requestedTab === "existing" ? resolvedExistingKey : resolvedNewKey);
       setDraftKeyLoaded(true);
     }).catch(() => {
       if (cancelled) return;
-      setDraftStorageKey(getCaseSheetDraftStorageKey(undefined));
+      const resolvedNewKey = getCaseSheetDraftStorageKey(undefined);
+      const resolvedExistingKey = getExistingCaseSheetDraftStorageKey(undefined);
+      setExistingDraftStorageKey(resolvedExistingKey);
+      setDraftStorageKey(requestedTab === "existing" ? resolvedExistingKey : resolvedNewKey);
       setDraftKeyLoaded(true);
     });
 
@@ -392,8 +420,20 @@ export default function CaseSheetPage() {
   useEffect(() => {
     if (!draftKeyLoaded) return;
 
+    if (patientId) {
+      setLocalDraftExists(false);
+      setExistingDraftExists(false);
+      setLoaded(true);
+      setRemoteDraftLoaded(false);
+      return;
+    }
+
+    let foundLocalDraft = false;
     try {
       const saved = localStorage.getItem(draftStorageKey);
+      foundLocalDraft = Boolean(saved);
+      setLocalDraftExists(foundLocalDraft);
+
       if (saved) {
         const parsed = JSON.parse(saved);
         setDraft((prev) => ({
@@ -408,9 +448,46 @@ export default function CaseSheetPage() {
       }
     } catch (error) {
       console.warn("Failed to load case sheet draft", error);
+    } finally {
+      setLoaded(true);
+      if (!patientId || foundLocalDraft) {
+        setRemoteDraftLoaded(true);
+      }
     }
-    setLoaded(true);
-  }, [draftKeyLoaded, draftStorageKey]);
+  }, [draftKeyLoaded, draftStorageKey, patientId]);
+
+  useEffect(() => {
+    if (patientId) {
+      setContinueToHref(`/patients/${patientId}`);
+      setContinueToLabel("Back to Patient Profile");
+      return;
+    }
+
+    try {
+      const existingSaved = localStorage.getItem(existingDraftStorageKey);
+      const parsedExisting = existingSaved ? JSON.parse(existingSaved) : null;
+      const hasExistingDraft = Boolean(parsedExisting && parsedExisting.draftPresent === true);
+      setExistingDraftExists(hasExistingDraft);
+
+      if (useExistingDraftKey || hasExistingDraft) {
+        setContinueToHref("/add-patient?tab=existing");
+        setContinueToLabel("Continue to Existing Patient");
+      } else {
+        setContinueToHref("/add-patient?tab=new");
+        setContinueToLabel("Continue to Patient Page");
+      }
+    } catch (error) {
+      console.warn("Failed to inspect existing-patient draft context", error);
+      setExistingDraftExists(false);
+      if (useExistingDraftKey) {
+        setContinueToHref("/add-patient?tab=existing");
+        setContinueToLabel("Continue to Existing Patient");
+      } else {
+        setContinueToHref("/add-patient?tab=new");
+        setContinueToLabel("Continue to Patient Page");
+      }
+    }
+  }, [patientId, existingDraftStorageKey, draftKeyLoaded, loaded, useExistingDraftKey]);
 
   useEffect(() => {
     if (!loaded) return;
@@ -433,7 +510,8 @@ export default function CaseSheetPage() {
   }, [draft, loaded]);
 
   useEffect(() => {
-    if (!patientId || !loaded) return;
+    if (!patientId || !loaded || !remoteDraftLoaded) return;
+    if (!isDirty && !localDraftExists) return;
 
     const syncCaseSheet = async () => {
       try {
@@ -469,17 +547,25 @@ export default function CaseSheetPage() {
     }, 400);
 
     return () => window.clearTimeout(timeout);
-  }, [draft.caseSheetText, draft.attachments, loaded, patientId]);
+  }, [draft.caseSheetText, draft.attachments, loaded, patientId, isDirty, localDraftExists, remoteDraftLoaded]);
 
   useEffect(() => {
-    if (!patientId || !loaded) return;
+    if (!patientId || !loaded) {
+      if (!patientId) {
+        setRemoteDraftLoaded(true);
+      }
+      return;
+    }
+
+    let cancelled = false;
+    const controller = new AbortController();
 
     const loadExistingCaseSheet = async () => {
       try {
-        const response = await fetch(`/api/patients/${patientId}`, { cache: "no-store" });
+        const response = await fetch(`/api/patients/${patientId}`, { cache: "no-store", signal: controller.signal });
         if (!response.ok) return;
         const data = await response.json().catch(() => null);
-        if (!data) return;
+        if (!data || cancelled) return;
 
         const attachments = Array.isArray(data.caseSheetAttachments)
           ? normalizeAttachments(
@@ -492,6 +578,8 @@ export default function CaseSheetPage() {
             )
           : [];
 
+        if (cancelled) return;
+
         setDraft(() => ({
           ...initialDraft,
           ...(typeof data.name === "string" ? { name: data.name } : {}),
@@ -502,16 +590,27 @@ export default function CaseSheetPage() {
           ...(typeof data.caseSheet === "string" ? { caseSheetText: data.caseSheet } : {}),
           attachments,
         }));
-      } catch (error) {
+      } catch (error: any) {
+        if (error?.name === "AbortError") return;
         console.warn("Failed to load patient case sheet data", error);
+      } finally {
+        if (!cancelled) {
+          setRemoteDraftLoaded(true);
+        }
       }
     };
 
     void loadExistingCaseSheet();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
   }, [loaded, patientId]);
 
   const update = <T extends keyof CaseSheetDraft>(field: T, value: CaseSheetDraft[T]) => {
     setDraft((prev) => ({ ...prev, [field]: value }));
+    setIsDirty(true);
   };
 
   const updateEruptionStatus = (key: string, value: "present" | "not-present") => {
@@ -875,6 +974,7 @@ export default function CaseSheetPage() {
 
     return (
       <>
+        <PrintableCaseSheet draft={draft} />
         <main className="mx-auto max-w-5xl space-y-6 px-4 sm:px-6 lg:px-8">
           <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <h2 className="text-xl font-semibold text-slate-900 mb-4">Patient Information</h2>
@@ -1459,14 +1559,13 @@ export default function CaseSheetPage() {
             </div>
             <div className="mt-8 flex justify-center">
               <Link
-                href={patientId ? `/patients/${patientId}` : "/add-patient"}
+                href={continueToHref}
                 className="rounded-full bg-emerald-600 px-6 py-3 text-sm font-medium text-white hover:bg-emerald-700"
               >
-                {patientId ? "Back to Patient Profile" : "Continue to Patient Page"}
+                {continueToLabel}
               </Link>
             </div>
       </main>
-      <PrintableCaseSheet draft={draft} />
     </>
   );
 }

@@ -1,8 +1,15 @@
 export const PATIENT_CASE_SHEET_DRAFT_KEY_PREFIX = "newPatientCaseSheetDraft";
+export const EXISTING_PATIENT_CASE_SHEET_DRAFT_KEY_PREFIX = "existingPatientCaseSheetDraft";
 export const LEGACY_CASE_SHEET_DRAFT_STORAGE_KEY = PATIENT_CASE_SHEET_DRAFT_KEY_PREFIX;
 
 export function getCaseSheetDraftStorageKey(userId?: string) {
   return userId ? `${PATIENT_CASE_SHEET_DRAFT_KEY_PREFIX}:${userId}` : PATIENT_CASE_SHEET_DRAFT_KEY_PREFIX;
+}
+
+export function getExistingCaseSheetDraftStorageKey(userId?: string) {
+  return userId
+    ? `${EXISTING_PATIENT_CASE_SHEET_DRAFT_KEY_PREFIX}:${userId}`
+    : EXISTING_PATIENT_CASE_SHEET_DRAFT_KEY_PREFIX;
 }
 
 export function migrateCaseSheetDraftStorageKey(userId?: string) {

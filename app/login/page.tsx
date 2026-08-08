@@ -121,6 +121,12 @@ export default function LoginPage() {
             Register here
           </Link>
         </p>
+
+        <p className="mt-3 text-center text-sm text-slate-600">
+          <Link href="/forgot-password" className="font-semibold text-cyan-700 hover:text-cyan-800">
+            Forgot Password?
+          </Link>
+        </p>
       </section>
     </main>
   );

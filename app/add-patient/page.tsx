@@ -13,7 +13,7 @@ import {
   validatePatientRecord,
   CLINIC_COLORS,
 } from "../lib/patient";
-import { getCaseSheetDraftStorageKey, getCurrentUserId, migrateCaseSheetDraftStorageKey } from "../lib/draft";
+import { getCaseSheetDraftStorageKey, getCurrentUserId, getExistingCaseSheetDraftStorageKey, migrateCaseSheetDraftStorageKey } from "../lib/draft";
 
 export default function AddPatientPage() {
   const router = useRouter();
@@ -46,12 +46,21 @@ const [clinicColor, setClinicColor] = useState(CLINIC_COLORS[0]);
 
   const [bracketType, setBracketType] =
     useState("MBT System");
+  const [damonTorques, setDamonTorques] = useState("");
 const [wireMaterial, setWireMaterial] =
   useState("NiTi");
+    const [elasticEnabled, setElasticEnabled] = useState(false);
+    const [elasticType, setElasticType] = useState("Class II");
+    const [tadsNote, setTadsNote] = useState("");
   const [caseSheet, setCaseSheet] = useState("");
   const [caseSheetAttachments, setCaseSheetAttachments] = useState<any[]>([]);
+  const [existingCaseSheet, setExistingCaseSheet] = useState("");
+  const [existingCaseSheetAttachments, setExistingCaseSheetAttachments] = useState<any[]>([]);
   const [draftStorageKey, setDraftStorageKey] = useState<string>("newPatientCaseSheetDraft");
+  const [existingDraftStorageKey, setExistingDraftStorageKey] = useState<string>("existingPatientCaseSheetDraft");
   const [draftKeyLoaded, setDraftKeyLoaded] = useState(false);
+  const [existingLoadedFromId, setExistingLoadedFromId] = useState<number | null>(null);
+  const [existingLoadMessage, setExistingLoadMessage] = useState<string | null>(null);
 
   const [appointmentMode, setAppointmentMode] =
     useState("30 Days");
@@ -61,10 +70,12 @@ const [wireMaterial, setWireMaterial] =
     getCurrentUserId().then((userId) => {
       if (cancelled) return;
       setDraftStorageKey(migrateCaseSheetDraftStorageKey(userId || undefined));
+      setExistingDraftStorageKey(getExistingCaseSheetDraftStorageKey(userId || undefined));
       setDraftKeyLoaded(true);
     }).catch(() => {
       if (cancelled) return;
       setDraftStorageKey(getCaseSheetDraftStorageKey(undefined));
+      setExistingDraftStorageKey(getExistingCaseSheetDraftStorageKey(undefined));
       setDraftKeyLoaded(true);
     });
 
@@ -72,6 +83,105 @@ const [wireMaterial, setWireMaterial] =
       cancelled = true;
     };
   }, []);
+
+  const parseWireLabelFromString = (value: string) => {
+    const v = (value || "").trim();
+    const result: { material?: string; gauge?: string; isDamon?: boolean; damon?: string; other?: string } = {};
+    if (!v) return result;
+
+    // Damon wires often contain 'CuNiTi' or other descriptors
+    if (/Damon|CuNiTi|Damon/i.test(v)) {
+      result.isDamon = true;
+      result.damon = v;
+      return result;
+    }
+
+    // Gauge like '16', '17x25', '18x25'
+    const gaugeMatch = v.match(/(\d{2}(?:x\d{2})?)/);
+    if (gaugeMatch) result.gauge = gaugeMatch[1];
+
+    if (/SS|Stainless/i.test(v)) {
+      result.material = "Stainless Steel";
+    } else if (/NiTi|Niti/i.test(v)) {
+      result.material = "NiTi";
+    }
+
+    if (!result.material && result.gauge) {
+      // fallback: assume NiTi
+      result.material = "NiTi";
+    }
+
+    return result;
+  };
+
+  const loadExistingLastVisit = async () => {
+    try {
+      const allResp = await fetch("/api/patients", { cache: "no-store", credentials: "same-origin" });
+      if (!allResp.ok) return;
+      const all = await allResp.json();
+      const normalizedPhone = (existingPhone || "").replace(/\D/g, "").trim();
+
+      const match = Array.isArray(all)
+        ? all.find((p: any) => {
+            const sameName = typeof p?.name === "string" && p.name.trim().toLowerCase() === (existingName || "").trim().toLowerCase();
+            const samePhone = typeof p?.phone === "string" && (p.phone || "").replace(/\D/g, "").trim() === normalizedPhone;
+            return samePhone || sameName;
+          })
+        : null;
+
+      if (!match?.id) return;
+
+      const pResp = await fetch(`/api/patients/${match.id}`, { cache: "no-store", credentials: "same-origin" });
+      if (!pResp.ok) return;
+      const data = await pResp.json();
+      const last = data.visits && data.visits.length > 0 ? data.visits[data.visits.length - 1] : null;
+
+      if (last) {
+        const up = parseWireLabelFromString(last.upperWire || last.upperArch || "");
+        const lo = parseWireLabelFromString(last.lowerWire || last.lowerArch || "");
+
+        if (up.isDamon) {
+          setExistingBracketType("Damon System");
+          setExistingUpperDamonWire(up.damon || "Other");
+          setExistingUpperDamonWireOther(up.other || "");
+        } else {
+          setExistingUpperWireMaterial(up.material || "NiTi");
+          if (up.gauge) setExistingUpperWireGauge(up.gauge);
+        }
+
+        if (lo.isDamon) {
+          setExistingBracketType("Damon System");
+          setExistingLowerDamonWire(lo.damon || "Other");
+          setExistingLowerDamonWireOther(lo.other || "");
+        } else {
+          setExistingLowerWireMaterial(lo.material || "NiTi");
+          if (lo.gauge) setExistingLowerWireGauge(lo.gauge);
+        }
+
+        if (typeof data.damonTorques === "string") setExistingDamonTorques(data.damonTorques || "");
+
+        // Populate notes with elastics/tads/visit notes if present
+        const parts: string[] = [];
+        if (last.elastics) parts.push(`Elastics: ${last.elastics}`);
+        if (last.tads) parts.push(`TADs: ${last.tads}`);
+        if (last.visitNotes) parts.push(last.visitNotes);
+        if (parts.length > 0) setExistingNotes(parts.join(" — "));
+      }
+      else {
+        // provide feedback when no visits found but patient exists
+        if (match?.id) {
+          // set existing notes to include patient-level tads/elastic/damon if present
+          const parts: string[] = [];
+          if (data.tadsNote) parts.push(`TADs: ${data.tadsNote}`);
+          if (data.elasticType || data.elasticEnabled) parts.push(`Elastics: ${data.elasticType || (data.elasticEnabled ? 'Enabled' : '')}`);
+          if (data.damonTorques) parts.push(`Damon Torques: ${data.damonTorques}`);
+          if (parts.length > 0) setExistingNotes(parts.join(" — "));
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to load existing patient last visit", err);
+    }
+  };
 
   useEffect(() => {
     if (!draftKeyLoaded) return;
@@ -114,9 +224,81 @@ const [wireMaterial, setWireMaterial] =
         }
       }
     } catch (error) {
-      console.warn("Failed to load case sheet draft", error);
+      console.warn("Failed to load new-patient case sheet draft", error);
     }
-  }, [draftKeyLoaded, draftStorageKey]);
+
+    try {
+      const existingDraft = JSON.parse(
+        localStorage.getItem(existingDraftStorageKey) || "null"
+      );
+
+      if (
+        existingDraft &&
+        existingDraft.draftPresent === true &&
+        typeof existingDraft.caseSheetText === "string"
+      ) {
+        setExistingCaseSheet(existingDraft.caseSheetText);
+      }
+
+      if (existingDraft && typeof existingDraft === "object") {
+        if (typeof existingDraft.name === "string" && existingDraft.name.trim()) {
+          setExistingName(existingDraft.name);
+        }
+        if (typeof existingDraft.phone === "string" && existingDraft.phone.trim()) {
+          setExistingPhone(existingDraft.phone);
+        } else if (typeof existingDraft.mobile === "string" && existingDraft.mobile.trim()) {
+          setExistingPhone(existingDraft.mobile);
+        } else if (typeof existingDraft.homePhone === "string" && existingDraft.homePhone.trim()) {
+          setExistingPhone(existingDraft.homePhone);
+        }
+        if (typeof existingDraft.homeAddress === "string" && existingDraft.homeAddress.trim()) {
+          setExistingAddress(existingDraft.homeAddress);
+        }
+        if (typeof existingDraft.age === "string" && existingDraft.age.trim()) {
+          setExistingAge(existingDraft.age);
+        }
+        if (typeof existingDraft.occupation === "string" && existingDraft.occupation.trim()) {
+          setExistingOccupation(existingDraft.occupation);
+        }
+        if (typeof existingDraft.wireSettings === "object" && existingDraft.wireSettings !== null) {
+          const wireSettings = existingDraft.wireSettings as Record<string, unknown>;
+          if (typeof wireSettings.upperWireMaterial === "string") {
+            setExistingUpperWireMaterial(wireSettings.upperWireMaterial);
+          }
+          if (typeof wireSettings.lowerWireMaterial === "string") {
+            setExistingLowerWireMaterial(wireSettings.lowerWireMaterial);
+          }
+          if (typeof wireSettings.upperWireGauge === "string") {
+            setExistingUpperWireGauge(wireSettings.upperWireGauge);
+          }
+          if (typeof wireSettings.lowerWireGauge === "string") {
+            setExistingLowerWireGauge(wireSettings.lowerWireGauge);
+          }
+          if (typeof wireSettings.upperDamonWire === "string") {
+            setExistingUpperDamonWire(wireSettings.upperDamonWire);
+          }
+          if (typeof wireSettings.upperDamonWireOther === "string") {
+            setExistingUpperDamonWireOther(wireSettings.upperDamonWireOther);
+          }
+          if (typeof wireSettings.lowerDamonWire === "string") {
+            setExistingLowerDamonWire(wireSettings.lowerDamonWire);
+          }
+          if (typeof wireSettings.lowerDamonWireOther === "string") {
+            setExistingLowerDamonWireOther(wireSettings.lowerDamonWireOther);
+          }
+        }
+        if (typeof existingDraft.wireMaterial === "string" && existingDraft.wireMaterial.trim()) {
+          setExistingUpperWireMaterial(existingDraft.wireMaterial);
+          setExistingLowerWireMaterial(existingDraft.wireMaterial);
+        }
+        if (Array.isArray(existingDraft.attachments)) {
+          setExistingCaseSheetAttachments(existingDraft.attachments);
+        }
+      }
+    } catch (error) {
+      console.warn("Failed to load existing-patient case sheet draft", error);
+    }
+  }, [draftKeyLoaded, draftStorageKey, existingDraftStorageKey]);
   const [appointmentDate, setAppointmentDate] =
     useState("");
 
@@ -162,6 +344,21 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
     { key: "existing", label: "Existing Patient" },
   ];
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const search = new URLSearchParams(window.location.search);
+    const requestedTab = search.get("tab");
+
+    if (requestedTab === "existing") {
+      setActiveTab("existing");
+    } else if (requestedTab === "new") {
+      setActiveTab("new");
+    } else {
+      setActiveTab("new");
+    }
+  }, []);
+
   // Existing Patient form states
   const [existingName, setExistingName] = useState("");
   const [existingPhone, setExistingPhone] = useState("");
@@ -175,14 +372,19 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
   const [existingTreatmentType, setExistingTreatmentType] = useState("Fixed Braces");
   const [existingTreatment, setExistingTreatment] = useState("Fixed Braces");
   const [existingBracketType, setExistingBracketType] = useState("MBT System");
-  const [existingWireMaterial, setExistingWireMaterial] = useState("NiTi");
+  const [existingUpperWireMaterial, setExistingUpperWireMaterial] = useState("NiTi");
+  const [existingLowerWireMaterial, setExistingLowerWireMaterial] = useState("NiTi");
   const [existingMyofunctionalType, setExistingMyofunctionalType] = useState("Fixed");
   const [existingUpperDamonWire, setExistingUpperDamonWire] = useState("0.014 CuNiTi");
   const [existingUpperDamonWireOther, setExistingUpperDamonWireOther] = useState("");
   const [existingLowerDamonWire, setExistingLowerDamonWire] = useState("0.014 CuNiTi");
   const [existingLowerDamonWireOther, setExistingLowerDamonWireOther] = useState("");
+  const [existingDamonTorques, setExistingDamonTorques] = useState("");
   const [existingUpperWireGauge, setExistingUpperWireGauge] = useState("16");
   const [existingLowerWireGauge, setExistingLowerWireGauge] = useState("16");
+  const [existingElasticEnabled, setExistingElasticEnabled] = useState(false);
+  const [existingElasticType, setExistingElasticType] = useState("Class II");
+  const [existingTadsNote, setExistingTadsNote] = useState("");
 
   // Existing patient treatment progress states
   const [existingAlignerProgress, setExistingAlignerProgress] = useState(10);
@@ -339,6 +541,10 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
       treatment: finalTreatment,
       treatmentCategory: treatmentType,
       bracketType: treatmentType === "Fixed Braces" ? bracketType : undefined,
+      damonTorques:
+        treatmentType === "Fixed Braces" && bracketType === "Damon System"
+          ? damonTorques.trim() || undefined
+          : undefined,
       wireMaterial:
   treatmentType === "Fixed Braces"
     ? wireMaterial
@@ -354,8 +560,9 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
       totalPaid: Number(alreadyPaid) || 0,
       retainerFee: Number(retainerFee) || 0,
       elasticEnabled: false,
-      elasticType: "",
-      tadsNote: "",
+      elasticEnabled: elasticEnabled,
+      elasticType: elasticType || undefined,
+      tadsNote: tadsNote || undefined,
       caseStatus: "active",
       myofunctionalType:
         treatmentType === "Myofunctional Appliance"
@@ -488,7 +695,11 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
         // ignore
       }
       localStorage.removeItem(draftStorageKey);
-      router.push("/patients");
+      if (created?.id) {
+        router.push(`/patients/${created.id}`);
+      } else {
+        router.push("/patients");
+      }
     } catch (error: any) {
       setValidationErrors([error?.message || "Unable to save the patient right now."]);
     }
@@ -518,9 +729,28 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
       treatment: finalTreatment,
       treatmentCategory: existingTreatmentType,
       bracketType: existingTreatmentType === "Fixed Braces" ? existingBracketType : undefined,
-      wireMaterial:
-        existingTreatmentType === "Fixed Braces" && existingBracketType !== "Damon System"
-          ? existingWireMaterial
+      damonTorques:
+        existingTreatmentType === "Fixed Braces" && existingBracketType === "Damon System"
+          ? existingDamonTorques.trim() || undefined
+          : undefined,
+      wireSettings:
+        existingTreatmentType === "Fixed Braces"
+          ? {
+              upperWireMaterial:
+                existingBracketType !== "Damon System" ? existingUpperWireMaterial : undefined,
+              lowerWireMaterial:
+                existingBracketType !== "Damon System" ? existingLowerWireMaterial : undefined,
+              upperWireGauge: existingUpperWireGauge,
+              lowerWireGauge: existingLowerWireGauge,
+              upperDamonWire:
+                existingBracketType === "Damon System" ? existingUpperDamonWire : undefined,
+              upperDamonWireOther:
+                existingBracketType === "Damon System" ? existingUpperDamonWireOther || undefined : undefined,
+              lowerDamonWire:
+                existingBracketType === "Damon System" ? existingLowerDamonWire : undefined,
+              lowerDamonWireOther:
+                existingBracketType === "Damon System" ? existingLowerDamonWireOther || undefined : undefined,
+            }
           : undefined,
       myofunctionalType: existingTreatmentType === "Myofunctional Appliance" ? existingMyofunctionalType : undefined,
       appointmentDate: existingSelectedDate || undefined,
@@ -531,15 +761,15 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
       totalFee: existingTotalFee ? Number(existingTotalFee) : undefined,
       totalPaid: existingAlreadyPaid ? Number(existingAlreadyPaid) : undefined,
       retainerFee: undefined,
-      elasticEnabled: false,
-      elasticType: undefined,
-      tadsNote: undefined,
+      elasticEnabled: existingElasticEnabled,
+      elasticType: existingElasticType || undefined,
+      tadsNote: existingTadsNote || undefined,
       caseStatus: "active",
       clearAlignersPlan: undefined,
       myofunctionalProgram: undefined,
-      caseSheet: caseSheet || undefined,
-      caseSheetAttachments: caseSheetAttachments.length
-        ? caseSheetAttachments.map((photo) => ({
+      caseSheet: existingCaseSheet || undefined,
+      caseSheetAttachments: existingCaseSheetAttachments.length
+        ? existingCaseSheetAttachments.map((photo) => ({
             id: photo.id,
             name: photo.name,
             originalName: photo.name,
@@ -557,6 +787,114 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
     };
 
     try {
+      const allPatientsResponse = await fetch("/api/patients", { cache: "no-store", credentials: "same-origin" });
+      const allPatients = allPatientsResponse.ok
+        ? await allPatientsResponse.json().catch(() => [])
+        : [];
+
+      const normalizedLookupPhone = (existingPhone || "")
+        .replace(/[^\d]/g, "")
+        .trim();
+
+      const matchingPatient = Array.isArray(allPatients)
+        ? allPatients.find((patient: any) => {
+            const sameName =
+              typeof patient?.name === "string" &&
+              patient.name.trim().toLowerCase() === trimmedName.toLowerCase();
+            const samePhone =
+              typeof patient?.phone === "string" &&
+              (patient.phone || "")
+                .replace(/[^\d]/g, "")
+                .trim() === normalizedLookupPhone;
+            return samePhone || sameName;
+          })
+        : null;
+
+      if (matchingPatient?.id) {
+        // If we already loaded this existing patient into the form, perform PATCH to save changes
+        if (existingLoadedFromId === matchingPatient.id) {
+          try {
+            const patchResponse = await fetch(`/api/patients/${matchingPatient.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(newPatient),
+            });
+
+            const patchData = await patchResponse.json().catch(() => null);
+            if (!patchResponse.ok) {
+              setValidationErrors([patchData?.error || "Unable to update the existing patient right now."]);
+              return;
+            }
+
+            setValidationErrors([]);
+            setConflictWarning("");
+            localStorage.removeItem(existingDraftStorageKey);
+            router.push(`/patients/${matchingPatient.id}`);
+            return;
+          } catch (err) {
+            setValidationErrors(["Failed to update existing patient."]);
+            return;
+          }
+        }
+
+        // Otherwise, load existing patient data into the form for review
+        try {
+          const resp = await fetch(`/api/patients/${matchingPatient.id}`, { cache: "no-store", credentials: "same-origin" });
+          if (!resp.ok) {
+            setValidationErrors(["Found existing patient but failed to load details."]);
+            return;
+          }
+
+          const data = await resp.json();
+
+          // Populate existing form fields from patient record (not only case-sheet)
+          setExistingName(data.name || "");
+          setExistingPhone(data.phone || "");
+          setExistingAddress(data.address || "");
+          setExistingAge(data.age != null ? String(data.age) : "");
+          setExistingOccupation(data.occupation || "");
+          setExistingClinicEnabled(Boolean(data.clinicName));
+          setExistingClinicName(data.clinicName || "");
+          setExistingClinicColor(data.clinicColor || CLINIC_COLORS[0]);
+          setExistingTreatmentType(data.treatmentCategory || data.treatment || "Fixed Braces");
+          setExistingTreatment(data.treatment || data.treatmentCategory || "Fixed Braces");
+          setExistingBracketType(data.bracketType || "MBT System");
+
+          // wires / damon torques from metadata or last visit
+          if (typeof data.damonTorques === "string") setExistingDamonTorques(data.damonTorques || "");
+          // try extract from last visit
+          const last = data.visits && data.visits.length > 0 ? data.visits[data.visits.length - 1] : null;
+          if (last) {
+            if (last.upperWire) setExistingUpperWireMaterial(last.upperWire.includes("SS") ? "Stainless Steel" : "NiTi");
+            if (last.lowerWire) setExistingLowerWireMaterial(last.lowerWire.includes("SS") ? "Stainless Steel" : "NiTi");
+            if (last.upperWire && /\d/.test(last.upperWire)) setExistingUpperWireGauge((last.upperWire.match(/(\d{2}(?:x\d{2})?)/) || [])[0] || existingUpperWireGauge);
+            if (last.lowerWire && /\d/.test(last.lowerWire)) setExistingLowerWireGauge((last.lowerWire.match(/(\d{2}(?:x\d{2})?)/) || [])[0] || existingLowerWireGauge);
+            if (last.elastics) setExistingNotes((prev) => (prev ? prev + " — " + `Elastics: ${last.elastics}` : `Elastics: ${last.elastics}`));
+              if (last.tads) setExistingNotes((prev) => (prev ? prev + " — " + `TADs: ${last.tads}` : `TADs: ${last.tads}`));
+              if (last.elastics) { setExistingElasticEnabled(true); setExistingElasticType(last.elastics); }
+              if (last.tads) { setExistingTadsNote(last.tads); }
+          }
+
+          if (data.tadsNote) { setExistingNotes((prev) => (prev ? prev + " — " + `TADs: ${data.tadsNote}` : `TADs: ${data.tadsNote}`)); setExistingTadsNote(data.tadsNote); }
+          if (data.elasticType || data.elasticEnabled) { setExistingNotes((prev) => (prev ? prev + " — " + `Elastics: ${data.elasticType || (data.elasticEnabled ? 'Enabled' : '')}` : `Elastics: ${data.elasticType || (data.elasticEnabled ? 'Enabled' : '')}`)); setExistingElasticEnabled(Boolean(data.elasticEnabled)); setExistingElasticType(data.elasticType || "Class II"); }
+          if (data.totalFee != null) setExistingTotalFee(String(data.totalFee));
+          if (data.totalPaid != null) setExistingAlreadyPaid(String(data.totalPaid || 0));
+
+          setExistingCaseSheet(data.caseSheet || "");
+          setExistingCaseSheetAttachments(Array.isArray(data.caseSheetAttachments) ? data.caseSheetAttachments : []);
+
+          setExistingLoadedFromId(matchingPatient.id);
+          setExistingLoadMessage("Loaded existing patient data into the form. Review and click Save to update or keep as new.");
+          setValidationErrors([]);
+          setConflictWarning("");
+          // do not auto-patch; allow the user to review and save
+          return;
+        } catch (err) {
+          setValidationErrors(["Failed to load existing patient details."]);
+          return;
+        }
+      }
+
       const response = await fetch("/api/patients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -572,7 +910,12 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
 
       setValidationErrors([]);
       setConflictWarning("");
-      router.push("/patients");
+      localStorage.removeItem(existingDraftStorageKey);
+      if (data?.id) {
+        router.push(`/patients/${data.id}`);
+      } else {
+        router.push("/patients");
+      }
     } catch (error: any) {
       setValidationErrors([error?.message || "Unable to save the patient right now."]);
     }
@@ -630,7 +973,7 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
               </div>
               <div className="flex flex-col gap-3 sm:items-end">
                 <Link
-                  href="/case-sheet"
+                  href="/case-sheet?tab=new"
                   className="inline-flex items-center justify-center rounded-full bg-teal-600 px-5 py-3 text-sm font-medium text-white shadow-sm hover:bg-teal-700"
                 >
                   Open case sheet page
@@ -709,14 +1052,46 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
               </select>
 
               {treatmentType === "Fixed Braces" && (
-                <div className="mt-4">
-                  <label className="block mb-2">Bracket System</label>
-                  <select value={bracketType} onChange={(e) => setBracketType(e.target.value)} className="w-full border p-3 rounded">
-                    <option>MBT System</option>
-                    <option>Roth System</option>
-                    <option>Damon System</option>
-                  </select>
-      
+                <div className="mt-4 space-y-4">
+                  <div>
+                    <label className="block mb-2">Bracket System</label>
+                    <select value={bracketType} onChange={(e) => setBracketType(e.target.value)} className="w-full border p-3 rounded">
+                      <option>MBT System</option>
+                      <option>Roth System</option>
+                      <option>Damon System</option>
+                    </select>
+                  </div>
+                  {bracketType === "Damon System" ? (
+                    <div>
+                      <label className="block mb-2">Torques</label>
+                      <input
+                        type="text"
+                        value={damonTorques}
+                        onChange={(e) => setDamonTorques(e.target.value)}
+                        className="w-full border p-3 rounded"
+                        placeholder="Enter Damon torques"
+                      />
+                    </div>
+                  ) : null}
+                  <div className="mt-4">
+                    <h4 className="font-medium mb-2">Elastics & TADs</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block mb-2">Elastics (type)</label>
+                        <select value={elasticType} onChange={(e) => setElasticType(e.target.value)} className="w-full border p-3 rounded">
+                          <option>Class II</option>
+                          <option>Class III</option>
+                          <option>Cross</option>
+                          <option>Other</option>
+                        </select>
+                        <label className="inline-flex items-center gap-2 mt-2"><input type="checkbox" checked={elasticEnabled} onChange={(e) => setElasticEnabled(e.target.checked)} /> Enabled</label>
+                      </div>
+                      <div>
+                        <label className="block mb-2">TADs Note</label>
+                        <input type="text" value={tadsNote} onChange={(e) => setTadsNote(e.target.value)} className="w-full border p-3 rounded" placeholder="TADs / mini-implant notes" />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -989,7 +1364,7 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
               </div>
               <div className="flex flex-col gap-3 sm:items-end">
                 <Link
-                  href="/case-sheet"
+                  href="/case-sheet?tab=existing"
                   className="inline-flex items-center justify-center rounded-full bg-teal-600 px-5 py-3 text-sm font-medium text-white shadow-sm hover:bg-teal-700"
                 >
                   Open case sheet page
@@ -1000,9 +1375,9 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
               </div>
             </div>
 
-            {caseSheet && (
+            {existingCaseSheet && (
               <div className="mb-4 rounded-2xl border border-teal-200 bg-teal-50 p-4 text-slate-700">
-                <p className="font-medium">Case sheet draft loaded.</p>
+                <p className="font-medium">Existing patient case sheet draft loaded.</p>
                 <p className="text-sm">Continue on this page to save the existing patient, or edit the draft on the case sheet page.</p>
               </div>
             )}
@@ -1012,15 +1387,26 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
               <input type="text" value={existingName} onChange={(e) => setExistingName(e.target.value)} className="w-full border p-3 rounded" placeholder="Patient name" />
             </div>
 
+            {existingLoadMessage ? (
+              <div className="mb-4 rounded-lg border border-teal-200 bg-teal-50 p-3 text-teal-800">
+                {existingLoadMessage}
+              </div>
+            ) : null}
+
             <div className="mb-4">
               <label className="block mb-2">Contact Number</label>
-              <input type="tel" inputMode="tel" value={existingPhone} onChange={(e) => setExistingPhone(formatPhoneInput(e.target.value))} className="w-full border p-3 rounded" placeholder="e.g., 0770 123 4567" />
+              <div className="flex items-center gap-3">
+                <input type="tel" inputMode="tel" value={existingPhone} onChange={(e) => setExistingPhone(formatPhoneInput(e.target.value))} className="flex-1 border p-3 rounded" placeholder="e.g., 0770 123 4567" />
+                <button type="button" onClick={loadExistingLastVisit} className="rounded-lg border bg-white px-3 py-2 text-sm text-slate-700">Load last visit</button>
+              </div>
             </div>
 
             <div className="mb-4">
               <label className="block mb-2">Address</label>
               <input type="text" value={existingAddress} onChange={(e) => setExistingAddress(e.target.value)} className="w-full border p-3 rounded" placeholder="Patient address" />
             </div>
+
+            {/* Elastics & TADs moved into the braces card below */}
 
             <div className="mb-4">
               <label className="block mb-2">Age (years)</label>
@@ -1075,7 +1461,13 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
                   <label className="block mb-2">Bracket System</label>
                   <select
                     value={existingBracketType}
-                    onChange={(e) => setExistingBracketType(e.target.value)}
+                    onChange={(e) => {
+                      const nextBracketType = e.target.value;
+                      setExistingBracketType(nextBracketType);
+                      if (nextBracketType !== "Damon System") {
+                        setExistingDamonTorques("");
+                      }
+                    }}
                     className="w-full border p-3 rounded"
                   >
                     <option>MBT System</option>
@@ -1087,15 +1479,30 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
                 <div className="mt-4">
                   {existingBracketType !== "Damon System" && (
                     <>
-                      <label className="block mb-2">Wire Material</label>
-                      <select
-                        value={existingWireMaterial}
-                        onChange={(e) => setExistingWireMaterial(e.target.value)}
-                        className="w-full border p-3 rounded"
-                      >
-                        <option value="NiTi">NiTi</option>
-                        <option value="Stainless Steel">Stainless Steel (SS)</option>
-                      </select>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block mb-2">Upper Wire Material</label>
+                          <select
+                            value={existingUpperWireMaterial}
+                            onChange={(e) => setExistingUpperWireMaterial(e.target.value)}
+                            className="w-full border p-3 rounded"
+                          >
+                            <option value="NiTi">NiTi</option>
+                            <option value="Stainless Steel">Stainless Steel (SS)</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block mb-2">Lower Wire Material</label>
+                          <select
+                            value={existingLowerWireMaterial}
+                            onChange={(e) => setExistingLowerWireMaterial(e.target.value)}
+                            className="w-full border p-3 rounded"
+                          >
+                            <option value="NiTi">NiTi</option>
+                            <option value="Stainless Steel">Stainless Steel (SS)</option>
+                          </select>
+                        </div>
+                      </div>
 
                       <div className="grid grid-cols-2 gap-3 mt-4">
                         <div>
@@ -1166,6 +1573,35 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
                             placeholder="Enter lower custom Damon wire"
                           />
                         )}
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block mb-2">Damon Torques</label>
+                        <input
+                          type="text"
+                          value={existingDamonTorques}
+                          onChange={(e) => setExistingDamonTorques(e.target.value)}
+                          className="w-full border p-3 rounded"
+                          placeholder="Enter Damon torques"
+                        />
+                      </div>
+                      <div className="sm:col-span-2 mt-4 bg-slate-50 p-3 rounded border border-slate-100">
+                        <h4 className="font-medium mb-2">Elastics & TADs</h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block mb-2">Elastics (type)</label>
+                            <select value={existingElasticType} onChange={(e) => setExistingElasticType(e.target.value)} className="w-full border p-2 rounded text-sm">
+                              <option>Class II</option>
+                              <option>Class III</option>
+                              <option>Cross</option>
+                              <option>Other</option>
+                            </select>
+                            <label className="inline-flex items-center gap-2 mt-2 text-sm"><input type="checkbox" checked={existingElasticEnabled} onChange={(e) => setExistingElasticEnabled(e.target.checked)} /> Enabled</label>
+                          </div>
+                          <div>
+                            <label className="block mb-2">TADs Note</label>
+                            <input type="text" value={existingTadsNote} onChange={(e) => setExistingTadsNote(e.target.value)} className="w-full border p-2 rounded text-sm" placeholder="TADs / mini-implant notes" />
+                          </div>
+                        </div>
                       </div>
                     </div>
                   )}

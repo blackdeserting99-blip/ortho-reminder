@@ -19,12 +19,12 @@ This app uses Next.js App Router, Tailwind CSS, and client-side localStorage per
 Set these variables in your deployment environment and local `.env` file:
 
 - `DATABASE_URL`: PostgreSQL connection string.
-- `META_APP_ID`: Meta app ID used to initialize the Facebook SDK.
-- `META_APP_SECRET`: Meta app secret used for OAuth code exchange on the server.
+- `META_APP_ID`: Meta app ID used for Embedded Signup.
+- `META_APP_SECRET`: Meta app secret used for code exchange.
 - `META_EMBEDDED_SIGNUP_CONFIG_ID`: Meta Embedded Signup configuration ID.
-- `CALLBACK_URL`: Redirect URI registered in Meta app settings and used in OAuth code exchange.
+- `META_EMBEDDED_SIGNUP_REDIRECT_URI` (optional): Redirect URI used during code exchange, if required by your Meta app config.
+- `META_GRAPH_API_VERSION` (optional): Graph API version. Defaults to `v23.0`.
 - `WHATSAPP_TOKEN_ENCRYPTION_KEY`: Secret used to encrypt per-doctor WhatsApp access tokens at rest.
-- `WHATSAPP_API_VERSION` (optional): Graph API version. Defaults to `v21.0`.
 
 ## Learn More
 

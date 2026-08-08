@@ -53,13 +53,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     select: {
       whatsappAccessToken: true,
       whatsappPhoneNumberId: true,
-      whatsappBusinessAccountId: true,
     },
   });
   const doctorCredentials = await buildDoctorWhatsAppCredentials({
     whatsappAccessToken: doctor?.whatsappAccessToken,
     whatsappPhoneNumberId: doctor?.whatsappPhoneNumberId,
-    whatsappBusinessAccountId: doctor?.whatsappBusinessAccountId,
   });
 
   const toDateOrNull = (value: unknown): Date | null => {

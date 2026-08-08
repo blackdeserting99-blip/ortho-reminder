@@ -240,20 +240,29 @@ button {
     display: none !important;
   }
 
-  body * {
-    visibility: hidden !important;
+  body > :not(#print-template) {
+    display: none !important;
+  }
+
+  body {
+    display: block !important;
+    background: #fff !important;
+    color: #000 !important;
   }
 
   #print-template,
   #print-template * {
+    display: block !important;
     visibility: visible !important;
   }
 
   #print-template {
-    display: block !important;
-    position: absolute !important;
-    inset: 0 auto auto 0 !important;
+    position: static !important;
     width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    inset: auto !important;
+    background: #fff !important;
   }
 
   input,

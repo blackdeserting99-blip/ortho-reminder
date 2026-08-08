@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/app/lib/auth";
 import { prisma } from "@/app/lib/prisma";
+import { neon } from "@neondatabase/serverless";
 import { getDoctorWhatsApp } from "@/app/lib/doctor-whatsapp";
 import {
   buildDoctorWhatsAppCredentials,
@@ -13,6 +14,14 @@ import {
 } from "@/app/lib/whatsapp";
 
 const hasValue = (value: unknown) => String(value ?? "").trim().length > 0;
+
+function getSqlClient() {
+  const connectionString = process.env.DATABASE_URL || process.env.NEON_DATABASE_URL;
+  if (!connectionString || connectionString === "undefined") {
+    throw new Error("DATABASE_URL is not configured");
+  }
+  return neon(connectionString);
+}
 
 function getMetadataObject(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -174,13 +183,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     select: {
       whatsappAccessToken: true,
       whatsappPhoneNumberId: true,
-      whatsappBusinessAccountId: true,
     },
   });
   const doctorCredentials = await buildDoctorWhatsAppCredentials({
     whatsappAccessToken: doctor?.whatsappAccessToken,
     whatsappPhoneNumberId: doctor?.whatsappPhoneNumberId,
-    whatsappBusinessAccountId: doctor?.whatsappBusinessAccountId,
   });
 
   return NextResponse.json(
@@ -192,136 +199,92 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const user = await getCurrentUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { id } = await params;
-  const patientId = Number(id);
-
-  if (!Number.isFinite(patientId)) {
-    return NextResponse.json({ error: "Invalid patient id" }, { status: 400 });
-  }
-
-  const patient = await prisma.patient.findFirst({
-    where: { id: patientId, userId: user.id },
-    include: {
-      clinic: {
-        select: {
-          phone: true,
-          metadata: true,
-        },
-      },
-    },
-  });
-
-  if (!patient) {
-    return NextResponse.json({ error: "Patient not found" }, { status: 404 });
-  }
-
-  const doctor = await prisma.user.findUnique({
-    where: { id: user.id },
-    select: {
-      whatsappAccessToken: true,
-      whatsappPhoneNumberId: true,
-      whatsappBusinessAccountId: true,
-    },
-  });
-  const doctorCredentials = await buildDoctorWhatsAppCredentials({
-    whatsappAccessToken: doctor?.whatsappAccessToken,
-    whatsappPhoneNumberId: doctor?.whatsappPhoneNumberId,
-    whatsappBusinessAccountId: doctor?.whatsappBusinessAccountId,
-  });
-
-  const body = await request.json().catch(() => null);
-  if (!body || !body.visitDate) {
-    return NextResponse.json({ error: "Visit date is required" }, { status: 400 });
-  }
-
-  const hadElasticsBefore = await prisma.visit.count({
-    where: {
-      patientId,
-      elastics: {
-        not: null,
-      },
-    },
-  });
-
-  const hadTadsBefore = await prisma.visit.count({
-    where: {
-      patientId,
-      tads: {
-        not: null,
-      },
-    },
-  });
-
-  const buildCreateData = (includePlannedFields: boolean) => ({
-    patientId,
-    visitDate: new Date(body.visitDate),
-    visitType: body.visitType ?? null,
-    diagnosis: body.diagnosis ?? null,
-    treatmentNotes: body.treatmentNotes ?? null,
-    upperArch: body.upperArch ?? null,
-    lowerArch: body.lowerArch ?? null,
-    wireType: body.wireType ?? null,
-    elastics: body.elastics ?? null,
-    tads: body.tads ?? null,
-    ...(includePlannedFields
-      ? {
-          plannedUpperArch: body.plannedUpperArch ?? null,
-          plannedLowerArch: body.plannedLowerArch ?? null,
-          plannedElasticType: body.plannedElasticType ?? null,
-          plannedTadsNote: body.plannedTadsNote ?? null,
-        }
-      : {}),
-    plannedTreatment: body.plannedTreatment ?? null,
-    paymentCollected: body.paymentCollected ?? null,
-    nextAppointment: body.nextAppointment ? new Date(body.nextAppointment) : null,
-    chairTime: body.chairTime ?? null,
-  });
-
   try {
-    let visit;
-
-    try {
-      visit = await prisma.visit.create({
-        data: buildCreateData(true),
-      });
-    } catch (error) {
-      if (!isUnknownPlannedFieldError(error)) {
-        throw error;
-      }
-
-      visit = await prisma.visit.create({
-        data: buildCreateData(false),
-      });
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (visit && hasValue(visit.elastics) && hadElasticsBefore === 0) {
-      await sendElasticsStartedNotification({
-        doctorCredentials,
-        patient,
-        elasticType: visit.elastics,
-        visitId: visit.id,
-      });
+    const { id } = await params;
+    const patientId = Number(id);
+
+    if (!Number.isFinite(patientId)) {
+      return NextResponse.json({ error: "Invalid patient id" }, { status: 400 });
     }
 
-    if (visit && hasValue(visit.tads) && hadTadsBefore === 0) {
-      await sendTadsStartedNotification({
-        doctorCredentials,
-        patient,
-        tadsNote: visit.tads,
-        visitId: visit.id,
-      });
+    const body = await request.json().catch(() => null);
+    if (!body || !body.visitDate) {
+      return NextResponse.json({ error: "Visit date is required" }, { status: 400 });
     }
 
-    return NextResponse.json(visit, { status: 201 });
+    const sql = getSqlClient();
+
+    const patientRows = await sql`
+      SELECT id
+      FROM "Patient"
+      WHERE id = ${patientId} AND "userId" = ${user.id}
+      LIMIT 1
+    `;
+
+    if (!patientRows?.[0]) {
+      return NextResponse.json({ error: "Patient not found" }, { status: 404 });
+    }
+
+    const insertedRows = await sql`
+      INSERT INTO "Visit" (
+        "patientId",
+        "visitDate",
+        "visitType",
+        diagnosis,
+        "treatmentNotes",
+        "upperArch",
+        "lowerArch",
+        "wireType",
+        elastics,
+        tads,
+        "plannedUpperArch",
+        "plannedLowerArch",
+        "plannedElasticType",
+        "plannedTadsNote",
+        "plannedTreatment",
+        "paymentCollected",
+        "nextAppointment",
+        "chairTime",
+        "createdAt",
+        "updatedAt"
+      ) VALUES (
+        ${patientId},
+        ${new Date(body.visitDate)},
+        ${body.visitType ?? null},
+        ${body.diagnosis ?? null},
+        ${body.treatmentNotes ?? null},
+        ${body.upperArch ?? null},
+        ${body.lowerArch ?? null},
+        ${body.wireType ?? null},
+        ${body.elastics ?? null},
+        ${body.tads ?? null},
+        ${body.plannedUpperArch ?? null},
+        ${body.plannedLowerArch ?? null},
+        ${body.plannedElasticType ?? null},
+        ${body.plannedTadsNote ?? null},
+        ${body.plannedTreatment ?? null},
+        ${body.paymentCollected ?? null},
+        ${body.nextAppointment ? new Date(body.nextAppointment) : null},
+        ${body.chairTime ?? null},
+        ${new Date()},
+        ${new Date()}
+      )
+      RETURNING *
+    `;
+
+    return NextResponse.json(insertedRows?.[0] ?? null, { status: 201 });
   } catch (error) {
-    console.error('[POST /api/patients/[id]/visits ERROR]', error);
+    console.error("[POST /api/patients/[id]/visits ERROR]", error);
     return NextResponse.json(
-      { error: "Failed to create visit", details: error instanceof Error ? error.message : String(error) },
+      {
+        error: "Failed to create visit",
+        details: error instanceof Error ? error.message : String(error),
+      },
       { status: 500 }
     );
   }
@@ -361,13 +324,11 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     select: {
       whatsappAccessToken: true,
       whatsappPhoneNumberId: true,
-      whatsappBusinessAccountId: true,
     },
   });
   const doctorCredentials = await buildDoctorWhatsAppCredentials({
     whatsappAccessToken: doctor?.whatsappAccessToken,
     whatsappPhoneNumberId: doctor?.whatsappPhoneNumberId,
-    whatsappBusinessAccountId: doctor?.whatsappBusinessAccountId,
   });
 
   const body = await request.json().catch(() => null);

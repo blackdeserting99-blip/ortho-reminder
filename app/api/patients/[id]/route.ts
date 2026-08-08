@@ -101,36 +101,7 @@ function isPlaceholderVisit(visit: {
   return !hasClinicalData && !hasPayment;
 }
 
-const patientSchema = z.object({
-  name: z.string().min(1, "Patient name is required").optional(),
-  phone: z.string().min(1, "Contact number is required").optional(),
-  address: z.string().optional(),
-  occupation: z.string().optional(),
-  treatment: z.string().optional(),
-  treatmentCategory: z.string().optional(),
-  bracketType: z.string().optional(),
-  appointmentDate: z.string().optional(),
-  appointmentTime: z.string().optional(),
-  caseSheet: z.string().optional(),
-  firstAppointment: z.boolean().optional(),
-  notes: z.string().optional(),
-  plannedNotes: z.string().optional(),
-  totalFee: z.number().nonnegative().optional(),
-  totalPaid: z.number().nonnegative().optional(),
-  retainerFee: z.number().nonnegative().optional(),
-  elasticEnabled: z.boolean().optional(),
-  elasticType: z.string().optional(),
-  tadsNote: z.string().optional(),
-  myofunctionalType: z.string().optional(),
-  myofunctionalProgram: z.any().optional(),
-  clearAlignersPlan: z.any().optional(),
-  caseStatus: z.enum(["active", "retainer", "finished", "cancelled", "archived"]).optional(),
-  autoReminderEnabled: z.boolean().optional(),
-  alignerDaysPerTray: z.number().int().positive().max(30).optional(),
-  age: z.number().int().nonnegative().max(120).optional(),
-  clinicName: z.string().optional(),
-  clinicColor: z.string().optional(),
-});
+const patientSchema = z.object({}).passthrough();
 
 function getMetadataObject(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -216,7 +187,23 @@ function getRuntimeDiagnostics() {
   };
 }
 
+function jsonRouteError(context: string, error: unknown, status = 500) {
+  console.error(`[${context}]`, error);
+  if (error instanceof Error) {
+    console.error(error.stack);
+  }
+
+  return NextResponse.json(
+    {
+      error: status === 500 ? "Internal Server Error" : "Request failed",
+      details: error instanceof Error ? error.message : String(error),
+    },
+    { status }
+  );
+}
+
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
   const user = await getCurrentUser();
 console.log("CURRENT USER:", user);
   if (!user) {
@@ -296,17 +283,41 @@ const patient = await prisma.patient.findFirst({
         };
       });
       
+      const metadata = getMetadataObject(patient.metadata);
       const result = {
-        ...patient,
+        id: patient.id,
+        name: patient.name,
+        phone: patient.phone,
+        age: patient.age,
+        address: patient.address,
+        occupation: patient.occupation,
+        clinicName: patient.clinicName,
+        clinicColor: patient.clinicColor,
         treatment: patient.treatmentCategory,
-        visits: visitsWithAliases,
+        treatmentCategory: patient.treatmentCategory,
+        bracketType: patient.bracketType,
+        caseSheet: patient.caseSheet,
+        firstAppointment: patient.firstAppointment,
         appointmentDate,
         appointmentTime,
+        totalFee: patient.totalFee,
+        totalPaid: patient.totalPaid,
+        plannedNotes: patient.plannedNotes,
+        notes: patient.notes,
+        retainerFee: patient.retainerFee,
+        elasticEnabled: Boolean(patient.elasticEnabled || metadata.elasticEnabled),
+        elasticType: patient.elasticType ?? (typeof metadata.elasticType === "string" ? metadata.elasticType : null),
+        tadsNote: patient.tadsNote ?? (typeof metadata.tadsNote === "string" ? metadata.tadsNote : null),
         caseStatus: getCaseStatusFromMetadata(patient.metadata),
-        autoReminderEnabled: getMetadataObject(patient.metadata).autoReminderEnabled !== false,
-        alignerDaysPerTray: Number(getMetadataObject(patient.metadata).alignerDaysPerTray || 14),
+        damonTorques: typeof metadata.damonTorques === "string" ? String(metadata.damonTorques) : null,
+        wireSettings: typeof metadata.wireSettings === "object" && metadata.wireSettings !== null ? metadata.wireSettings : null,
+        autoReminderEnabled: metadata.autoReminderEnabled !== false,
+        alignerDaysPerTray: Number(metadata.alignerDaysPerTray || 14),
+        galleryPhotos: Array.isArray(metadata.galleryPhotos) ? metadata.galleryPhotos : [],
+        caseSheetAttachments: Array.isArray(metadata.caseSheetAttachments) ? metadata.caseSheetAttachments : [],
+        visits: visitsWithAliases,
       };
-      
+
       return NextResponse.json(result);
     }
 
@@ -379,24 +390,51 @@ const patient = await prisma.patient.findFirst({
         };
       });
 
+      const metadata = getMetadataObject(patient.metadata);
       return NextResponse.json({
-        ...patient,
+        id: patient.id,
+        name: patient.name,
+        phone: patient.phone,
+        age: patient.age,
+        address: patient.address,
+        occupation: patient.occupation,
+        clinicName: patient.clinicName,
+        clinicColor: patient.clinicColor,
         treatment: patient.treatmentCategory,
-        visits: mappedVisits,
+        treatmentCategory: patient.treatmentCategory,
+        bracketType: patient.bracketType,
+        caseSheet: patient.caseSheet,
+        firstAppointment: patient.firstAppointment,
         appointmentDate,
         appointmentTime,
+        totalFee: patient.totalFee,
+        totalPaid: patient.totalPaid,
+        plannedNotes: patient.plannedNotes,
+        notes: patient.notes,
+        retainerFee: patient.retainerFee,
+        elasticEnabled: patient.elasticEnabled || false,
+        elasticType: patient.elasticType,
+        tadsNote: patient.tadsNote,
         caseStatus: getCaseStatusFromMetadata(patient.metadata),
-        autoReminderEnabled: getMetadataObject(patient.metadata).autoReminderEnabled !== false,
-        alignerDaysPerTray: Number(getMetadataObject(patient.metadata).alignerDaysPerTray || 14),
+        damonTorques: typeof metadata.damonTorques === "string" ? String(metadata.damonTorques) : null,
+        autoReminderEnabled: metadata.autoReminderEnabled !== false,
+        alignerDaysPerTray: Number(metadata.alignerDaysPerTray || 14),
+        galleryPhotos: Array.isArray(metadata.galleryPhotos) ? metadata.galleryPhotos : [],
+        caseSheetAttachments: Array.isArray(metadata.caseSheetAttachments) ? metadata.caseSheetAttachments : [],
+        visits: mappedVisits,
       });
     } catch (fallbackError) {
       console.error('========== SQL FALLBACK ERROR ==========', fallbackError);
       return NextResponse.json({ error: 'Internal Server Error', details: String(fallbackError) }, { status: 500 });
     }
   }
+  } catch (error) {
+    return jsonRouteError("GET /api/patients/[id]", error);
+  }
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
   console.log("[DEBUG][PATCH /api/patients/[id]] runtime diagnostics:", getRuntimeDiagnostics());
   const user = await getCurrentUser();
 
@@ -411,17 +449,28 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "Invalid patient id" }, { status: 400 });
   }
 
-  const existing = await prisma.patient.findFirst({
-    where: { id: patientId, userId: user.id },
-    include: {
-      clinic: {
-        select: {
-          phone: true,
-          metadata: true,
+  const sql = getSqlClient();
+  const existingRows = await sql`
+    SELECT
+      p.*,
+      c.phone AS "clinicPhone",
+      c.metadata AS "clinicMetadata"
+    FROM "Patient" p
+    LEFT JOIN "Clinic" c ON c.id = p."clinicId"
+    WHERE p.id = ${patientId} AND p."userId" = ${user.id}
+    LIMIT 1
+  `;
+
+  const existingRow = existingRows?.[0] ?? null;
+  const existing: any = existingRow
+    ? {
+        ...existingRow,
+        clinic: {
+          phone: existingRow.clinicPhone ?? null,
+          metadata: existingRow.clinicMetadata ?? null,
         },
-      },
-    },
-  });
+      }
+    : null;
 
   if (!existing) {
     return NextResponse.json({ error: "Patient not found" }, { status: 404 });
@@ -431,7 +480,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     | {
         whatsappAccessToken: string | null;
         whatsappPhoneNumberId: string | null;
-        whatsappBusinessAccountId: string | null;
       }
     | null = null;
   try {
@@ -440,7 +488,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       select: {
         whatsappAccessToken: true,
         whatsappPhoneNumberId: true,
-        whatsappBusinessAccountId: true,
       },
     });
   } catch (doctorLookupError) {
@@ -452,7 +499,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const doctorCredentials = await buildDoctorWhatsAppCredentials({
     whatsappAccessToken: doctor?.whatsappAccessToken,
     whatsappPhoneNumberId: doctor?.whatsappPhoneNumberId,
-    whatsappBusinessAccountId: doctor?.whatsappBusinessAccountId,
   });
 
   const body = await request.json().catch(() => null);
@@ -485,6 +531,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const shouldUpdateReminderSettings =
     Object.prototype.hasOwnProperty.call(body, "autoReminderEnabled") ||
     Object.prototype.hasOwnProperty.call(body, "alignerDaysPerTray");
+  const shouldUpdateGalleryAttachments =
+    Object.prototype.hasOwnProperty.call(body, "galleryPhotos") ||
+    Object.prototype.hasOwnProperty.call(body, "caseSheetAttachments");
+  const shouldUpdateWireSettings = Object.prototype.hasOwnProperty.call(body, "wireSettings");
+  const shouldUpdateDamonTorques =
+    Object.prototype.hasOwnProperty.call(body, "damonTorques");
 
   // Remove visits from update payload so we can safely update patient scalars
   const updatePayload: any = { ...incoming };
@@ -510,12 +562,19 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (Object.prototype.hasOwnProperty.call(updatePayload, "alignerDaysPerTray")) {
     delete updatePayload.alignerDaysPerTray;
   }
+  if (Object.prototype.hasOwnProperty.call(updatePayload, "damonTorques")) {
+    delete updatePayload.damonTorques;
+  }
 
-  const shouldUpdateMetadata = shouldUpdateReminderSettings || shouldUpdateCaseStatus;
+  const shouldUpdateMetadata =
+    shouldUpdateReminderSettings ||
+    shouldUpdateCaseStatus ||
+    shouldUpdateGalleryAttachments ||
+    shouldUpdateDamonTorques ||
+    shouldUpdateWireSettings;
   const existingMetadata = getMetadataObject(existing.metadata);
 
   if (shouldUpdateMetadata) {
-    const existingMetadata = getMetadataObject(existing.metadata);
     const previousCaseStatus = getCaseStatusFromMetadata(existingMetadata);
     const nextCaseStatusFromPayload =
       typeof incoming.caseStatus === "string"
@@ -536,157 +595,233 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         typeof incoming.caseStatus === "string"
           ? incoming.caseStatus
           : getCaseStatusFromMetadata(existingMetadata),
+      ...(typeof incoming.galleryPhotos !== "undefined"
+        ? { galleryPhotos: incoming.galleryPhotos }
+        : {}),
+      ...(typeof incoming.caseSheetAttachments !== "undefined"
+        ? { caseSheetAttachments: incoming.caseSheetAttachments }
+        : {}),
+      ...(typeof incoming.damonTorques !== "undefined"
+        ? { damonTorques: incoming.damonTorques }
+        : {}),
+      ...(typeof incoming.wireSettings !== "undefined"
+        ? { wireSettings: incoming.wireSettings }
+        : {}),
     };
 
-    if (
-      previousCaseStatus !== "retainer" &&
-      nextCaseStatusFromPayload === "retainer" &&
-      !existingMetadata.retainerStartedAt
-    ) {
-      mergedMetadata.retainerStartedAt = new Date().toISOString();
+    if (typeof incoming.bracketType === "string" && incoming.bracketType !== "Damon System") {
+      delete mergedMetadata.damonTorques;
     }
 
     updatePayload.metadata = mergedMetadata;
   }
 
-  try {
-    // Update patient scalar fields
-    await prisma.patient.update({ where: { id: patientId }, data: updatePayload });
+  const hasTotalFee = Object.prototype.hasOwnProperty.call(updatePayload, "totalFee");
+  const hasTotalPaid = Object.prototype.hasOwnProperty.call(updatePayload, "totalPaid");
+      const hasRetainerFee = Object.prototype.hasOwnProperty.call(updatePayload, "retainerFee");
+      const hasElasticEnabled = Object.prototype.hasOwnProperty.call(updatePayload, "elasticEnabled");
+      const hasElasticType = Object.prototype.hasOwnProperty.call(updatePayload, "elasticType");
+      const hasTadsNote = Object.prototype.hasOwnProperty.call(updatePayload, "tadsNote");
+      const hasMyofunctionalType = Object.prototype.hasOwnProperty.call(updatePayload, "myofunctionalType");
+      const hasMyofunctionalProgram = Object.prototype.hasOwnProperty.call(updatePayload, "myofunctionalProgram");
+      const hasClearAlignersPlan = Object.prototype.hasOwnProperty.call(updatePayload, "clearAlignersPlan");
+      const hasClinicName = Object.prototype.hasOwnProperty.call(updatePayload, "clinicName");
+      const hasClinicColor = Object.prototype.hasOwnProperty.call(updatePayload, "clinicColor");
+      const hasAge = Object.prototype.hasOwnProperty.call(updatePayload, "age");
+      const hasDateOfBirth = Object.prototype.hasOwnProperty.call(updatePayload, "dateOfBirth");
+      const hasGender = Object.prototype.hasOwnProperty.call(updatePayload, "gender");
+      const hasMetadata = Object.prototype.hasOwnProperty.call(updatePayload, "metadata");
 
-    const previousCaseStatus = getCaseStatusFromMetadata(existingMetadata);
-    const nextCaseStatus = typeof incoming.caseStatus === "string"
-      ? incoming.caseStatus
-      : previousCaseStatus;
+      await sql`
+        UPDATE "Patient"
+        SET
+          name = CASE WHEN ${hasName} THEN ${updatePayload.name ?? null} ELSE name END,
+          phone = CASE WHEN ${hasPhone} THEN ${updatePayload.phone ?? null} ELSE phone END,
+          address = CASE WHEN ${hasAddress} THEN ${updatePayload.address ?? null} ELSE address END,
+          occupation = CASE WHEN ${hasOccupation} THEN ${updatePayload.occupation ?? null} ELSE occupation END,
+          "treatmentCategory" = CASE WHEN ${hasTreatmentCategory} THEN ${updatePayload.treatmentCategory ?? null} ELSE "treatmentCategory" END,
+          "bracketType" = CASE WHEN ${hasBracketType} THEN ${updatePayload.bracketType ?? null} ELSE "bracketType" END,
+          "caseSheet" = CASE WHEN ${hasCaseSheet} THEN ${updatePayload.caseSheet ?? null} ELSE "caseSheet" END,
+          "firstAppointment" = CASE WHEN ${hasFirstAppointment} THEN ${updatePayload.firstAppointment ?? false} ELSE "firstAppointment" END,
+          notes = CASE WHEN ${hasNotes} THEN ${updatePayload.notes ?? null} ELSE notes END,
+          "plannedNotes" = CASE WHEN ${hasPlannedNotes} THEN ${updatePayload.plannedNotes ?? null} ELSE "plannedNotes" END,
+          "totalFee" = CASE WHEN ${hasTotalFee} THEN ${updatePayload.totalFee ?? null} ELSE "totalFee" END,
+          "totalPaid" = CASE WHEN ${hasTotalPaid} THEN ${updatePayload.totalPaid ?? null} ELSE "totalPaid" END,
+          "retainerFee" = CASE WHEN ${hasRetainerFee} THEN ${updatePayload.retainerFee ?? null} ELSE "retainerFee" END,
+          "elasticEnabled" = CASE WHEN ${hasElasticEnabled} THEN ${updatePayload.elasticEnabled ?? false} ELSE "elasticEnabled" END,
+          "elasticType" = CASE WHEN ${hasElasticType} THEN ${updatePayload.elasticType ?? null} ELSE "elasticType" END,
+          "tadsNote" = CASE WHEN ${hasTadsNote} THEN ${updatePayload.tadsNote ?? null} ELSE "tadsNote" END,
+          "myofunctionalType" = CASE WHEN ${hasMyofunctionalType} THEN ${updatePayload.myofunctionalType ?? null} ELSE "myofunctionalType" END,
+          "myofunctionalProgram" = CASE WHEN ${hasMyofunctionalProgram} THEN ${updatePayload.myofunctionalProgram ?? null} ELSE "myofunctionalProgram" END,
+          "clearAlignersPlan" = CASE WHEN ${hasClearAlignersPlan} THEN ${updatePayload.clearAlignersPlan ?? null} ELSE "clearAlignersPlan" END,
+          "clinicName" = CASE WHEN ${hasClinicName} THEN ${updatePayload.clinicName ?? null} ELSE "clinicName" END,
+          "clinicColor" = CASE WHEN ${hasClinicColor} THEN ${updatePayload.clinicColor ?? null} ELSE "clinicColor" END,
+          age = CASE WHEN ${hasAge} THEN ${updatePayload.age ?? null} ELSE age END,
+          "dateOfBirth" = CASE WHEN ${hasDateOfBirth} THEN ${updatePayload.dateOfBirth ? new Date(updatePayload.dateOfBirth) : null} ELSE "dateOfBirth" END,
+          gender = CASE WHEN ${hasGender} THEN ${updatePayload.gender ?? null} ELSE gender END,
+          metadata = CASE WHEN ${hasMetadata} THEN ${updatePayload.metadata ?? null} ELSE metadata END,
+          "updatedAt" = ${new Date()}
+        WHERE id = ${patientId} AND "userId" = ${user.id}
+      `;
 
-    if (previousCaseStatus !== "retainer" && nextCaseStatus === "retainer") {
-      const appointmentDateText =
-        (typeof incoming.appointmentDate === "string" && incoming.appointmentDate.trim()) ||
-        "TBD";
-      const appointmentTimeText =
-        (typeof incoming.appointmentTime === "string" && incoming.appointmentTime.trim()) ||
-        "TBD";
-      const doctorName = process.env.DOCTOR_DISPLAY_NAME || "Doctor";
+      if (shouldUpdateAppointment) {
+        const latestVisitRows = await sql`
+          SELECT id
+          FROM "Visit"
+          WHERE "patientId" = ${patientId}
+          ORDER BY id DESC
+          LIMIT 1
+        `;
+        const latestAppointmentRows = await sql`
+          SELECT id
+          FROM "Appointment"
+          WHERE "patientId" = ${patientId}
+          ORDER BY id DESC
+          LIMIT 1
+        `;
 
-      const patientPhone = (existing.phone || "").trim();
-      if (patientPhone) {
-        const patientMessage = buildRetainerPatientMessage({
-          patientName: existing.name,
-          doctorName,
-        });
-        await sendWhatsAppText(doctorCredentials, patientPhone, patientMessage);
-      }
+        const latestVisitId = latestVisitRows?.[0]?.id ?? null;
+        const latestAppointmentId = latestAppointmentRows?.[0]?.id ?? null;
 
-      const doctorPhone = getDoctorWhatsApp({
-        clinicPhone: existing.clinic?.phone,
-        clinicMetadata: existing.clinic?.metadata,
-      });
-      if (doctorPhone) {
-        const doctorMessage = buildRetainerDoctorMessage({
-          patientName: existing.name,
-          patientPhone: existing.phone || "-",
-          appointmentDate: appointmentDateText,
-          appointmentTime: appointmentTimeText,
-        });
-          await sendWhatsAppText(doctorCredentials, doctorPhone, doctorMessage);
-      }
-    }
+        const appointmentDateValue = typeof incoming.appointmentDate === "string"
+          ? incoming.appointmentDate.trim()
+          : "";
 
-    if (shouldUpdateAppointment) {
-      const latestVisit = await prisma.visit.findFirst({
-        where: { patientId },
-        orderBy: { id: "desc" },
-      });
-      const latestAppointment = await prisma.appointment.findFirst({
-        where: { patientId },
-        orderBy: { id: "desc" },
-      });
-
-      const appointmentDateValue = typeof incoming.appointmentDate === "string"
-        ? incoming.appointmentDate.trim()
-        : "";
-
-      if (!appointmentDateValue) {
-        if (latestVisit) {
-          await prisma.visit.update({
-            where: { id: latestVisit.id },
-            data: { nextAppointment: null },
-          });
-        }
-        if (latestAppointment) {
-          await prisma.appointment.update({
-            where: { id: latestAppointment.id },
-            data: { status: "CANCELED" },
-          });
-        }
-      } else {
-        const appointmentDateTime = parseAppointmentDateTime(
-          appointmentDateValue,
-          incoming.appointmentTime
-        );
-
-        if (!appointmentDateTime) {
-          return NextResponse.json(
-            { error: "Invalid appointment date or time." },
-            { status: 400 }
-          );
-        }
-
-        if (latestVisit) {
-          await prisma.visit.update({
-            where: { id: latestVisit.id },
-            data: { nextAppointment: appointmentDateTime },
-          });
-        }
-
-        if (latestAppointment) {
-          await prisma.appointment.update({
-            where: { id: latestAppointment.id },
-            data: {
-              scheduledAt: appointmentDateTime,
-              status: "SCHEDULED",
-            },
-          });
+        if (!appointmentDateValue) {
+          if (latestVisitId) {
+            await sql`
+              UPDATE "Visit"
+              SET "nextAppointment" = NULL,
+                  "updatedAt" = ${new Date()}
+              WHERE id = ${latestVisitId}
+            `;
+          }
+          if (latestAppointmentId) {
+            await sql`
+              UPDATE "Appointment"
+              SET status = ${"CANCELED"},
+                  "updatedAt" = ${new Date()}
+              WHERE id = ${latestAppointmentId}
+            `;
+          }
         } else {
-          await prisma.appointment.create({
-            data: {
-              patientId,
-              scheduledAt: appointmentDateTime,
-              status: "SCHEDULED",
-              type: "Regular",
-            },
-          });
+          const appointmentDateTime = parseAppointmentDateTime(
+            appointmentDateValue,
+            incoming.appointmentTime
+          );
+
+          if (!appointmentDateTime) {
+            return NextResponse.json(
+              { error: "Invalid appointment date or time." },
+              { status: 400 }
+            );
+          }
+
+          if (latestVisitId) {
+            await sql`
+              UPDATE "Visit"
+              SET "nextAppointment" = ${appointmentDateTime},
+                  "updatedAt" = ${new Date()}
+              WHERE id = ${latestVisitId}
+            `;
+          }
+
+          if (latestAppointmentId) {
+            await sql`
+              UPDATE "Appointment"
+              SET "scheduledAt" = ${appointmentDateTime},
+                  status = ${"SCHEDULED"},
+                  "updatedAt" = ${new Date()}
+              WHERE id = ${latestAppointmentId}
+            `;
+          } else {
+            await sql`
+              INSERT INTO "Appointment" (
+                "patientId",
+                "scheduledAt",
+                status,
+                type,
+                "createdAt",
+                "updatedAt"
+              ) VALUES (
+                ${patientId},
+                ${appointmentDateTime},
+                ${"SCHEDULED"},
+                ${"Regular"},
+                ${new Date()},
+                ${new Date()}
+              )
+            `;
+          }
         }
       }
-    }
 
-    // Return the updated patient including visits
-    const reloaded = await prisma.patient.findFirst({
-      where: {
-        id: patientId,
-        userId: user.id,
-      },
-      include: {
-        visits: true,
-      },
-    });
-    if (!reloaded) {
-      return NextResponse.json({ error: "Patient not found" }, { status: 404 });
-    }
+      const reloadedRows = await sql`
+        SELECT *
+        FROM "Patient"
+        WHERE id = ${patientId} AND "userId" = ${user.id}
+        LIMIT 1
+      `;
+      const reloaded = reloadedRows?.[0];
+      if (!reloaded) {
+        return NextResponse.json({ error: "Patient not found" }, { status: 404 });
+      }
 
-    return NextResponse.json({
-      ...reloaded,
-      caseStatus: getCaseStatusFromMetadata(reloaded.metadata),
-    });
+      const metadata = getMetadataObject(reloaded.metadata);
+
+      return NextResponse.json({
+        id: reloaded.id,
+        name: reloaded.name,
+        phone: reloaded.phone,
+        age: reloaded.age,
+        address: reloaded.address,
+        occupation: reloaded.occupation,
+        clinicName: reloaded.clinicName,
+        clinicColor: reloaded.clinicColor,
+        treatment: reloaded.treatmentCategory,
+        treatmentCategory: reloaded.treatmentCategory,
+        bracketType: reloaded.bracketType,
+        caseSheet: reloaded.caseSheet,
+        firstAppointment: reloaded.firstAppointment,
+        appointmentDate: null,
+        appointmentTime: null,
+        totalFee: reloaded.totalFee,
+        totalPaid: reloaded.totalPaid,
+        plannedNotes: reloaded.plannedNotes,
+        notes: reloaded.notes,
+        retainerFee: reloaded.retainerFee,
+        elasticEnabled: Boolean(reloaded.elasticEnabled || metadata.elasticEnabled),
+        elasticType: reloaded.elasticType ?? (typeof metadata.elasticType === "string" ? metadata.elasticType : null),
+        tadsNote: reloaded.tadsNote ?? (typeof metadata.tadsNote === "string" ? metadata.tadsNote : null),
+        caseStatus: getCaseStatusFromMetadata(reloaded.metadata),
+        damonTorques: typeof metadata.damonTorques === "string" ? String(metadata.damonTorques) : null,
+        wireSettings: typeof metadata.wireSettings === "object" && metadata.wireSettings !== null ? metadata.wireSettings : null,
+        autoReminderEnabled: metadata.autoReminderEnabled !== false,
+        alignerDaysPerTray: Number(metadata.alignerDaysPerTray || 14),
+        galleryPhotos: Array.isArray(metadata.galleryPhotos) ? metadata.galleryPhotos : [],
+        caseSheetAttachments: Array.isArray(metadata.caseSheetAttachments) ? metadata.caseSheetAttachments : [],
+      });
+    } catch (fallbackError) {
+      console.error("[PATCH /api/patients/[id] SQL FALLBACK ERROR]", fallbackError);
+      return NextResponse.json(
+        {
+          error: "Failed to update patient",
+          details:
+            fallbackError instanceof Error
+              ? fallbackError.message
+              : String(fallbackError),
+        },
+        { status: 500 }
+      );
+    }
+  }
   } catch (error) {
-    console.error('[PATCH /api/patients/[id] ERROR]', error);
-    return NextResponse.json(
-      { error: "Failed to update patient", details: error instanceof Error ? error.message : String(error) },
-      { status: 500 }
-    );
+    return jsonRouteError("PATCH /api/patients/[id]", error);
   }
 }
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -700,15 +835,22 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     return NextResponse.json({ error: "Invalid patient id" }, { status: 400 });
   }
 
-  const existing = await prisma.patient.findFirst({
-    where: { id: patientId, userId: user.id },
-  });
+  const sql = getSqlClient();
+  const existingRows = await sql`
+    SELECT id
+    FROM "Patient"
+    WHERE id = ${patientId} AND "userId" = ${user.id}
+    LIMIT 1
+  `;
 
-  if (!existing) {
+  if (!existingRows?.[0]) {
     return NextResponse.json({ error: "Patient not found" }, { status: 404 });
   }
 
-  await prisma.patient.delete({ where: { id: patientId } });
+  await sql`
+    DELETE FROM "Patient"
+    WHERE id = ${patientId} AND "userId" = ${user.id}
+  `;
 
   await recordAuditLog({
     userId: user.id,
@@ -718,4 +860,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   });
 
   return NextResponse.json({ success: true });
+  } catch (error) {
+    return jsonRouteError("DELETE /api/patients/[id]", error);
+  }
 }

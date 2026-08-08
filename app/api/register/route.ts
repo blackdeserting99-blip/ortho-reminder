@@ -124,14 +124,17 @@ export async function POST(req: Request) {
     } catch (createError) {
       console.error("[REGISTER ERROR][prisma.create]", createError);
       const sql = getSqlClient();
+      const fallbackUserId = `cf_${crypto.randomUUID().replace(/-/g, "")}`;
       const rows = await sql`
         INSERT INTO "User" (
+          id,
           name,
           email,
           "passwordHash",
           "createdAt",
           "updatedAt"
         ) VALUES (
+          ${fallbackUserId},
           ${String(name).trim()},
           ${String(email).trim()},
           ${passwordHash},

@@ -472,6 +472,7 @@ const response = await fetch(`/api/patients/${id}`, { cache: "no-store", credent
 
     isSavingRef.current = true;
     setIsSaving(true);
+    let postSaveWarning = "";
     const payment = Number(paymentReceived.replace(/,/g, "")) || 0;
     const additional = Number(additionalAmount.replace(/,/g, "")) || 0;
 
@@ -685,6 +686,31 @@ const response = await fetch(`/api/patients/${id}`, { cache: "no-store", credent
           }
         }
       }
+
+      if (existingPatient.firstAppointment) {
+        const firstAppointmentMessageResponse = await fetch(
+          `/api/patients/${id}/first-appointment-message`,
+          {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              appointmentDate: selectedDate,
+              appointmentTime,
+            }),
+          }
+        );
+
+        if (!firstAppointmentMessageResponse.ok) {
+          const messagePayload = await firstAppointmentMessageResponse
+            .json()
+            .catch(() => null);
+          postSaveWarning =
+            messagePayload?.details ||
+            messagePayload?.error ||
+            "Appointment was saved, but the first appointment WhatsApp message was not sent.";
+        }
+      }
     } catch (error) {
       console.error("Appointment save error:", error);
       setConflictWarning("Unable to save the appointment right now: " + (error instanceof Error ? error.message : String(error)));
@@ -692,6 +718,10 @@ const response = await fetch(`/api/patients/${id}`, { cache: "no-store", credent
     } finally {
       isSavingRef.current = false;
       setIsSaving(false);
+    }
+
+    if (postSaveWarning) {
+      window.alert(`Appointment saved, but WhatsApp could not be sent: ${postSaveWarning}`);
     }
 
     router.push(`/patients/${id}`);

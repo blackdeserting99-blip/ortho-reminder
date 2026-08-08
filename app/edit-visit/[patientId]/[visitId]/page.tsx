@@ -195,36 +195,40 @@ export default function EditVisitPage() {
   }, [patientId, visitId]);
 
   const saveVisit = async () => {
-    try {
-      const response = await fetch(`/api/patients/${patientId}`, { cache: "no-store" });
-      if (!response.ok) {
-        throw new Error("Patient not found");
-      }
-      const patientData = await response.json();
-      const visits = patientData.visits || [];
-      const currentIndex = visits.findIndex((item: Visit) => item.id === visitId);
-      const currentVisit = visits[currentIndex] ?? {};
+    if (!patientId || Number.isNaN(visitId)) {
+      return;
+    }
 
+    try {
       const newPayment = Number(payment.replace(/,/g, "")) || 0;
 
-      visits[currentIndex] = {
-        ...currentVisit,
+      const patchPayload: Record<string, unknown> = {
         treatmentNotes: note,
         paymentCollected: newPayment,
         elastics: elasticEnabled ? elasticType : null,
+        tads: visit?.tads ?? null,
+        upperArch: visit?.upperArch ?? null,
+        lowerArch: visit?.lowerArch ?? null,
+        plannedUpperArch: visit?.upperArch ?? null,
+        plannedLowerArch: visit?.lowerArch ?? null,
+        plannedElasticType: elasticEnabled ? elasticType : null,
+        plannedTadsNote: visit?.tads ?? null,
       };
 
-      const updateResponse = await fetch(`/api/patients/${patientId}/visits`, {
-        method: "PUT",
+      const updateResponse = await fetch(`/api/patients/${patientId}/visits/${visitId}`, {
+        method: "PATCH",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(visits),
+        body: JSON.stringify(patchPayload),
       });
+
       if (!updateResponse.ok) {
-        throw new Error("Update failed");
+        const error = await updateResponse.json().catch(() => null);
+        throw new Error(error?.error || "Update failed");
       }
-    } catch {
-      // keep current view intact on error
+    } catch (error) {
+      console.error("[edit-visit] save failed", error);
+      return;
     }
 
     router.push(`/patients/${patientId}`);

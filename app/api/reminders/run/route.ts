@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/app/lib/auth";
-import { prisma } from "@/app/lib/prisma";
+import { neon } from "@neondatabase/serverless";
 import { getDoctorWhatsApp } from "@/app/lib/doctor-whatsapp";
 import {
   buildDoctorWhatsAppCredentials,
@@ -27,6 +27,14 @@ const APPOINTMENT_STATUSES = ["SCHEDULED", "CONFIRMED", "RESCHEDULED"] as const;
 
 const DEFAULT_REMINDER_TIME_ZONE = "Asia/Baghdad";
 
+function getSqlClient() {
+  const connectionString = process.env.DATABASE_URL || process.env.NEON_DATABASE_URL;
+  if (!connectionString || connectionString === "undefined") {
+    throw new Error("DATABASE_URL is not configured");
+  }
+  return neon(connectionString);
+}
+
 function toDateOnly(date: Date) {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 }
@@ -45,6 +53,14 @@ function formatLocalTime(date: Date) {
 }
 
 function toMetadataObject(value: unknown): MetadataObject {
+  if (typeof value === "string") {
+    try {
+      return toMetadataObject(JSON.parse(value));
+    } catch {
+      return {};
+    }
+  }
+
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return {};
   }
@@ -384,39 +400,43 @@ export async function POST(request: Request) {
   const start = toDateOnly(new Date(baseDate.getTime() - 24 * 60 * 60 * 1000));
   const end = toDateOnly(new Date(baseDate.getTime() + 6 * 24 * 60 * 60 * 1000));
 
-  const appointments = await prisma.appointment.findMany({
-    where: {
-      status: { in: APPOINTMENT_STATUSES as unknown as any[] },
-      scheduledAt: {
-        gte: start,
-        lte: end,
-      },
-      ...(patientId ? { patientId } : {}),
-      ...(auth.userId ? { patient: { userId: auth.userId } } : {}),
-    },
-    include: {
-      patient: {
+  const prismaClientForGeneral = patientId
+    ? null
+    : (await import("@/app/lib/prisma")).prisma;
+
+  const appointments = patientId
+    ? []
+    : await prismaClientForGeneral!.appointment.findMany({
+        where: {
+          status: { in: APPOINTMENT_STATUSES as unknown as any[] },
+          scheduledAt: {
+            gte: start,
+            lte: end,
+          },
+          ...(auth.userId ? { patient: { userId: auth.userId } } : {}),
+        },
         include: {
-          visits: {
-            orderBy: { id: "desc" },
-            take: 5,
-          },
-          clinic: {
-            select: { phone: true, name: true, metadata: true },
-          },
-          user: {
-            select: {
-              whatsappAccessToken: true,
-              whatsappPhoneNumberId: true,
-              whatsappBusinessAccountId: true,
+          patient: {
+            include: {
+              visits: {
+                orderBy: { id: "desc" },
+                take: 5,
+              },
+              clinic: {
+                select: { phone: true, name: true, metadata: true },
+              },
+              user: {
+                select: {
+                  whatsappAccessToken: true,
+                  whatsappPhoneNumberId: true,
+                },
+              },
             },
           },
         },
-      },
-    },
-    orderBy: { scheduledAt: "asc" },
-    take: limit,
-  });
+        orderBy: { scheduledAt: "asc" },
+        take: limit,
+      });
 
   const summary = {
     scanned: appointments.length,
@@ -442,6 +462,229 @@ export async function POST(request: Request) {
 
   const results: Array<Record<string, unknown>> = [];
 
+  if (patientId) {
+    try {
+      const sql = getSqlClient();
+
+      const appointmentRows = auth.userId
+        ? await sql`
+            SELECT
+              a.*,
+              p.name AS "patientName",
+              p.phone AS "patientPhone",
+              p.metadata AS "patientMetadata",
+              p."treatmentCategory" AS "patientTreatmentCategory",
+              p."firstAppointment" AS "patientFirstAppointment",
+              p."elasticEnabled" AS "patientElasticEnabled",
+              p."elasticType" AS "patientElasticType",
+              p."tadsNote" AS "patientTadsNote",
+              p."myofunctionalType" AS "patientMyofunctionalType",
+              p."myofunctionalProgram" AS "patientMyofunctionalProgram",
+              c.name AS "clinicName",
+              c.phone AS "clinicPhone",
+              c.metadata AS "clinicMetadata",
+              u."whatsappAccessToken" AS "doctorWhatsappAccessToken",
+              u."whatsappPhoneNumberId" AS "doctorWhatsappPhoneNumberId"
+            FROM "Appointment" a
+            INNER JOIN "Patient" p ON p.id = a."patientId"
+            LEFT JOIN "Clinic" c ON c.id = p."clinicId"
+            LEFT JOIN "User" u ON u.id = p."userId"
+            WHERE a."patientId" = ${patientId}
+              AND p."userId" = ${auth.userId}
+              AND a."scheduledAt" >= ${start}
+              AND a."scheduledAt" <= ${end}
+            ORDER BY a."scheduledAt" ASC
+            LIMIT ${limit}
+          `
+        : await sql`
+            SELECT
+              a.*,
+              p.name AS "patientName",
+              p.phone AS "patientPhone",
+              p.metadata AS "patientMetadata",
+              p."treatmentCategory" AS "patientTreatmentCategory",
+              p."firstAppointment" AS "patientFirstAppointment",
+              p."elasticEnabled" AS "patientElasticEnabled",
+              p."elasticType" AS "patientElasticType",
+              p."tadsNote" AS "patientTadsNote",
+              p."myofunctionalType" AS "patientMyofunctionalType",
+              p."myofunctionalProgram" AS "patientMyofunctionalProgram",
+              c.name AS "clinicName",
+              c.phone AS "clinicPhone",
+              c.metadata AS "clinicMetadata",
+              u."whatsappAccessToken" AS "doctorWhatsappAccessToken",
+              u."whatsappPhoneNumberId" AS "doctorWhatsappPhoneNumberId"
+            FROM "Appointment" a
+            INNER JOIN "Patient" p ON p.id = a."patientId"
+            LEFT JOIN "Clinic" c ON c.id = p."clinicId"
+            LEFT JOIN "User" u ON u.id = p."userId"
+            WHERE a."patientId" = ${patientId}
+              AND a."scheduledAt" >= ${start}
+              AND a."scheduledAt" <= ${end}
+            ORDER BY a."scheduledAt" ASC
+            LIMIT ${limit}
+          `;
+
+      const visitRows = await sql`
+        SELECT elastics, tads
+        FROM "Visit"
+        WHERE "patientId" = ${patientId}
+        ORDER BY id DESC
+        LIMIT 5
+      `;
+
+      summary.scanned = appointmentRows.length;
+
+      for (const appointment of appointmentRows as any[]) {
+        const status = String(appointment.status || "");
+        if (!APPOINTMENT_STATUSES.includes(status as any)) {
+          continue;
+        }
+
+        const scheduledAt = new Date(appointment.scheduledAt);
+        const type = reminderType || getReminderTypeAtTimeZone(scheduledAt, baseDate, reminderTimeZone);
+
+        if (!type) {
+          summary.skippedNoReminderType += 1;
+          continue;
+        }
+
+        const patientMetadata = toMetadataObject(appointment.patientMetadata);
+        if (!readPatientAutoReminderEnabled(patientMetadata)) {
+          summary.skippedAutoReminderDisabled += 1;
+          continue;
+        }
+
+        if (!reminderType && type === "sameDay" && !allowSameDayNow(baseDate)) {
+          summary.skippedOutsideMorningWindow += 1;
+          continue;
+        }
+
+        const sentMap = readSentMap(appointment.metadata);
+        if (!canSendReminder(sentMap, type)) {
+          summary.skippedAlreadySent += 1;
+          continue;
+        }
+
+        const patientPhone = String(appointment.patientPhone || "").trim();
+        if (!patientPhone) {
+          summary.skippedNoPatientPhone += 1;
+          continue;
+        }
+
+        summary.eligible += 1;
+
+        const doctorCredentials = await buildDoctorWhatsAppCredentials({
+          whatsappAccessToken: appointment.doctorWhatsappAccessToken ?? null,
+          whatsappPhoneNumberId: appointment.doctorWhatsappPhoneNumberId ?? null,
+        });
+
+        const patientMessage = buildWhatsAppBotMessage(
+          {
+            name: String(appointment.patientName || "Patient"),
+            clinicName: String(appointment.clinicName || "العيادة"),
+            doctorName: process.env.DOCTOR_DISPLAY_NAME || "Doctor",
+            phone: patientPhone,
+            appointmentDate: scheduledAt.toISOString(),
+            appointmentTime: formatLocalTime(scheduledAt),
+            treatmentCategory: appointment.patientTreatmentCategory || undefined,
+            alignerDaysPerTray: readAlignerDaysPerTray(patientMetadata),
+            firstAppointment: Boolean(appointment.patientFirstAppointment),
+            elasticEnabled: Boolean(appointment.patientElasticEnabled),
+            elasticType: appointment.patientElasticType || undefined,
+            tadsNote: appointment.patientTadsNote || undefined,
+            myofunctionalType: appointment.patientMyofunctionalType || undefined,
+            myofunctionalProgram: appointment.patientMyofunctionalProgram
+              ? (appointment.patientMyofunctionalProgram as any)
+              : undefined,
+            visits: (visitRows as any[]).map((visit) => ({
+              elasticEnabled: Boolean(visit.elastics),
+              elasticType: visit.elastics || undefined,
+              tadsNote: visit.tads || undefined,
+            })),
+          },
+          type
+        );
+
+        const doctorPhone = getDoctorWhatsApp({
+          clinicPhone: appointment.clinicPhone,
+          clinicMetadata: appointment.clinicMetadata,
+        });
+
+        const doctorMessage = buildDoctorMessage({
+          patientName: String(appointment.patientName || "Patient"),
+          patientPhone,
+          reminderType: type,
+          scheduledAt,
+        });
+
+        if (dryRun) {
+          summary.sent += 1;
+          results.push({
+            appointmentId: appointment.id,
+            patientId,
+            reminderType: type,
+            dryRun: true,
+            patientPhone,
+            doctorPhone: doctorPhone || null,
+          });
+          continue;
+        }
+
+        const patientSend = await sendWhatsAppText(doctorCredentials, patientPhone, patientMessage);
+        const doctorSend = doctorPhone
+          ? await sendWhatsAppText(doctorCredentials, doctorPhone, doctorMessage)
+          : { ok: true, provider: "simulation" as const, to: "" };
+
+        const success = patientSend.ok && doctorSend.ok;
+        if (success) {
+          summary.sent += 1;
+        } else {
+          summary.failed += 1;
+        }
+
+        const reminderErrors = [patientSend.error, doctorSend.error].filter(Boolean).join(" | ");
+
+        await sql`
+          UPDATE "Appointment"
+          SET
+            "reminderStatus" = ${success ? "SENT" : "FAILED"},
+            "reminderSentAt" = ${success ? new Date() : appointment.reminderSentAt ? new Date(appointment.reminderSentAt) : null},
+            "reminderNote" = ${reminderErrors || null},
+            metadata = ${updateMetadataSent(appointment.metadata, type)}::jsonb,
+            "updatedAt" = ${new Date()}
+          WHERE id = ${appointment.id}
+        `;
+
+        results.push({
+          appointmentId: appointment.id,
+          patientId,
+          reminderType: type,
+          patientSend,
+          doctorSend,
+          success,
+        });
+      }
+
+      return NextResponse.json({
+        status: "ok",
+        dryRun,
+        summary,
+        results,
+      });
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error: "Failed to run reminders",
+          details: error instanceof Error ? error.message : String(error),
+        },
+        { status: 500 }
+      );
+    }
+  }
+
+  const prisma = prismaClientForGeneral ?? (await import("@/app/lib/prisma")).prisma;
+
   const patientsForRetainerYearOne = await prisma.patient.findMany({
     where: {
       ...(patientId ? { id: patientId } : {}),
@@ -457,7 +700,6 @@ export async function POST(request: Request) {
         select: {
           whatsappAccessToken: true,
           whatsappPhoneNumberId: true,
-          whatsappBusinessAccountId: true,
         },
       },
     },
@@ -504,7 +746,6 @@ export async function POST(request: Request) {
     const doctorCredentials = await buildDoctorWhatsAppCredentials({
       whatsappAccessToken: patient.user?.whatsappAccessToken,
       whatsappPhoneNumberId: patient.user?.whatsappPhoneNumberId,
-      whatsappBusinessAccountId: patient.user?.whatsappBusinessAccountId,
     });
 
     const message = buildRetainerYearOnePatientMessage({
@@ -551,8 +792,6 @@ export async function POST(request: Request) {
     const doctorCredentials = await buildDoctorWhatsAppCredentials({
       whatsappAccessToken: appointment.patient.user?.whatsappAccessToken,
       whatsappPhoneNumberId: appointment.patient.user?.whatsappPhoneNumberId,
-      whatsappBusinessAccountId:
-        appointment.patient.user?.whatsappBusinessAccountId,
     });
 
     const leadDays = getAlignerPrepLeadDays();

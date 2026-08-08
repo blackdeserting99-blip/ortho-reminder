@@ -45,7 +45,18 @@ export type Patient = {
   treatmentCategory?: string;
   bracketType?: string;
   caseSheet?: string;
-    wireMaterial?: string;
+  damonTorques?: string;
+  wireMaterial?: string;
+  wireSettings?: {
+    upperWireMaterial?: string;
+    lowerWireMaterial?: string;
+    upperWireGauge?: string;
+    lowerWireGauge?: string;
+    upperDamonWire?: string;
+    upperDamonWireOther?: string;
+    lowerDamonWire?: string;
+    lowerDamonWireOther?: string;
+  };
   attachments?: AttachedPhoto[];
   appointmentDate: string;
   appointmentTime?: string;

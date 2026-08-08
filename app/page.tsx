@@ -276,6 +276,20 @@ type AlignerPatchNotification = {
         return patient.treatment;
       };
 
+      const getRemainingDaysUntilAppointment = (appointmentDate: string) => {
+        if (!appointmentDate) return null;
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const appointment = new Date(`${appointmentDate}T00:00:00`);
+        if (Number.isNaN(appointment.getTime())) return null;
+
+        const diffMs = appointment.getTime() - today.getTime();
+        const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+        return diffDays;
+      };
+
       const getLatestVisit = (patient: any) =>
         patient.visits?.[patient.visits.length - 1] || {};
 
@@ -786,6 +800,15 @@ type AlignerPatchNotification = {
                           <td className="py-4 px-4">
                             <div className="font-semibold text-gray-900">
                               {formatDateDMY(patient.appointmentDate)} • {patient.appointmentTime || "-"}
+                            </div>
+                            <div className="mt-1 text-xs font-semibold text-slate-500">
+                              {(() => {
+                                const remainingDays = getRemainingDaysUntilAppointment(patient.appointmentDate);
+                                if (remainingDays === null) return "No appointment date";
+                                if (remainingDays === 0) return "Today";
+                                if (remainingDays < 0) return `${Math.abs(remainingDays)} day${Math.abs(remainingDays) === 1 ? "" : "s"} overdue`;
+                                return `${remainingDays} day${remainingDays === 1 ? "" : "s"} remaining`;
+                              })()}
                             </div>
                           </td>
                           <td className="py-4 px-4">{formatTreatment(patient)}</td>

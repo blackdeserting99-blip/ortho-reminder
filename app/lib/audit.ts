@@ -5,6 +5,7 @@ export type AuditLogInput = {
   action: string;
   targetType: string;
   targetId: string;
+  ipAddress?: string | null;
 };
 
 function getDatabaseUrl() {
@@ -38,6 +39,7 @@ export async function recordAuditLog(input: AuditLogInput) {
         action: input.action,
         targetType: input.targetType,
         targetId: input.targetId,
+        ...(input.ipAddress ? { ipAddress: input.ipAddress } : {}),
       },
     });
     return;
@@ -53,12 +55,14 @@ export async function recordAuditLog(input: AuditLogInput) {
         action,
         "targetType",
         "targetId",
+        "ipAddress",
         "createdAt"
       ) VALUES (
         ${input.userId},
         ${input.action},
         ${input.targetType},
         ${input.targetId},
+        ${input.ipAddress || null},
         NOW()
       )
     `;

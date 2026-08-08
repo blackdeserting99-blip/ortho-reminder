@@ -412,12 +412,17 @@ export type WhatsAppSendResult = {
   to: string;
   messageId?: string;
   error?: string;
+  debug?: {
+    endpoint: string;
+    statusCode: number | null;
+    payload: unknown;
+  };
 };
 
 export type DoctorWhatsAppCredentials = {
   accessToken: string;
   phoneNumberId: string;
-  businessAccountId?: string | null;
+  businessAccountId: string | null;
 };
 
 const ENCRYPTED_TOKEN_PREFIX = "enc:v1:";
@@ -465,7 +470,7 @@ async function getEncryptionKey() {
   ]);
 }
 
-export async function encryptWhatsAppAccessToken(token: string) {
+export async function encryptWhatsAppProviderToken(token: string) {
   const raw = (token || "").trim();
   if (!raw) {
     return "";
@@ -487,7 +492,7 @@ export async function encryptWhatsAppAccessToken(token: string) {
   return `${ENCRYPTED_TOKEN_PREFIX}${toBase64(iv)}:${toBase64(new Uint8Array(cipherBuffer))}`;
 }
 
-export async function decryptWhatsAppAccessToken(token: string | null | undefined) {
+export async function decryptWhatsAppProviderToken(token: string | null | undefined) {
   const value = (token || "").trim();
   if (!value) {
     return "";
@@ -528,9 +533,10 @@ export async function buildDoctorWhatsAppCredentials(input: {
   whatsappBusinessAccountId?: string | null;
 }) {
   const phoneNumberId = (input.whatsappPhoneNumberId || "").trim();
-  const decryptedAccessToken = await decryptWhatsAppAccessToken(
+  const decryptedAccessToken = await decryptWhatsAppProviderToken(
     input.whatsappAccessToken
   );
+  const businessAccountId = (input.whatsappBusinessAccountId || "").trim() || null;
 
   if (!phoneNumberId || !decryptedAccessToken) {
     return null;
@@ -539,8 +545,80 @@ export async function buildDoctorWhatsAppCredentials(input: {
   return {
     accessToken: decryptedAccessToken,
     phoneNumberId,
-    businessAccountId: input.whatsappBusinessAccountId || null,
+    businessAccountId,
   } as DoctorWhatsAppCredentials;
+}
+
+function toMetaRecipient(phone: string) {
+  const normalized = normalizePhone(phone);
+  if (!normalized) {
+    return "";
+  }
+
+  return normalized.startsWith("+") ? normalized.slice(1) : normalized;
+}
+
+function getMetaGraphApiVersion() {
+  return (process.env.META_GRAPH_API_VERSION || "v23.0").trim();
+}
+
+function getMetaGraphBaseUrl() {
+  return `https://graph.facebook.com/${getMetaGraphApiVersion()}`;
+}
+
+export async function testWhatsAppConnection(
+  credentials: DoctorWhatsAppCredentials | null | undefined
+) {
+  const phoneNumberId = credentials?.phoneNumberId?.trim() || "";
+  const accessToken = credentials?.accessToken?.trim() || "";
+
+  if (!phoneNumberId || !accessToken) {
+    return {
+      ok: false,
+      provider: "simulation" as const,
+      to: "",
+      error: "WhatsApp Phone Number ID and Access Token are required.",
+    };
+  }
+
+  try {
+    const url = new URL(`${getMetaGraphBaseUrl()}/${phoneNumberId}`);
+    url.searchParams.set("fields", "id,display_phone_number,verified_name,quality_rating");
+
+    const response = await fetch(url.toString(), {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      return {
+        ok: false,
+        provider: "meta" as const,
+        to: "",
+        error:
+          payload?.error?.message ||
+          payload?.message ||
+          `Meta status request failed with status ${response.status}`,
+      };
+    }
+
+    return {
+      ok: true,
+      provider: "meta" as const,
+      to: "",
+      messageId: payload?.id || phoneNumberId,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      provider: "meta" as const,
+      to: "",
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 export function normalizePhone(phone: string) {
@@ -573,7 +651,7 @@ export async function sendWhatsAppText(
   phone: string,
   message: string
 ): Promise<WhatsAppSendResult> {
-  const to = normalizePhone(phone);
+  const to = toMetaRecipient(phone);
 
   if (!to) {
     return {
@@ -584,41 +662,41 @@ export async function sendWhatsAppText(
     };
   }
 
-  const accessToken = credentials?.accessToken;
-  const phoneNumberId = credentials?.phoneNumberId;
-  const apiVersion = process.env.WHATSAPP_API_VERSION || "v21.0";
+  const accessToken = credentials?.accessToken?.trim();
+  const phoneNumberId = credentials?.phoneNumberId?.trim();
 
-  // Doctor credentials are required for multi-tenant WhatsApp Business sending.
   if (!accessToken || !phoneNumberId) {
     return {
       ok: false,
       provider: "simulation",
       to,
-      error: "Doctor WhatsApp Business credentials are not connected.",
+      error: "Doctor Meta WhatsApp credentials are not connected.",
+      debug: {
+        endpoint: "",
+        statusCode: null,
+        payload: null,
+      },
     };
   }
 
   try {
-    const response = await fetch(
-      `https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
+    const endpoint = `${getMetaGraphBaseUrl()}/${phoneNumberId}/messages`;
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to,
+        type: "text",
+        text: {
+          preview_url: false,
+          body: message,
         },
-        body: JSON.stringify({
-          messaging_product: "whatsapp",
-          recipient_type: "individual",
-          to,
-          type: "text",
-          text: {
-            preview_url: false,
-            body: message,
-          },
-        }),
-      }
-    );
+      }),
+    });
 
     const payload = await response.json().catch(() => null);
 
@@ -629,7 +707,13 @@ export async function sendWhatsAppText(
         to,
         error:
           payload?.error?.message ||
-          `Meta API request failed with status ${response.status}`,
+          payload?.message ||
+          `Meta request failed with status ${response.status}`,
+        debug: {
+          endpoint,
+          statusCode: response.status,
+          payload,
+        },
       };
     }
 
@@ -637,7 +721,12 @@ export async function sendWhatsAppText(
       ok: true,
       provider: "meta",
       to,
-      messageId: payload?.messages?.[0]?.id,
+      messageId: payload?.messages?.[0]?.id || payload?.id || undefined,
+      debug: {
+        endpoint,
+        statusCode: response.status,
+        payload,
+      },
     };
   } catch (error) {
     return {
@@ -645,6 +734,11 @@ export async function sendWhatsAppText(
       provider: "meta",
       to,
       error: error instanceof Error ? error.message : String(error),
+      debug: {
+        endpoint: phoneNumberId ? `${getMetaGraphBaseUrl()}/${phoneNumberId}/messages` : "",
+        statusCode: null,
+        payload: null,
+      },
     };
   }
 }

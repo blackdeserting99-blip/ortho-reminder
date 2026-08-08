@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { createSessionCookie } from "@/app/lib/session";
+import { createSessionValue, SESSION_COOKIE_NAME } from "@/app/lib/session";
 import { neon } from "@neondatabase/serverless";
+
+const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
 
 function getDatabaseUrl() {
   const primary = process.env.DATABASE_URL;
@@ -64,6 +66,9 @@ export async function POST(req: Request) {
           name: true,
           passwordHash: true,
           whatsappPhone: true,
+          whatsappBusinessAccountId: true,
+          whatsappPhoneNumberId: true,
+          whatsappAccessToken: true,
           role: true,
           isDisabled: true,
         },
@@ -76,7 +81,7 @@ export async function POST(req: Request) {
       }
       const sql = neon(connectionString);
       const rows = await sql`
-        SELECT id, email, name, "passwordHash", "whatsappPhone", role, "isDisabled"
+        SELECT id, email, name, "passwordHash", "whatsappPhone", "whatsappBusinessAccountId", "whatsappPhoneNumberId", "whatsappAccessToken", role, "isDisabled"
         FROM "User"
         WHERE email = ${parsedEmail}
         LIMIT 1
@@ -108,10 +113,13 @@ export async function POST(req: Request) {
       );
     }
 
-    // Create session
-    await createSessionCookie(user.id);
+    const hasWhatsapp = Boolean(
+      (user as any).whatsappBusinessAccountId &&
+        (user as any).whatsappPhoneNumberId &&
+        (user as any).whatsappAccessToken
+    );
 
-    const hasWhatsapp = Boolean(user.whatsappPhone);
+    const sessionValue = await createSessionValue(user.id);
 
     const response = NextResponse.json({
       ok: true,
@@ -124,13 +132,29 @@ export async function POST(req: Request) {
       },
     });
 
+    response.cookies.set(SESSION_COOKIE_NAME, sessionValue, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: SESSION_MAX_AGE_SECONDS,
+      path: "/",
+    });
+
     // Set whatsapp_configured cookie so middleware can check without DB hit
     if (hasWhatsapp) {
       response.cookies.set("whatsapp_configured", "1", {
         httpOnly: false,
-        secure: true,
+        secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
         maxAge: 60 * 60 * 24 * 7,
+        path: "/",
+      });
+    } else {
+      response.cookies.set("whatsapp_configured", "", {
+        httpOnly: false,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 0,
         path: "/",
       });
     }
@@ -147,7 +171,7 @@ export async function POST(req: Request) {
         }
         const sql = neon(connectionString);
         const rows = await sql`
-          SELECT id, email, name, "passwordHash", "whatsappPhone", role, "isDisabled"
+          SELECT id, email, name, "passwordHash", "whatsappPhone", "whatsappBusinessAccountId", "whatsappPhoneNumberId", "whatsappAccessToken", role, "isDisabled"
           FROM "User"
           WHERE email = ${parsedEmail}
           LIMIT 1
@@ -176,9 +200,13 @@ export async function POST(req: Request) {
           );
         }
 
-        await createSessionCookie(user.id);
+        const hasWhatsapp = Boolean(
+          (user as any).whatsappBusinessAccountId &&
+            (user as any).whatsappPhoneNumberId &&
+            (user as any).whatsappAccessToken
+        );
 
-        const hasWhatsapp = Boolean(user.whatsappPhone);
+        const sessionValue = await createSessionValue(user.id);
 
         const response = NextResponse.json({
           ok: true,
@@ -191,12 +219,28 @@ export async function POST(req: Request) {
           },
         });
 
+        response.cookies.set(SESSION_COOKIE_NAME, sessionValue, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "lax",
+          maxAge: SESSION_MAX_AGE_SECONDS,
+          path: "/",
+        });
+
         if (hasWhatsapp) {
           response.cookies.set("whatsapp_configured", "1", {
             httpOnly: false,
-            secure: true,
+            secure: process.env.NODE_ENV === "production",
             sameSite: "lax",
             maxAge: 60 * 60 * 24 * 7,
+            path: "/",
+          });
+        } else {
+          response.cookies.set("whatsapp_configured", "", {
+            httpOnly: false,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "lax",
+            maxAge: 0,
             path: "/",
           });
         }

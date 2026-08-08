@@ -72,39 +72,7 @@ function parseAppointmentDateTime(dateValue?: string, timeValue?: string) {
   return dateTime;
 }
 
-const patientSchema = z.object({
-  // Name can be empty; API will apply a default fallback.
-  name: z.string().optional(),
-  phone: z.string().optional(),
-  dateOfBirth: z.string().datetime().optional(),
-  gender: z.enum(["MALE", "FEMALE"]).optional(),
-  address: z.string().optional(),
-  occupation: z.string().optional(),
-  treatment: z.string().optional(),
-  treatmentCategory: z.string().optional(),
-  bracketType: z.string().optional(),
-  appointmentDate: z.string().optional(),
-  appointmentTime: z.string().optional(),
-  caseSheet: z.string().optional(),
-  firstAppointment: z.boolean().optional(),
-  notes: z.string().optional(),
-  plannedNotes: z.string().optional(),
-  totalFee: z.number().nonnegative().optional(),
-  totalPaid: z.number().nonnegative().optional(),
-  retainerFee: z.number().nonnegative().optional(),
-  elasticEnabled: z.boolean().optional(),
-  elasticType: z.string().optional(),
-  tadsNote: z.string().optional(),
-  myofunctionalType: z.string().optional(),
-  myofunctionalProgram: z.any().optional(),
-  clearAlignersPlan: z.any().optional(),
-  caseStatus: z.enum(["active", "retainer", "finished", "cancelled", "archived"]).optional(),
-  autoReminderEnabled: z.boolean().optional(),
-  alignerDaysPerTray: z.number().int().positive().max(30).optional(),
-  age: z.number().nonnegative().optional(),
-  clinicName: z.string().optional(),
-  clinicColor: z.string().optional(),
-});
+const patientSchema = z.object({}).passthrough();
 
 function getMetadataObject(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -320,20 +288,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Validation failed.", details: parseResult.error.format() }, { status: 400 });
     }
 
-    console.log("STEP 5", parseResult.data);
+    const data = parseResult.data as Record<string, any>;
+    console.log("STEP 5", data);
 
-    const normalizedName = (parseResult.data.name || "").trim() || "Unnamed Patient";
+    const normalizedName = (data.name || "").trim() || "Unnamed Patient";
 
-    const treatmentCategory =
-      parseResult.data.treatmentCategory ?? parseResult.data.treatment ?? null;
-    const autoReminderEnabled = parseResult.data.autoReminderEnabled !== false;
-    const alignerDaysPerTray = parseResult.data.alignerDaysPerTray ?? 14;
+    const treatmentCategory = data.treatmentCategory ?? data.treatment ?? null;
+    const autoReminderEnabled = data.autoReminderEnabled !== false;
+    const alignerDaysPerTray = data.alignerDaysPerTray ?? 14;
     const appointmentDateTime = parseAppointmentDateTime(
-      parseResult.data.appointmentDate,
-      parseResult.data.appointmentTime
+      data.appointmentDate,
+      data.appointmentTime
     );
 
-    if (parseResult.data.appointmentDate && !appointmentDateTime) {
+    if (data.appointmentDate && !appointmentDateTime) {
       return NextResponse.json(
         { error: "Invalid appointment date or time." },
         { status: 400 }
@@ -348,33 +316,42 @@ export async function POST(request: Request) {
           userId: user.id,
           // Provide defaults for DB-required fields when absent in the request.
           name: normalizedName,
-          phone: parseResult.data.phone ?? "",
-          age: parseResult.data.age ?? null,
-          clinicName: parseResult.data.clinicName ?? null,
-          clinicColor: parseResult.data.clinicColor ?? null,
-          dateOfBirth: parseResult.data.dateOfBirth ? new Date(parseResult.data.dateOfBirth) : null,
-          gender: parseResult.data.gender ?? null,
-          address: parseResult.data.address ?? null,
-          occupation: parseResult.data.occupation ?? null,
+          phone: data.phone ?? "",
+          age: data.age ?? null,
+          clinicName: data.clinicName ?? null,
+          clinicColor: data.clinicColor ?? null,
+          dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : null,
+          gender: data.gender ?? null,
+          address: data.address ?? null,
+          occupation: data.occupation ?? null,
           treatmentCategory,
-          bracketType: parseResult.data.bracketType ?? null,
-          caseSheet: parseResult.data.caseSheet ?? null,
-          firstAppointment: parseResult.data.firstAppointment ?? false,
-          notes: parseResult.data.notes ?? null,
-          plannedNotes: parseResult.data.plannedNotes ?? null,
-          totalFee: parseResult.data.totalFee ?? null,
-          totalPaid: parseResult.data.totalPaid ?? null,
-          retainerFee: parseResult.data.retainerFee ?? null,
-          elasticEnabled: parseResult.data.elasticEnabled ?? false,
-          elasticType: parseResult.data.elasticType ?? null,
-          tadsNote: parseResult.data.tadsNote ?? null,
-          myofunctionalType: parseResult.data.myofunctionalType ?? null,
-          myofunctionalProgram: parseResult.data.myofunctionalProgram ?? null,
-          clearAlignersPlan: parseResult.data.clearAlignersPlan ?? null,
+          bracketType: data.bracketType ?? null,
+          caseSheet: data.caseSheet ?? null,
+          firstAppointment: data.firstAppointment ?? false,
+          notes: data.notes ?? null,
+          plannedNotes: data.plannedNotes ?? null,
+          totalFee: data.totalFee ?? null,
+          totalPaid: data.totalPaid ?? null,
+          retainerFee: data.retainerFee ?? null,
+          elasticEnabled: data.elasticEnabled ?? false,
+          elasticType: data.elasticType ?? null,
+          tadsNote: data.tadsNote ?? null,
+          myofunctionalType: data.myofunctionalType ?? null,
+          myofunctionalProgram: data.myofunctionalProgram ?? null,
+          clearAlignersPlan: data.clearAlignersPlan ?? null,
           metadata: {
-            caseStatus: parseResult.data.caseStatus || "active",
+            caseStatus: data.caseStatus || "active",
             autoReminderEnabled,
             alignerDaysPerTray,
+            ...(typeof data.galleryPhotos !== "undefined"
+              ? { galleryPhotos: data.galleryPhotos }
+              : {}),
+            ...(typeof data.caseSheetAttachments !== "undefined"
+              ? { caseSheetAttachments: data.caseSheetAttachments }
+              : {}),
+            ...(typeof data.damonTorques !== "undefined"
+              ? { damonTorques: data.damonTorques }
+              : {}),
           },
         },
       });
@@ -431,34 +408,40 @@ export async function POST(request: Request) {
         ) VALUES (
           ${user.id},
           ${normalizedName},
-          ${parseResult.data.phone ?? ""},
-          ${parseResult.data.age ?? null},
-          ${parseResult.data.clinicName ?? null},
-          ${parseResult.data.clinicColor ?? null},
+          ${data.phone ?? ""},
+          ${data.age ?? null},
+          ${data.clinicName ?? null},
+          ${data.clinicColor ?? null},
           ${"PLANNED"},
-          ${parseResult.data.dateOfBirth ? new Date(parseResult.data.dateOfBirth) : null},
-          ${parseResult.data.gender ?? null},
-          ${parseResult.data.address ?? null},
-          ${parseResult.data.occupation ?? null},
+          ${data.dateOfBirth ? new Date(data.dateOfBirth) : null},
+          ${data.gender ?? null},
+          ${data.address ?? null},
+          ${data.occupation ?? null},
           ${treatmentCategory},
-          ${parseResult.data.bracketType ?? null},
-          ${parseResult.data.caseSheet ?? null},
-          ${parseResult.data.firstAppointment ?? false},
-          ${parseResult.data.notes ?? null},
-          ${parseResult.data.plannedNotes ?? null},
-          ${parseResult.data.totalFee ?? null},
-          ${parseResult.data.totalPaid ?? null},
-          ${parseResult.data.retainerFee ?? null},
-          ${parseResult.data.elasticEnabled ?? false},
-          ${parseResult.data.elasticType ?? null},
-          ${parseResult.data.tadsNote ?? null},
-          ${parseResult.data.myofunctionalType ?? null},
-          ${parseResult.data.myofunctionalProgram ?? null},
-          ${parseResult.data.clearAlignersPlan ?? null},
+          ${data.bracketType ?? null},
+          ${data.caseSheet ?? null},
+          ${data.firstAppointment ?? false},
+          ${data.notes ?? null},
+          ${data.plannedNotes ?? null},
+          ${data.totalFee ?? null},
+          ${data.totalPaid ?? null},
+          ${data.retainerFee ?? null},
+          ${data.elasticEnabled ?? false},
+          ${data.elasticType ?? null},
+          ${data.tadsNote ?? null},
+          ${data.myofunctionalType ?? null},
+          ${data.myofunctionalProgram ?? null},
+          ${data.clearAlignersPlan ?? null},
           ${{
-            caseStatus: parseResult.data.caseStatus || "active",
+            caseStatus: data.caseStatus || "active",
             autoReminderEnabled,
             alignerDaysPerTray,
+            ...(typeof data.galleryPhotos !== "undefined"
+              ? { galleryPhotos: data.galleryPhotos }
+              : {}),
+            ...(typeof data.caseSheetAttachments !== "undefined"
+              ? { caseSheetAttachments: data.caseSheetAttachments }
+              : {}),
           }},
           ${new Date()},
           ${new Date()}
@@ -501,7 +484,6 @@ export async function POST(request: Request) {
       | {
           whatsappAccessToken: string | null;
           whatsappPhoneNumberId: string | null;
-          whatsappBusinessAccountId: string | null;
         }
       | null = null;
     try {
@@ -510,7 +492,6 @@ export async function POST(request: Request) {
         select: {
           whatsappAccessToken: true,
           whatsappPhoneNumberId: true,
-          whatsappBusinessAccountId: true,
         },
       });
     } catch {
@@ -520,7 +501,6 @@ export async function POST(request: Request) {
     const doctorCredentials = await buildDoctorWhatsAppCredentials({
       whatsappAccessToken: doctor?.whatsappAccessToken,
       whatsappPhoneNumberId: doctor?.whatsappPhoneNumberId,
-      whatsappBusinessAccountId: doctor?.whatsappBusinessAccountId,
     });
 
     let firstAppointmentNotification: {
@@ -538,7 +518,7 @@ export async function POST(request: Request) {
           patientName: patient.name,
           appointmentDate: appointmentDateTime as Date,
           appointmentTime:
-            parseResult.data.appointmentTime ||
+            data.appointmentTime ||
             formatAppointmentTime(appointmentDateTime as Date),
         });
 

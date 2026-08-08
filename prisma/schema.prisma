@@ -1,6 +1,6 @@
 generator client {
   provider = "prisma-client-js"
-  binaryTargets = ["native", "debian-openssl-1.1.x"]
+  engineType = "client"
 }
   datasource db {
     provider = "postgresql"
@@ -12,11 +12,14 @@ generator client {
     name                String?
     email               String        @unique
     passwordHash        String
+    passwordResetCodeHash String?
+    passwordResetCodeExpiresAt DateTime?
+    passwordResetRequestedAt DateTime?
     whatsappPhone       String?
     whatsappBusinessAccountId String?
-    whatsappPhoneNumberId String?
-    whatsappAccessToken String?
-    whatsappConnectedAt DateTime?
+    whatsappPhoneNumberId     String?
+    whatsappAccessToken       String?
+    whatsappConnectedAt       DateTime?
     role                UserRole      @default(DOCTOR)
     isDisabled          Boolean       @default(false)
     subscriptionStatus  SubscriptionStatus @default(FREE)
@@ -46,6 +49,7 @@ generator client {
     action     String
     targetType String
     targetId   String
+    ipAddress  String?
     createdAt  DateTime @default(now())
     user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 

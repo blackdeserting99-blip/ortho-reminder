@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 
 export const SESSION_COOKIE_NAME = "ortho_session";
+export const WHATSAPP_CONFIGURED_COOKIE_NAME = "whatsapp_configured";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
 
 function getSessionSecret(): string {
@@ -115,6 +116,17 @@ export async function clearSessionCookie(): Promise<void> {
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE_NAME, "", {
     httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 0,
+    path: "/",
+  });
+}
+
+export async function clearWhatsAppConfiguredCookie(): Promise<void> {
+  const cookieStore = await cookies();
+  cookieStore.set(WHATSAPP_CONFIGURED_COOKIE_NAME, "", {
+    httpOnly: false,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     maxAge: 0,
