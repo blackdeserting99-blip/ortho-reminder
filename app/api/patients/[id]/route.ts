@@ -813,7 +813,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         { status: 500 }
       );
     }
-  }
   } catch (error) {
     return jsonRouteError("PATCH /api/patients/[id]", error);
   }
