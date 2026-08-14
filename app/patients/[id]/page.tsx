@@ -20,6 +20,10 @@ type Patient = {
   treatment?: string;
   bracketType?: string;
   damonTorques?: string;
+  elasticEnabled?: boolean;
+  elasticType?: string;
+  tadsNote?: string;
+  wireSettings?: Record<string, any>;
   notes?: string;
   caseSheet?: string;
   appointmentDate?: string | null;
@@ -173,11 +177,33 @@ export default function PatientProfilePage() {
   }, [patient]);
 
   const lastVisit = (patient?.visits && patient.visits.length > 0) ? patient.visits[patient.visits.length - 1] : null;
+  const resolveWireDisplayValue = (key: "upper" | "lower") => {
+    const wireSettings = patient?.wireSettings ?? {};
+    const visitValue = key === "upper"
+      ? (lastVisit?.upperWire || lastVisit?.upperArch || null)
+      : (lastVisit?.lowerWire || lastVisit?.lowerArch || null);
+    const patientValue = key === "upper"
+      ? (wireSettings.upperDamonWire || (wireSettings.upperWireGauge ? `${wireSettings.upperWireGauge} ${wireSettings.upperWireMaterial || ""}`.trim() : null))
+      : (wireSettings.lowerDamonWire || (wireSettings.lowerWireGauge ? `${wireSettings.lowerWireGauge} ${wireSettings.lowerWireMaterial || ""}`.trim() : null));
+    return visitValue || patientValue || "—";
+  };
+  const resolveElasticDisplayValue = () => {
+    if (!patient?.elasticEnabled) {
+      return "—";
+    }
+    return patient.elasticType || "Enabled";
+  };
+  const resolveTadsDisplayValue = () => {
+    if (!patient?.elasticEnabled || !patient?.tadsNote) {
+      return "—";
+    }
+    return patient.tadsNote;
+  };
   const lastVisitOrFallback = lastVisit || {
-    upperWire: patient?.visits?.length === 0 ? null : null,
-    lowerWire: patient?.visits?.length === 0 ? null : null,
-    elastics: patient?.elasticType || (patient?.elasticEnabled ? "Yes" : null),
-    tads: patient?.tadsNote || null,
+    upperWire: resolveWireDisplayValue("upper"),
+    lowerWire: resolveWireDisplayValue("lower"),
+    elastics: resolveElasticDisplayValue(),
+    tads: resolveTadsDisplayValue(),
     visitNotes: patient?.notes || null,
   };
 
@@ -330,10 +356,10 @@ export default function PatientProfilePage() {
             <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="text-sm text-slate-500">Clinical</div>
               <div className="mt-2 text-sm text-slate-700">
-                <div><strong>Elastics:</strong> {lastVisitOrFallback?.elastics ?? patient?.elasticType ?? (patient?.elasticEnabled ? "Enabled" : "—")}</div>
-                <div><strong>TADs:</strong> {lastVisitOrFallback?.tads ?? patient?.tadsNote ?? "—"}</div>
-                <div><strong>Upper Wire:</strong> {lastVisitOrFallback?.upperWire ?? (patient?.wireSettings?.upperDamonWire || (patient?.wireSettings?.upperWireGauge ? `${patient.wireSettings.upperWireGauge} ${patient.wireSettings.upperWireMaterial || ""}` : null)) ?? "—"}</div>
-                <div><strong>Lower Wire:</strong> {lastVisitOrFallback?.lowerWire ?? (patient?.wireSettings?.lowerDamonWire || (patient?.wireSettings?.lowerWireGauge ? `${patient.wireSettings.lowerWireGauge} ${patient.wireSettings.lowerWireMaterial || ""}` : null)) ?? "—"}</div>
+                <div><strong>Elastics:</strong> {resolveElasticDisplayValue()}</div>
+                <div><strong>TADs:</strong> {resolveTadsDisplayValue()}</div>
+                <div><strong>Upper Wire:</strong> {resolveWireDisplayValue("upper")}</div>
+                <div><strong>Lower Wire:</strong> {resolveWireDisplayValue("lower")}</div>
               </div>
             </div>
           </div>
@@ -541,14 +567,14 @@ export default function PatientProfilePage() {
               <div className="mt-2 text-sm text-slate-700">
                 <div>
                   <strong>Upper Wire:</strong>{" "}
-                  {(lastVisitOrFallback?.upperWire || (patient?.wireSettings?.upperDamonWire || (patient?.wireSettings?.upperWireGauge ? `${patient.wireSettings.upperWireGauge} ${patient.wireSettings.upperWireMaterial || ""}` : null))) ?? "—"}
+                  {resolveWireDisplayValue("upper")}
                 </div>
                 <div>
                   <strong>Lower Wire:</strong>{" "}
-                  {(lastVisitOrFallback?.lowerWire || (patient?.wireSettings?.lowerDamonWire || (patient?.wireSettings?.lowerWireGauge ? `${patient.wireSettings.lowerWireGauge} ${patient.wireSettings.lowerWireMaterial || ""}` : null))) ?? "—"}
+                  {resolveWireDisplayValue("lower")}
                 </div>
-                <div><strong>Elastics:</strong> {lastVisitOrFallback?.elastics ?? patient?.elasticType ?? (patient?.elasticEnabled ? "Enabled" : "—")}</div>
-                <div><strong>TADs:</strong> {lastVisitOrFallback?.tads ?? patient?.tadsNote ?? "—"}</div>
+                <div><strong>Elastics:</strong> {resolveElasticDisplayValue()}</div>
+                <div><strong>TADs:</strong> {resolveTadsDisplayValue()}</div>
                 {lastVisitOrFallback?.visitNotes || patient?.notes ? <div className="mt-2 text-sm text-slate-500">{lastVisitOrFallback?.visitNotes || patient?.notes}</div> : null}
               </div>
             </div>

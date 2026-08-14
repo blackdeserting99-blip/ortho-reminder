@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/app/lib/auth";
 import {
+  buildDoctorWhatsAppCredentials,
   encryptWhatsAppProviderToken,
   normalizePhone,
 } from "@/app/lib/whatsapp";
@@ -103,12 +104,12 @@ export async function GET() {
       : null;
   }
 
-  const connected = Boolean(
-    freshUser?.whatsappBusinessAccountId &&
-      freshUser?.whatsappPhoneNumberId &&
-      freshUser?.whatsappAccessToken &&
-      freshUser?.whatsappConnectedAt
-  );
+  const credentials = await buildDoctorWhatsAppCredentials({
+    whatsappAccessToken: freshUser?.whatsappAccessToken,
+    whatsappPhoneNumberId: freshUser?.whatsappPhoneNumberId,
+    whatsappBusinessAccountId: freshUser?.whatsappBusinessAccountId,
+  });
+  const connected = Boolean(credentials);
 
   return NextResponse.json({
     phone: freshUser?.whatsappPhone || "",
@@ -116,8 +117,12 @@ export async function GET() {
     whatsapp: {
       connected,
       connectedAt: freshUser?.whatsappConnectedAt || null,
-      businessAccountIdMasked: maskValue(freshUser?.whatsappBusinessAccountId),
-      phoneNumberIdMasked: maskValue(freshUser?.whatsappPhoneNumberId),
+      businessAccountIdMasked: maskValue(
+        freshUser?.whatsappBusinessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID
+      ),
+      phoneNumberIdMasked: maskValue(
+        freshUser?.whatsappPhoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID
+      ),
     },
   });
 }

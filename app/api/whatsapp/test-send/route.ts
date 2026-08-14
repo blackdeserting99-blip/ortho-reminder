@@ -5,12 +5,11 @@ import { neon } from "@neondatabase/serverless";
 import {
   buildDoctorWhatsAppCredentials,
   normalizePhone,
-  sendWhatsAppText,
+  sendWhatsAppTemplate,
 } from "@/app/lib/whatsapp";
 
 const requestSchema = z.object({
   phone: z.string().min(1),
-  message: z.string().min(1).max(2000).optional(),
 });
 
 function getSqlClient() {
@@ -19,6 +18,10 @@ function getSqlClient() {
     throw new Error("DATABASE_URL is not configured");
   }
   return neon(connectionString);
+}
+
+function getMetaGraphApiVersion() {
+  return (process.env.META_GRAPH_API_VERSION || "v23.0").trim();
 }
 
 export async function POST(request: Request) {
@@ -38,9 +41,23 @@ export async function POST(request: Request) {
 
   const phone = parsed.data.phone.trim();
   const normalizedPhone = normalizePhone(phone);
-  const message =
-    parsed.data.message?.trim() ||
-    `Meta WhatsApp test from OrthoPrime OA at ${new Date().toISOString()}`;
+  const templateName = (
+    process.env.WHATSAPP_APPOINTMENT_TEMPLATE_NAME || "appointment_reminder"
+  ).trim();
+  const templateLanguageCode = (
+    process.env.WHATSAPP_APPOINTMENT_TEMPLATE_LANGUAGE_CODE || ""
+  ).trim();
+
+  if (!templateLanguageCode) {
+    return NextResponse.json(
+      {
+        error: "Template language is not configured.",
+        details:
+          "Set WHATSAPP_APPOINTMENT_TEMPLATE_LANGUAGE_CODE in .env.local to the exact Meta template language code (for example: ar, ar_AR).",
+      },
+      { status: 500 }
+    );
+  }
 
   const sql = getSqlClient();
   const rows = await sql`
@@ -64,19 +81,45 @@ export async function POST(request: Request) {
     );
   }
 
+  const outboundPayload = {
+    messaging_product: "whatsapp",
+    to: normalizedPhone,
+    type: "template",
+    template: {
+      name: templateName,
+      language: { code: templateLanguageCode },
+    },
+  };
+
+  console.info(
+    "[WHATSAPP TEST TEMPLATE PAYLOAD]",
+    JSON.stringify({
+      doctorId: user.id,
+      endpoint: `https://graph.facebook.com/${getMetaGraphApiVersion()}/${credentials.phoneNumberId}/messages`,
+      payload: outboundPayload,
+    })
+  );
+
   const startedAt = Date.now();
-  const result = await sendWhatsAppText(credentials, normalizedPhone, message);
+  const result = await sendWhatsAppTemplate(
+    credentials,
+    normalizedPhone,
+    templateName,
+    templateLanguageCode
+  );
   const debug = {
     at: new Date().toISOString(),
     doctorId: user.id,
     provider: "meta",
     request: {
+      graphApiVersion: getMetaGraphApiVersion(),
       phoneNumberId: credentials.phoneNumberId,
       businessAccountId: credentials.businessAccountId,
       phoneInput: phone,
       phoneNormalized: normalizedPhone,
-      messageLength: message.length,
-      tokenPreview: `${credentials.accessToken.slice(0, 3)}***${credentials.accessToken.slice(-2)}`,
+      mode: "template",
+      templateName,
+      templateLanguageCode,
     },
     response: {
       ok: result.ok,
@@ -93,7 +136,7 @@ export async function POST(request: Request) {
   if (!result.ok) {
     return NextResponse.json(
       {
-        error: "Failed to send test WhatsApp message",
+        error: "Failed to send appointment reminder template",
         details: result.error || "Unknown Meta error",
         debug,
       },
@@ -103,7 +146,7 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     ok: true,
-    message: "Test WhatsApp sent successfully.",
+    message: "appointment_reminder template sent successfully.",
     provider: result.provider,
     messageId: result.messageId || null,
     debug,

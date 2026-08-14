@@ -41,6 +41,16 @@ type Patient = {
 
   elasticEnabled?: boolean;
   elasticType?: string;
+  wireSettings?: {
+    upperWireMaterial?: string;
+    lowerWireMaterial?: string;
+    upperWireGauge?: string;
+    lowerWireGauge?: string;
+    upperDamonWire?: string;
+    upperDamonWireOther?: string;
+    lowerDamonWire?: string;
+    lowerDamonWireOther?: string;
+  };
 
   totalFee?: number;
 
@@ -125,6 +135,8 @@ const [upperWireOther, setUpperWireOther] =
   useState("");
 const [upperDamonWire, setUpperDamonWire] =
   useState("0.014 CuNiTi");
+const [upperDamonWireFamily, setUpperDamonWireFamily] =
+  useState<"CuNiTi" | "SS" | "Other">("CuNiTi");
 const [upperDamonWireOther, setUpperDamonWireOther] =
   useState("");
 
@@ -138,6 +150,8 @@ const [lowerWireOther, setLowerWireOther] =
   useState("");
 const [lowerDamonWire, setLowerDamonWire] =
   useState("0.014 CuNiTi");
+const [lowerDamonWireFamily, setLowerDamonWireFamily] =
+  useState<"CuNiTi" | "SS" | "Other">("CuNiTi");
 const [lowerDamonWireOther, setLowerDamonWireOther] =
   useState("");
 
@@ -181,6 +195,8 @@ const [plannedUpperWireOther, setPlannedUpperWireOther] =
   useState("");
 const [plannedUpperDamonWire, setPlannedUpperDamonWire] =
   useState("0.014 CuNiTi");
+const [plannedUpperDamonWireFamily, setPlannedUpperDamonWireFamily] =
+  useState<"CuNiTi" | "SS" | "Other">("CuNiTi");
 const [plannedUpperDamonWireOther, setPlannedUpperDamonWireOther] =
   useState("");
 
@@ -194,6 +210,8 @@ const [plannedLowerWireOther, setPlannedLowerWireOther] =
   useState("");
 const [plannedLowerDamonWire, setPlannedLowerDamonWire] =
   useState("0.014 CuNiTi");
+const [plannedLowerDamonWireFamily, setPlannedLowerDamonWireFamily] =
+  useState<"CuNiTi" | "SS" | "Other">("CuNiTi");
 const [plannedLowerDamonWireOther, setPlannedLowerDamonWireOther] =
   useState("");
 
@@ -236,15 +254,64 @@ const response = await fetch(`/api/patients/${id}`, { cache: "no-store", credent
 
           setAppointmentDate("");
           setAppointmentTime("04:00 PM");
-          setElasticEnabled(foundPatient.elasticEnabled || false);
+          setElasticEnabled(false);
           setElasticType(foundPatient.elasticType || "Class II");
+          setTadsEnabled(false);
+          setUpperArchEnabled(false);
+          setLowerArchEnabled(false);
+          setPlannedUpperArchEnabled(false);
+          setPlannedLowerArchEnabled(false);
+          setPlannedTadsEnabled(false);
 
-          const wireSystem = foundPatient.bracketType && foundPatient.bracketType.toLowerCase().includes("damon") ? "Damon" : "MBT/Roth";
+          const existingWireSettings = foundPatient.wireSettings as Patient["wireSettings"] | undefined;
+          const hasDamonWireValues = Boolean(
+            existingWireSettings?.upperDamonWire ||
+            existingWireSettings?.lowerDamonWire ||
+            existingWireSettings?.upperDamonWireOther ||
+            existingWireSettings?.lowerDamonWireOther
+          );
+          const wireSystem = foundPatient.bracketType && foundPatient.bracketType.toLowerCase().includes("damon") || hasDamonWireValues
+            ? "Damon"
+            : "MBT/Roth";
 
           setUpperWireSystem(wireSystem as "MBT/Roth" | "Damon");
           setLowerWireSystem(wireSystem as "MBT/Roth" | "Damon");
           setPlannedUpperWireSystem(wireSystem as "MBT/Roth" | "Damon");
           setPlannedLowerWireSystem(wireSystem as "MBT/Roth" | "Damon");
+
+          if (existingWireSettings) {
+            const normalizeMaterial = (material?: string): "Niti" | "SS" =>
+              material?.toLowerCase().includes("stainless") ? "SS" : "Niti";
+
+            if (existingWireSettings.upperWireMaterial) {
+              setUpperWireType(normalizeMaterial(existingWireSettings.upperWireMaterial));
+            }
+            if (existingWireSettings.lowerWireMaterial) {
+              setLowerWireType(normalizeMaterial(existingWireSettings.lowerWireMaterial));
+            }
+            if (existingWireSettings.upperWireGauge) {
+              setUpperWireGauge(existingWireSettings.upperWireGauge);
+            }
+            if (existingWireSettings.lowerWireGauge) {
+              setLowerWireGauge(existingWireSettings.lowerWireGauge);
+            }
+            if (existingWireSettings.upperDamonWire) {
+              setUpperDamonWire(existingWireSettings.upperDamonWire);
+              setUpperDamonWireFamily(getDamonWireFamily(existingWireSettings.upperDamonWire));
+            }
+            if (existingWireSettings.upperDamonWireOther) {
+              setUpperDamonWireOther(existingWireSettings.upperDamonWireOther);
+              setUpperDamonWireFamily("Other");
+            }
+            if (existingWireSettings.lowerDamonWire) {
+              setLowerDamonWire(existingWireSettings.lowerDamonWire);
+              setLowerDamonWireFamily(getDamonWireFamily(existingWireSettings.lowerDamonWire));
+            }
+            if (existingWireSettings.lowerDamonWireOther) {
+              setLowerDamonWireOther(existingWireSettings.lowerDamonWireOther);
+              setLowerDamonWireFamily("Other");
+            }
+          }
         }
       } catch {
         setPatient(null);
@@ -275,13 +342,35 @@ const response = await fetch(`/api/patients/${id}`, { cache: "no-store", credent
       .split("T")[0];
   };
 
-  const damonWireOptions = [
-    "0.014 CuNiTi",
-    "0.014 × 0.025 CuNiTi",
-    "0.018 × 0.025 CuNiTi",
-    "0.019 × 0.025 Stainless Steel",
-    "Other",
-  ];
+  const getDamonWireFamily = (value: string): "CuNiTi" | "SS" | "Other" => {
+    if (value === "Other") return "Other";
+    return value.includes("Stainless Steel") ? "SS" : "CuNiTi";
+  };
+
+  const getDamonWireOptions = (family: "CuNiTi" | "SS" | "Other") => {
+    if (family === "SS") {
+      return [
+        "0.016 × 0.025 Stainless Steel",
+        "0.016 × 0.027 Stainless Steel",
+        "0.018 × 0.027 Stainless Steel",
+        "0.019 × 0.025 Stainless Steel",
+      ];
+    }
+
+    if (family === "CuNiTi") {
+      return [
+        "0.014 CuNiTi",
+        "0.016 CuNiTi",
+        "0.018 CuNiTi",
+        "0.014 × 0.025 CuNiTi",
+        "0.014 × 0.027 CuNiTi",
+        "0.018 × 0.025 CuNiTi",
+        "0.018 × 0.027 CuNiTi",
+      ];
+    }
+
+    return [];
+  };
 
   const wireGauges = (type: "Niti" | "SS") =>
     type === "Niti"
@@ -523,6 +612,39 @@ const response = await fetch(`/api/patients/${id}`, { cache: "no-store", credent
       const finalLowerWire = lowerArchEnabled
         ? formatWireLabel(lowerWireSystem, lowerWireType, lowerWireGauge, lowerWireOther, lowerDamonWire, lowerDamonWireOther)
         : "";
+      const existingWireSettings = (patient?.wireSettings ?? {}) as NonNullable<Patient["wireSettings"]>;
+      const wireSettingsPayload: Record<string, string> = {
+        upperWireMaterial: existingWireSettings.upperWireMaterial || "",
+        lowerWireMaterial: existingWireSettings.lowerWireMaterial || "",
+        upperWireGauge: existingWireSettings.upperWireGauge || "",
+        lowerWireGauge: existingWireSettings.lowerWireGauge || "",
+        upperDamonWire: existingWireSettings.upperDamonWire || "",
+        upperDamonWireOther: existingWireSettings.upperDamonWireOther || "",
+        lowerDamonWire: existingWireSettings.lowerDamonWire || "",
+        lowerDamonWireOther: existingWireSettings.lowerDamonWireOther || "",
+      };
+
+      if (upperArchEnabled) {
+        if (upperWireSystem === "Damon") {
+          wireSettingsPayload.upperDamonWire = upperDamonWire === "Other" ? (upperDamonWireOther.trim() || "Other") : upperDamonWire;
+          wireSettingsPayload.upperDamonWireOther = upperDamonWire === "Other" ? upperDamonWireOther.trim() : "";
+        } else {
+          wireSettingsPayload.upperWireMaterial = upperWireType === "SS" ? "Stainless Steel" : "NiTi";
+          wireSettingsPayload.upperWireGauge = upperWireGauge === "Other" ? (upperWireOther.trim() || "Other") : upperWireGauge;
+        }
+      }
+
+      if (lowerArchEnabled) {
+        if (lowerWireSystem === "Damon") {
+          wireSettingsPayload.lowerDamonWire = lowerDamonWire === "Other" ? (lowerDamonWireOther.trim() || "Other") : lowerDamonWire;
+          wireSettingsPayload.lowerDamonWireOther = lowerDamonWire === "Other" ? lowerDamonWireOther.trim() : "";
+        } else {
+          wireSettingsPayload.lowerWireMaterial = lowerWireType === "SS" ? "Stainless Steel" : "NiTi";
+          wireSettingsPayload.lowerWireGauge = lowerWireGauge === "Other" ? (lowerWireOther.trim() || "Other") : lowerWireGauge;
+        }
+      }
+
+      const hasWireSettingsPayload = Object.values(wireSettingsPayload).some((value) => value.trim().length > 0);
       const plannedUpperWire = plannedUpperArchEnabled ? formatWireLabel(plannedUpperWireSystem, plannedUpperWireType, plannedUpperWireGauge, plannedUpperWireOther, plannedUpperDamonWire, plannedUpperDamonWireOther) : "";
       const plannedLowerWire = plannedLowerArchEnabled ? formatWireLabel(plannedLowerWireSystem, plannedLowerWireType, plannedLowerWireGauge, plannedLowerWireOther, plannedLowerDamonWire, plannedLowerDamonWireOther) : "";
       const finalElastics = buildElasticLabel(
@@ -567,6 +689,7 @@ const response = await fetch(`/api/patients/${id}`, { cache: "no-store", credent
           elasticEnabled,
           elasticType: finalElastics || "",
           plannedNotes: existingVisits.length === 0 ? "" : existingPatient.plannedNotes,
+          ...(hasWireSettingsPayload ? { wireSettings: wireSettingsPayload } : {}),
         }),
       });
       if (!updatePatientResponse.ok) {
@@ -841,18 +964,43 @@ const response = await fetch(`/api/patients/${id}`, { cache: "no-store", credent
                         <label className="block mb-2 font-semibold text-sm">
                           Damon wire
                         </label>
-                        <select
-                          value={upperDamonWire}
-                          onChange={(e) => setUpperDamonWire(e.target.value)}
-                          className="w-full border p-3 rounded"
-                        >
-                          {damonWireOptions.map((option) => (
-                            <option key={option} value={option}>
-                              {option}
-                            </option>
+                        <div className="mb-2 flex flex-wrap gap-2">
+                          {(["CuNiTi", "SS", "Other"] as const).map((family) => (
+                            <label key={family} className="flex items-center gap-2 rounded border px-2 py-1 text-sm">
+                              <input
+                                type="radio"
+                                name="upperDamonWireFamily"
+                                value={family}
+                                checked={upperDamonWireFamily === family}
+                                onChange={() => {
+                                  setUpperDamonWireFamily(family);
+                                  if (family === "Other") {
+                                    setUpperDamonWire("Other");
+                                    return;
+                                  }
+                                  const nextOptions = getDamonWireOptions(family);
+                                  setUpperDamonWire(nextOptions[0] ?? "0.014 CuNiTi");
+                                }}
+                              />
+                              {family === "SS" ? "SS" : family}
+                            </label>
                           ))}
-                        </select>
-                        {upperDamonWire === "Other" && (
+                        </div>
+                        {upperDamonWireFamily !== "Other" && (
+                          <select
+                            value={upperDamonWire}
+                            onChange={(e) => setUpperDamonWire(e.target.value)}
+                            className="w-full border p-3 rounded"
+                          >
+                            {getDamonWireOptions(upperDamonWireFamily).map((option) => (
+                              <option key={option} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                            <option value="Other">Other</option>
+                          </select>
+                        )}
+                        {upperDamonWireFamily === "Other" && (
                           <input
                             type="text"
                             value={upperDamonWireOther}
@@ -952,18 +1100,43 @@ const response = await fetch(`/api/patients/${id}`, { cache: "no-store", credent
                         <label className="block mb-2 font-semibold text-sm">
                           Damon wire
                         </label>
-                        <select
-                          value={lowerDamonWire}
-                          onChange={(e) => setLowerDamonWire(e.target.value)}
-                          className="w-full border p-3 rounded"
-                        >
-                          {damonWireOptions.map((option) => (
-                            <option key={option} value={option}>
-                              {option}
-                            </option>
+                        <div className="mb-2 flex flex-wrap gap-2">
+                          {(["CuNiTi", "SS", "Other"] as const).map((family) => (
+                            <label key={family} className="flex items-center gap-2 rounded border px-2 py-1 text-sm">
+                              <input
+                                type="radio"
+                                name="lowerDamonWireFamily"
+                                value={family}
+                                checked={lowerDamonWireFamily === family}
+                                onChange={() => {
+                                  setLowerDamonWireFamily(family);
+                                  if (family === "Other") {
+                                    setLowerDamonWire("Other");
+                                    return;
+                                  }
+                                  const nextOptions = getDamonWireOptions(family);
+                                  setLowerDamonWire(nextOptions[0] ?? "0.014 CuNiTi");
+                                }}
+                              />
+                              {family === "SS" ? "SS" : family}
+                            </label>
                           ))}
-                        </select>
-                        {lowerDamonWire === "Other" && (
+                        </div>
+                        {lowerDamonWireFamily !== "Other" && (
+                          <select
+                            value={lowerDamonWire}
+                            onChange={(e) => setLowerDamonWire(e.target.value)}
+                            className="w-full border p-3 rounded"
+                          >
+                            {getDamonWireOptions(lowerDamonWireFamily).map((option) => (
+                              <option key={option} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                            <option value="Other">Other</option>
+                          </select>
+                        )}
+                        {lowerDamonWireFamily === "Other" && (
                           <input
                             type="text"
                             value={lowerDamonWireOther}
@@ -1395,18 +1568,43 @@ const response = await fetch(`/api/patients/${id}`, { cache: "no-store", credent
                         ) : (
                           <div>
                             <label className="mb-2 block text-sm font-semibold">Damon wire</label>
-                            <select
-                              value={plannedUpperDamonWire}
-                              onChange={(e) => setPlannedUpperDamonWire(e.target.value)}
-                              className="w-full border p-3 rounded"
-                            >
-                              {damonWireOptions.map((option) => (
-                                <option key={option} value={option}>
-                                  {option}
-                                </option>
+                            <div className="mb-2 flex flex-wrap gap-2">
+                              {(["CuNiTi", "SS", "Other"] as const).map((family) => (
+                                <label key={family} className="flex items-center gap-2 rounded border px-2 py-1 text-sm">
+                                  <input
+                                    type="radio"
+                                    name="plannedUpperDamonWireFamily"
+                                    value={family}
+                                    checked={plannedUpperDamonWireFamily === family}
+                                    onChange={() => {
+                                      setPlannedUpperDamonWireFamily(family);
+                                      if (family === "Other") {
+                                        setPlannedUpperDamonWire("Other");
+                                        return;
+                                      }
+                                      const nextOptions = getDamonWireOptions(family);
+                                      setPlannedUpperDamonWire(nextOptions[0] ?? "0.014 CuNiTi");
+                                    }}
+                                  />
+                                  {family === "SS" ? "SS" : family}
+                                </label>
                               ))}
-                            </select>
-                            {plannedUpperDamonWire === "Other" && (
+                            </div>
+                            {plannedUpperDamonWireFamily !== "Other" && (
+                              <select
+                                value={plannedUpperDamonWire}
+                                onChange={(e) => setPlannedUpperDamonWire(e.target.value)}
+                                className="w-full border p-3 rounded"
+                              >
+                                {getDamonWireOptions(plannedUpperDamonWireFamily).map((option) => (
+                                  <option key={option} value={option}>
+                                    {option}
+                                  </option>
+                                ))}
+                                <option value="Other">Other</option>
+                              </select>
+                            )}
+                            {plannedUpperDamonWireFamily === "Other" && (
                               <input
                                 type="text"
                                 value={plannedUpperDamonWireOther}
@@ -1498,18 +1696,43 @@ const response = await fetch(`/api/patients/${id}`, { cache: "no-store", credent
                         ) : (
                           <div>
                             <label className="mb-2 block text-sm font-semibold">Damon wire</label>
-                            <select
-                              value={plannedLowerDamonWire}
-                              onChange={(e) => setPlannedLowerDamonWire(e.target.value)}
-                              className="w-full border p-3 rounded"
-                            >
-                              {damonWireOptions.map((option) => (
-                                <option key={option} value={option}>
-                                  {option}
-                                </option>
+                            <div className="mb-2 flex flex-wrap gap-2">
+                              {(["CuNiTi", "SS", "Other"] as const).map((family) => (
+                                <label key={family} className="flex items-center gap-2 rounded border px-2 py-1 text-sm">
+                                  <input
+                                    type="radio"
+                                    name="plannedLowerDamonWireFamily"
+                                    value={family}
+                                    checked={plannedLowerDamonWireFamily === family}
+                                    onChange={() => {
+                                      setPlannedLowerDamonWireFamily(family);
+                                      if (family === "Other") {
+                                        setPlannedLowerDamonWire("Other");
+                                        return;
+                                      }
+                                      const nextOptions = getDamonWireOptions(family);
+                                      setPlannedLowerDamonWire(nextOptions[0] ?? "0.014 CuNiTi");
+                                    }}
+                                  />
+                                  {family === "SS" ? "SS" : family}
+                                </label>
                               ))}
-                            </select>
-                            {plannedLowerDamonWire === "Other" && (
+                            </div>
+                            {plannedLowerDamonWireFamily !== "Other" && (
+                              <select
+                                value={plannedLowerDamonWire}
+                                onChange={(e) => setPlannedLowerDamonWire(e.target.value)}
+                                className="w-full border p-3 rounded"
+                              >
+                                {getDamonWireOptions(plannedLowerDamonWireFamily).map((option) => (
+                                  <option key={option} value={option}>
+                                    {option}
+                                  </option>
+                                ))}
+                                <option value="Other">Other</option>
+                              </select>
+                            )}
+                            {plannedLowerDamonWireFamily === "Other" && (
                               <input
                                 type="text"
                                 value={plannedLowerDamonWireOther}

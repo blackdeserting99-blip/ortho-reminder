@@ -7,7 +7,9 @@ import {
   buildDoctorWhatsAppCredentials,
   buildRetainerYearOnePatientMessage,
   buildWhatsAppBotMessage,
+  sendWhatsAppTemplate,
   sendWhatsAppText,
+  type WhatsAppTemplateComponent,
   type WhatsAppReminderType,
 } from "@/app/lib/whatsapp";
 
@@ -287,6 +289,148 @@ function buildDoctorMessage(input: {
     `Appointment: ${formatIsoDate(input.scheduledAt)} ${formatLocalTime(input.scheduledAt)} UTC`,
     `Reminder type: ${label}`,
   ].join("\n");
+}
+
+function getAppointmentTemplateName() {
+  return (process.env.WHATSAPP_APPOINTMENT_TEMPLATE_NAME || "appointment_reminder").trim();
+}
+
+function getAppointmentTemplateLanguageCode() {
+  return (process.env.WHATSAPP_APPOINTMENT_TEMPLATE_LANGUAGE_CODE || "").trim();
+}
+
+function toTemplateComponents(values: string[]): WhatsAppTemplateComponent[] | undefined {
+  if (values.length === 0) {
+    return undefined;
+  }
+
+  return [
+    {
+      type: "body",
+      parameters: values.map((text) => ({
+        type: "text",
+        text,
+      })),
+    },
+  ];
+}
+
+function parseExpectedTemplateParamCount(error: string | undefined) {
+  if (!error) {
+    return null;
+  }
+
+  const direct = error.match(/expected number of params\s*\((\d+)\)/i);
+  if (direct?.[1]) {
+    const parsed = Number(direct[1]);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+  }
+
+  const localizable = error.match(/localizable_params\s*\((\d+)\).*params\s*\((\d+)\)/i);
+  if (localizable?.[2]) {
+    const parsed = Number(localizable[2]);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+  }
+
+  return null;
+}
+
+async function sendReminderViaApprovedTemplate(input: {
+  credentials: Awaited<ReturnType<typeof buildDoctorWhatsAppCredentials>>;
+  patientPhone: string;
+  patientName: string;
+  clinicName: string;
+  reminderType: WhatsAppReminderType;
+  appointmentDateIso: string;
+  appointmentTime: string;
+  patientMessage: string;
+}) {
+  const templateName = getAppointmentTemplateName();
+  const templateLanguageCode = getAppointmentTemplateLanguageCode();
+
+  if (!templateLanguageCode) {
+    return {
+      ok: false,
+      provider: "meta" as const,
+      to: input.patientPhone,
+      error:
+        "WHATSAPP_APPOINTMENT_TEMPLATE_LANGUAGE_CODE is required to send appointment_reminder template.",
+      debug: {
+        endpoint: "",
+        statusCode: null,
+        payload: {
+          templateName,
+          reason: "missing-template-language",
+        },
+      },
+    };
+  }
+
+  const candidateValues = [
+    input.patientMessage,
+    input.patientName,
+    input.appointmentDateIso,
+    input.appointmentTime,
+    input.clinicName,
+    input.reminderType,
+  ];
+
+  const triedCounts = new Set<number>();
+  const queue: number[] = [0, 1, 2, 3];
+  let lastResult: Awaited<ReturnType<typeof sendWhatsAppTemplate>> | null = null;
+
+  while (queue.length > 0) {
+    const count = queue.shift()!;
+    if (triedCounts.has(count)) {
+      continue;
+    }
+    triedCounts.add(count);
+
+    const values = candidateValues.slice(0, count);
+    const components = toTemplateComponents(values);
+
+    const result = await sendWhatsAppTemplate(
+      input.credentials,
+      input.patientPhone,
+      templateName,
+      templateLanguageCode,
+      components
+    );
+
+    if (result.ok) {
+      return result;
+    }
+
+    lastResult = result;
+
+    const expectedCount = parseExpectedTemplateParamCount(result.error);
+    if (
+      expectedCount !== null &&
+      expectedCount >= 0 &&
+      expectedCount <= candidateValues.length &&
+      !triedCounts.has(expectedCount)
+    ) {
+      queue.unshift(expectedCount);
+    }
+  }
+
+  return (
+    lastResult || {
+      ok: false,
+      provider: "meta" as const,
+      to: input.patientPhone,
+      error: "Template send failed without provider response.",
+      debug: {
+        endpoint: "",
+        statusCode: null,
+        payload: {
+          templateName,
+          templateLanguageCode,
+          attemptedParamCounts: Array.from(triedCounts.values()),
+        },
+      },
+    }
+  );
 }
 
 function readClearAlignersPlan(value: unknown): {
@@ -631,7 +775,16 @@ export async function POST(request: Request) {
           continue;
         }
 
-        const patientSend = await sendWhatsAppText(doctorCredentials, patientPhone, patientMessage);
+        const patientSend = await sendReminderViaApprovedTemplate({
+          credentials: doctorCredentials,
+          patientPhone,
+          patientName: String(appointment.patientName || "Patient"),
+          clinicName: String(appointment.clinicName || "العيادة"),
+          reminderType: type,
+          appointmentDateIso: scheduledAt.toISOString(),
+          appointmentTime: formatLocalTime(scheduledAt),
+          patientMessage,
+        });
         const doctorSend = doctorPhone
           ? await sendWhatsAppText(doctorCredentials, doctorPhone, doctorMessage)
           : { ok: true, provider: "simulation" as const, to: "" };
@@ -651,7 +804,7 @@ export async function POST(request: Request) {
             "reminderStatus" = ${success ? "SENT" : "FAILED"},
             "reminderSentAt" = ${success ? new Date() : appointment.reminderSentAt ? new Date(appointment.reminderSentAt) : null},
             "reminderNote" = ${reminderErrors || null},
-            metadata = ${updateMetadataSent(appointment.metadata, type)}::jsonb,
+            metadata = ${success ? updateMetadataSent(appointment.metadata, type) : appointment.metadata}::jsonb,
             "updatedAt" = ${new Date()}
           WHERE id = ${appointment.id}
         `;
@@ -933,11 +1086,16 @@ export async function POST(request: Request) {
       continue;
     }
 
-    const patientSend = await sendWhatsAppText(
-      doctorCredentials,
+    const patientSend = await sendReminderViaApprovedTemplate({
+      credentials: doctorCredentials,
       patientPhone,
-      patientMessage
-    );
+      patientName: appointment.patient.name,
+      clinicName: appointment.patient.clinic?.name || "العيادة",
+      reminderType: type,
+      appointmentDateIso: appointment.scheduledAt.toISOString(),
+      appointmentTime: formatLocalTime(appointment.scheduledAt),
+      patientMessage,
+    });
     const doctorSend = doctorPhone
       ? await sendWhatsAppText(doctorCredentials, doctorPhone, doctorMessage)
       : { ok: true, provider: "simulation" as const, to: "" };

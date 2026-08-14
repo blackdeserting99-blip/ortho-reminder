@@ -12,6 +12,7 @@ const PUBLIC_PATHS = [
   "/api/register",
   "/api/logout",
   "/api/password-reset",
+  "/api/whatsapp/webhook",
 ];
 
 function isPublicPath(pathname: string) {

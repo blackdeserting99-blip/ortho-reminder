@@ -61,6 +61,7 @@ const [wireMaterial, setWireMaterial] =
   const [draftKeyLoaded, setDraftKeyLoaded] = useState(false);
   const [existingLoadedFromId, setExistingLoadedFromId] = useState<number | null>(null);
   const [existingLoadMessage, setExistingLoadMessage] = useState<string | null>(null);
+  const [showClinicalDetails, setShowClinicalDetails] = useState(false);
 
   const [appointmentMode, setAppointmentMode] =
     useState("30 Days");
@@ -112,75 +113,6 @@ const [wireMaterial, setWireMaterial] =
     }
 
     return result;
-  };
-
-  const loadExistingLastVisit = async () => {
-    try {
-      const allResp = await fetch("/api/patients", { cache: "no-store", credentials: "same-origin" });
-      if (!allResp.ok) return;
-      const all = await allResp.json();
-      const normalizedPhone = (existingPhone || "").replace(/\D/g, "").trim();
-
-      const match = Array.isArray(all)
-        ? all.find((p: any) => {
-            const sameName = typeof p?.name === "string" && p.name.trim().toLowerCase() === (existingName || "").trim().toLowerCase();
-            const samePhone = typeof p?.phone === "string" && (p.phone || "").replace(/\D/g, "").trim() === normalizedPhone;
-            return samePhone || sameName;
-          })
-        : null;
-
-      if (!match?.id) return;
-
-      const pResp = await fetch(`/api/patients/${match.id}`, { cache: "no-store", credentials: "same-origin" });
-      if (!pResp.ok) return;
-      const data = await pResp.json();
-      const last = data.visits && data.visits.length > 0 ? data.visits[data.visits.length - 1] : null;
-
-      if (last) {
-        const up = parseWireLabelFromString(last.upperWire || last.upperArch || "");
-        const lo = parseWireLabelFromString(last.lowerWire || last.lowerArch || "");
-
-        if (up.isDamon) {
-          setExistingBracketType("Damon System");
-          setExistingUpperDamonWire(up.damon || "Other");
-          setExistingUpperDamonWireOther(up.other || "");
-        } else {
-          setExistingUpperWireMaterial(up.material || "NiTi");
-          if (up.gauge) setExistingUpperWireGauge(up.gauge);
-        }
-
-        if (lo.isDamon) {
-          setExistingBracketType("Damon System");
-          setExistingLowerDamonWire(lo.damon || "Other");
-          setExistingLowerDamonWireOther(lo.other || "");
-        } else {
-          setExistingLowerWireMaterial(lo.material || "NiTi");
-          if (lo.gauge) setExistingLowerWireGauge(lo.gauge);
-        }
-
-        if (typeof data.damonTorques === "string") setExistingDamonTorques(data.damonTorques || "");
-
-        // Populate notes with elastics/tads/visit notes if present
-        const parts: string[] = [];
-        if (last.elastics) parts.push(`Elastics: ${last.elastics}`);
-        if (last.tads) parts.push(`TADs: ${last.tads}`);
-        if (last.visitNotes) parts.push(last.visitNotes);
-        if (parts.length > 0) setExistingNotes(parts.join(" — "));
-      }
-      else {
-        // provide feedback when no visits found but patient exists
-        if (match?.id) {
-          // set existing notes to include patient-level tads/elastic/damon if present
-          const parts: string[] = [];
-          if (data.tadsNote) parts.push(`TADs: ${data.tadsNote}`);
-          if (data.elasticType || data.elasticEnabled) parts.push(`Elastics: ${data.elasticType || (data.elasticEnabled ? 'Enabled' : '')}`);
-          if (data.damonTorques) parts.push(`Damon Torques: ${data.damonTorques}`);
-          if (parts.length > 0) setExistingNotes(parts.join(" — "));
-        }
-      }
-    } catch (err) {
-      console.warn("Failed to load existing patient last visit", err);
-    }
   };
 
   useEffect(() => {
@@ -376,12 +308,15 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
   const [existingLowerWireMaterial, setExistingLowerWireMaterial] = useState("NiTi");
   const [existingMyofunctionalType, setExistingMyofunctionalType] = useState("Fixed");
   const [existingUpperDamonWire, setExistingUpperDamonWire] = useState("0.014 CuNiTi");
+  const [existingUpperDamonWireFamily, setExistingUpperDamonWireFamily] = useState<"CuNiTi" | "SS" | "Other">("CuNiTi");
   const [existingUpperDamonWireOther, setExistingUpperDamonWireOther] = useState("");
   const [existingLowerDamonWire, setExistingLowerDamonWire] = useState("0.014 CuNiTi");
+  const [existingLowerDamonWireFamily, setExistingLowerDamonWireFamily] = useState<"CuNiTi" | "SS" | "Other">("CuNiTi");
   const [existingLowerDamonWireOther, setExistingLowerDamonWireOther] = useState("");
   const [existingDamonTorques, setExistingDamonTorques] = useState("");
   const [existingUpperWireGauge, setExistingUpperWireGauge] = useState("16");
   const [existingLowerWireGauge, setExistingLowerWireGauge] = useState("16");
+  const [existingClinicalDetailsEnabled, setExistingClinicalDetailsEnabled] = useState(false);
   const [existingElasticEnabled, setExistingElasticEnabled] = useState(false);
   const [existingElasticType, setExistingElasticType] = useState("Class II");
   const [existingTadsNote, setExistingTadsNote] = useState("");
@@ -503,13 +438,35 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
     "Activator",
   ];
 
-  const damonWireOptions = [
-    "0.014 CuNiTi",
-    "0.014 × 0.025 CuNiTi",
-    "0.018 × 0.025 CuNiTi",
-    "0.019 × 0.025 Stainless Steel",
-    "Other",
-  ];
+  const getDamonWireFamily = (value: string): "CuNiTi" | "SS" | "Other" => {
+    if (value === "Other") return "Other";
+    return value.includes("Stainless Steel") ? "SS" : "CuNiTi";
+  };
+
+  const getDamonWireOptions = (family: "CuNiTi" | "SS" | "Other") => {
+    if (family === "SS") {
+      return [
+        "0.016 × 0.025 Stainless Steel",
+        "0.016 × 0.027 Stainless Steel",
+        "0.018 × 0.027 Stainless Steel",
+        "0.019 × 0.025 Stainless Steel",
+      ];
+    }
+
+    if (family === "CuNiTi") {
+      return [
+        "0.014 CuNiTi",
+        "0.016 CuNiTi",
+        "0.018 CuNiTi",
+        "0.014 × 0.025 CuNiTi",
+        "0.014 × 0.027 CuNiTi",
+        "0.018 × 0.025 CuNiTi",
+        "0.018 × 0.027 CuNiTi",
+      ];
+    }
+
+    return [];
+  };
 
   const savePatient = async () => {
     const existingPatients = [] as Patient[];
@@ -559,8 +516,7 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
       totalFee: Number(totalFee) || 0,
       totalPaid: Number(alreadyPaid) || 0,
       retainerFee: Number(retainerFee) || 0,
-      elasticEnabled: false,
-      elasticEnabled: elasticEnabled,
+      elasticEnabled,
       elasticType: elasticType || undefined,
       tadsNote: tadsNote || undefined,
       caseStatus: "active",
@@ -796,101 +752,44 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
         .replace(/[^\d]/g, "")
         .trim();
 
-      const matchingPatient = Array.isArray(allPatients)
-        ? allPatients.find((patient: any) => {
-            const sameName =
-              typeof patient?.name === "string" &&
-              patient.name.trim().toLowerCase() === trimmedName.toLowerCase();
-            const samePhone =
-              typeof patient?.phone === "string" &&
-              (patient.phone || "")
-                .replace(/[^\d]/g, "")
-                .trim() === normalizedLookupPhone;
-            return samePhone || sameName;
-          })
+      const patients = Array.isArray(allPatients) ? allPatients : [];
+      const exactPhoneMatches = patients.filter((patient: any) => {
+        const patientPhone = typeof patient?.phone === "string" ? patient.phone : "";
+        return (patientPhone.replace(/[^\d]/g, "").trim() || "") === normalizedLookupPhone && normalizedLookupPhone.length > 0;
+      });
+      const exactNameMatches = patients.filter((patient: any) => {
+        const patientName = typeof patient?.name === "string" ? patient.name : "";
+        return patientName.trim().toLowerCase() === trimmedName.toLowerCase() && trimmedName.length > 0;
+      });
+
+      const loadedPatient = existingLoadedFromId
+        ? patients.find((patient: any) => Number(patient?.id) === Number(existingLoadedFromId)) || null
         : null;
 
-      if (matchingPatient?.id) {
-        // If we already loaded this existing patient into the form, perform PATCH to save changes
-        if (existingLoadedFromId === matchingPatient.id) {
-          try {
-            const patchResponse = await fetch(`/api/patients/${matchingPatient.id}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(newPatient),
-            });
+      const targetPatient = loadedPatient || (exactPhoneMatches[0] ?? (exactNameMatches.length === 1 ? exactNameMatches[0] : null));
 
-            const patchData = await patchResponse.json().catch(() => null);
-            if (!patchResponse.ok) {
-              setValidationErrors([patchData?.error || "Unable to update the existing patient right now."]);
-              return;
-            }
-
-            setValidationErrors([]);
-            setConflictWarning("");
-            localStorage.removeItem(existingDraftStorageKey);
-            router.push(`/patients/${matchingPatient.id}`);
-            return;
-          } catch (err) {
-            setValidationErrors(["Failed to update existing patient."]);
-            return;
-          }
-        }
-
-        // Otherwise, load existing patient data into the form for review
+      if (targetPatient?.id) {
         try {
-          const resp = await fetch(`/api/patients/${matchingPatient.id}`, { cache: "no-store", credentials: "same-origin" });
-          if (!resp.ok) {
-            setValidationErrors(["Found existing patient but failed to load details."]);
+          const patchResponse = await fetch(`/api/patients/${targetPatient.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(newPatient),
+          });
+
+          const patchData = await patchResponse.json().catch(() => null);
+          if (!patchResponse.ok) {
+            setValidationErrors([patchData?.error || "Unable to update the existing patient right now."]);
             return;
           }
 
-          const data = await resp.json();
-
-          // Populate existing form fields from patient record (not only case-sheet)
-          setExistingName(data.name || "");
-          setExistingPhone(data.phone || "");
-          setExistingAddress(data.address || "");
-          setExistingAge(data.age != null ? String(data.age) : "");
-          setExistingOccupation(data.occupation || "");
-          setExistingClinicEnabled(Boolean(data.clinicName));
-          setExistingClinicName(data.clinicName || "");
-          setExistingClinicColor(data.clinicColor || CLINIC_COLORS[0]);
-          setExistingTreatmentType(data.treatmentCategory || data.treatment || "Fixed Braces");
-          setExistingTreatment(data.treatment || data.treatmentCategory || "Fixed Braces");
-          setExistingBracketType(data.bracketType || "MBT System");
-
-          // wires / damon torques from metadata or last visit
-          if (typeof data.damonTorques === "string") setExistingDamonTorques(data.damonTorques || "");
-          // try extract from last visit
-          const last = data.visits && data.visits.length > 0 ? data.visits[data.visits.length - 1] : null;
-          if (last) {
-            if (last.upperWire) setExistingUpperWireMaterial(last.upperWire.includes("SS") ? "Stainless Steel" : "NiTi");
-            if (last.lowerWire) setExistingLowerWireMaterial(last.lowerWire.includes("SS") ? "Stainless Steel" : "NiTi");
-            if (last.upperWire && /\d/.test(last.upperWire)) setExistingUpperWireGauge((last.upperWire.match(/(\d{2}(?:x\d{2})?)/) || [])[0] || existingUpperWireGauge);
-            if (last.lowerWire && /\d/.test(last.lowerWire)) setExistingLowerWireGauge((last.lowerWire.match(/(\d{2}(?:x\d{2})?)/) || [])[0] || existingLowerWireGauge);
-            if (last.elastics) setExistingNotes((prev) => (prev ? prev + " — " + `Elastics: ${last.elastics}` : `Elastics: ${last.elastics}`));
-              if (last.tads) setExistingNotes((prev) => (prev ? prev + " — " + `TADs: ${last.tads}` : `TADs: ${last.tads}`));
-              if (last.elastics) { setExistingElasticEnabled(true); setExistingElasticType(last.elastics); }
-              if (last.tads) { setExistingTadsNote(last.tads); }
-          }
-
-          if (data.tadsNote) { setExistingNotes((prev) => (prev ? prev + " — " + `TADs: ${data.tadsNote}` : `TADs: ${data.tadsNote}`)); setExistingTadsNote(data.tadsNote); }
-          if (data.elasticType || data.elasticEnabled) { setExistingNotes((prev) => (prev ? prev + " — " + `Elastics: ${data.elasticType || (data.elasticEnabled ? 'Enabled' : '')}` : `Elastics: ${data.elasticType || (data.elasticEnabled ? 'Enabled' : '')}`)); setExistingElasticEnabled(Boolean(data.elasticEnabled)); setExistingElasticType(data.elasticType || "Class II"); }
-          if (data.totalFee != null) setExistingTotalFee(String(data.totalFee));
-          if (data.totalPaid != null) setExistingAlreadyPaid(String(data.totalPaid || 0));
-
-          setExistingCaseSheet(data.caseSheet || "");
-          setExistingCaseSheetAttachments(Array.isArray(data.caseSheetAttachments) ? data.caseSheetAttachments : []);
-
-          setExistingLoadedFromId(matchingPatient.id);
-          setExistingLoadMessage("Loaded existing patient data into the form. Review and click Save to update or keep as new.");
+          setExistingLoadedFromId(Number(targetPatient.id));
           setValidationErrors([]);
           setConflictWarning("");
-          // do not auto-patch; allow the user to review and save
+          localStorage.removeItem(existingDraftStorageKey);
+          router.push(`/patients/${targetPatient.id}`);
           return;
         } catch (err) {
-          setValidationErrors(["Failed to load existing patient details."]);
+          setValidationErrors(["Failed to update existing patient."]);
           return;
         }
       }
@@ -1074,23 +973,32 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
                     </div>
                   ) : null}
                   <div className="mt-4">
-                    <h4 className="font-medium mb-2">Elastics & TADs</h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="block mb-2">Elastics (type)</label>
-                        <select value={elasticType} onChange={(e) => setElasticType(e.target.value)} className="w-full border p-3 rounded">
-                          <option>Class II</option>
-                          <option>Class III</option>
-                          <option>Cross</option>
-                          <option>Other</option>
-                        </select>
-                        <label className="inline-flex items-center gap-2 mt-2"><input type="checkbox" checked={elasticEnabled} onChange={(e) => setElasticEnabled(e.target.checked)} /> Enabled</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowClinicalDetails((prev) => !prev)}
+                      className="flex w-full items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-left font-medium text-slate-700"
+                    >
+                      <span>Elastics & TADs</span>
+                      <span className="text-sm text-slate-500">{showClinicalDetails ? "Hide" : "Show"}</span>
+                    </button>
+                    {showClinicalDetails ? (
+                      <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block mb-2">Elastics (type)</label>
+                          <select value={elasticType} onChange={(e) => setElasticType(e.target.value)} className="w-full border p-3 rounded">
+                            <option>Class II</option>
+                            <option>Class III</option>
+                            <option>Cross</option>
+                            <option>Other</option>
+                          </select>
+                          <label className="inline-flex items-center gap-2 mt-2"><input type="checkbox" checked={elasticEnabled} onChange={(e) => setElasticEnabled(e.target.checked)} /> Enabled</label>
+                        </div>
+                        <div>
+                          <label className="block mb-2">TADs Note</label>
+                          <input type="text" value={tadsNote} onChange={(e) => setTadsNote(e.target.value)} className="w-full border p-3 rounded" placeholder="TADs / mini-implant notes" />
+                        </div>
                       </div>
-                      <div>
-                        <label className="block mb-2">TADs Note</label>
-                        <input type="text" value={tadsNote} onChange={(e) => setTadsNote(e.target.value)} className="w-full border p-3 rounded" placeholder="TADs / mini-implant notes" />
-                      </div>
-                    </div>
+                    ) : null}
                   </div>
                 </div>
               )}
@@ -1395,10 +1303,7 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
 
             <div className="mb-4">
               <label className="block mb-2">Contact Number</label>
-              <div className="flex items-center gap-3">
-                <input type="tel" inputMode="tel" value={existingPhone} onChange={(e) => setExistingPhone(formatPhoneInput(e.target.value))} className="flex-1 border p-3 rounded" placeholder="e.g., 0770 123 4567" />
-                <button type="button" onClick={loadExistingLastVisit} className="rounded-lg border bg-white px-3 py-2 text-sm text-slate-700">Load last visit</button>
-              </div>
+              <input type="tel" inputMode="tel" value={existingPhone} onChange={(e) => setExistingPhone(formatPhoneInput(e.target.value))} className="w-full border p-3 rounded" placeholder="e.g., 0770 123 4567" />
             </div>
 
             <div className="mb-4">
@@ -1525,22 +1430,88 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
                     </>
                   )}
 
+                  <div className="mt-4 bg-slate-50 border border-slate-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between gap-2 text-left font-medium text-slate-700">
+                      <span>Elastics & TADs</span>
+                      <label className="inline-flex items-center gap-2 text-sm font-normal text-slate-600">
+                        <input
+                          type="checkbox"
+                          checked={existingClinicalDetailsEnabled}
+                          onChange={(e) => {
+                            const nextValue = e.target.checked;
+                            setExistingClinicalDetailsEnabled(nextValue);
+                            if (!nextValue) {
+                              setExistingElasticEnabled(false);
+                              setExistingTadsNote("");
+                            }
+                          }}
+                        />
+                        Enable
+                      </label>
+                    </div>
+                    {existingClinicalDetailsEnabled ? (
+                      <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block mb-2">Elastics (type)</label>
+                          <select value={existingElasticType} onChange={(e) => setExistingElasticType(e.target.value)} className="w-full border p-2 rounded text-sm">
+                            <option>Class II</option>
+                            <option>Class III</option>
+                            <option>Cross</option>
+                            <option>Other</option>
+                          </select>
+                          <label className="inline-flex items-center gap-2 mt-2 text-sm">
+                            <input type="checkbox" checked={existingElasticEnabled} onChange={(e) => setExistingElasticEnabled(e.target.checked)} /> Enabled
+                          </label>
+                        </div>
+                        <div>
+                          <label className="block mb-2">TADs Note</label>
+                          <input type="text" value={existingTadsNote} onChange={(e) => setExistingTadsNote(e.target.value)} className="w-full border p-2 rounded text-sm" placeholder="TADs / mini-implant notes" />
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+
                   {existingBracketType === "Damon System" && (
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div>
                         <label className="block mb-2">Upper Damon Wire</label>
-                        <select
-                          value={existingUpperDamonWire}
-                          onChange={(e) => setExistingUpperDamonWire(e.target.value)}
-                          className="w-full border p-3 rounded"
-                        >
-                          {damonWireOptions.map((option) => (
-                            <option key={option} value={option}>
-                              {option}
-                            </option>
+                        <div className="mb-2 flex flex-wrap gap-2">
+                          {(["CuNiTi", "SS", "Other"] as const).map((family) => (
+                            <label key={family} className="flex items-center gap-2 rounded border px-2 py-1 text-sm">
+                              <input
+                                type="radio"
+                                name="existingUpperDamonWireFamily"
+                                value={family}
+                                checked={existingUpperDamonWireFamily === family}
+                                onChange={() => {
+                                  setExistingUpperDamonWireFamily(family);
+                                  if (family === "Other") {
+                                    setExistingUpperDamonWire("Other");
+                                    return;
+                                  }
+                                  const nextOptions = getDamonWireOptions(family);
+                                  setExistingUpperDamonWire(nextOptions[0] ?? "0.014 CuNiTi");
+                                }}
+                              />
+                              {family === "SS" ? "SS" : family}
+                            </label>
                           ))}
-                        </select>
-                        {existingUpperDamonWire === "Other" && (
+                        </div>
+                        {existingUpperDamonWireFamily !== "Other" && (
+                          <select
+                            value={existingUpperDamonWire}
+                            onChange={(e) => setExistingUpperDamonWire(e.target.value)}
+                            className="w-full border p-3 rounded"
+                          >
+                            {getDamonWireOptions(existingUpperDamonWireFamily).map((option) => (
+                              <option key={option} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                            <option value="Other">Other</option>
+                          </select>
+                        )}
+                        {existingUpperDamonWireFamily === "Other" && (
                           <input
                             type="text"
                             value={existingUpperDamonWireOther}
@@ -1553,18 +1524,43 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
 
                       <div>
                         <label className="block mb-2">Lower Damon Wire</label>
-                        <select
-                          value={existingLowerDamonWire}
-                          onChange={(e) => setExistingLowerDamonWire(e.target.value)}
-                          className="w-full border p-3 rounded"
-                        >
-                          {damonWireOptions.map((option) => (
-                            <option key={option} value={option}>
-                              {option}
-                            </option>
+                        <div className="mb-2 flex flex-wrap gap-2">
+                          {(["CuNiTi", "SS", "Other"] as const).map((family) => (
+                            <label key={family} className="flex items-center gap-2 rounded border px-2 py-1 text-sm">
+                              <input
+                                type="radio"
+                                name="existingLowerDamonWireFamily"
+                                value={family}
+                                checked={existingLowerDamonWireFamily === family}
+                                onChange={() => {
+                                  setExistingLowerDamonWireFamily(family);
+                                  if (family === "Other") {
+                                    setExistingLowerDamonWire("Other");
+                                    return;
+                                  }
+                                  const nextOptions = getDamonWireOptions(family);
+                                  setExistingLowerDamonWire(nextOptions[0] ?? "0.014 CuNiTi");
+                                }}
+                              />
+                              {family === "SS" ? "SS" : family}
+                            </label>
                           ))}
-                        </select>
-                        {existingLowerDamonWire === "Other" && (
+                        </div>
+                        {existingLowerDamonWireFamily !== "Other" && (
+                          <select
+                            value={existingLowerDamonWire}
+                            onChange={(e) => setExistingLowerDamonWire(e.target.value)}
+                            className="w-full border p-3 rounded"
+                          >
+                            {getDamonWireOptions(existingLowerDamonWireFamily).map((option) => (
+                              <option key={option} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                            <option value="Other">Other</option>
+                          </select>
+                        )}
+                        {existingLowerDamonWireFamily === "Other" && (
                           <input
                             type="text"
                             value={existingLowerDamonWireOther}
@@ -1583,25 +1579,6 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
                           className="w-full border p-3 rounded"
                           placeholder="Enter Damon torques"
                         />
-                      </div>
-                      <div className="sm:col-span-2 mt-4 bg-slate-50 p-3 rounded border border-slate-100">
-                        <h4 className="font-medium mb-2">Elastics & TADs</h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div>
-                            <label className="block mb-2">Elastics (type)</label>
-                            <select value={existingElasticType} onChange={(e) => setExistingElasticType(e.target.value)} className="w-full border p-2 rounded text-sm">
-                              <option>Class II</option>
-                              <option>Class III</option>
-                              <option>Cross</option>
-                              <option>Other</option>
-                            </select>
-                            <label className="inline-flex items-center gap-2 mt-2 text-sm"><input type="checkbox" checked={existingElasticEnabled} onChange={(e) => setExistingElasticEnabled(e.target.checked)} /> Enabled</label>
-                          </div>
-                          <div>
-                            <label className="block mb-2">TADs Note</label>
-                            <input type="text" value={existingTadsNote} onChange={(e) => setExistingTadsNote(e.target.value)} className="w-full border p-2 rounded text-sm" placeholder="TADs / mini-implant notes" />
-                          </div>
-                        </div>
                       </div>
                     </div>
                   )}

@@ -60,7 +60,6 @@ export default function WhatsAppSetupPage() {
   const [savedPhoneNumberIdMasked, setSavedPhoneNumberIdMasked] = useState("");
   const [phone, setPhone] = useState("");
   const [testPhone, setTestPhone] = useState("");
-  const [testMessage, setTestMessage] = useState("Meta WhatsApp test from OrthoPrime OA");
   const [testSending, setTestSending] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [debugOutput, setDebugOutput] = useState<string | null>(null);
@@ -355,7 +354,6 @@ export default function WhatsAppSetupPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           phone: testPhone,
-          message: testMessage,
         }),
       });
 
@@ -482,9 +480,9 @@ export default function WhatsAppSetupPage() {
         </div>
 
         <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-5">
-          <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">Send Test WhatsApp</h2>
+          <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">Send Template Test</h2>
           <p className="mt-2 text-sm text-slate-600">
-            Send a real test message from your saved Meta WhatsApp Business number and inspect the response details.
+            Send one manual appointment_reminder template message from your Meta test number to an authorized recipient.
           </p>
 
           <div className="mt-4 grid gap-4">
@@ -499,23 +497,13 @@ export default function WhatsAppSetupPage() {
               />
             </label>
 
-            <label className="block text-sm font-medium text-slate-700">
-              Test Message
-              <textarea
-                value={testMessage}
-                onChange={(event) => setTestMessage(event.target.value)}
-                rows={4}
-                className="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200"
-              />
-            </label>
-
             <button
               type="button"
               onClick={handleSendTestWhatsapp}
               disabled={testSending || !testPhone.trim() || !connected}
               className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
             >
-              {testSending ? "Sending test message..." : "Send Test WhatsApp"}
+              {testSending ? "Sending template test..." : "Send appointment_reminder Test"}
             </button>
           </div>
 
