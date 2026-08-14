@@ -170,13 +170,25 @@ export async function GET() {
 
       patients = rows.map((row: any) => {
         const { latestVisit, latestScheduledAt, ...patientFields } = row;
+        // row_to_json can come back as an already-parsed object or (depending on the
+        // driver/adapter) as raw JSON text, so normalize it before reading fields off it
+        const parsedVisit =
+          typeof latestVisit === "string"
+            ? (() => {
+                try {
+                  return JSON.parse(latestVisit);
+                } catch {
+                  return null;
+                }
+              })()
+            : latestVisit ?? null;
         // row_to_json serializes dates as text, so revive the fields consumed downstream
-        const visit = latestVisit
+        const visit = parsedVisit
           ? {
-              ...latestVisit,
-              visitDate: latestVisit.visitDate ? new Date(latestVisit.visitDate) : null,
-              nextAppointment: latestVisit.nextAppointment
-                ? new Date(latestVisit.nextAppointment)
+              ...parsedVisit,
+              visitDate: parsedVisit.visitDate ? new Date(parsedVisit.visitDate) : null,
+              nextAppointment: parsedVisit.nextAppointment
+                ? new Date(parsedVisit.nextAppointment)
                 : null,
             }
           : null;
@@ -230,7 +242,7 @@ export async function GET() {
         treatment: patient.treatmentCategory,
         visits: (patient.visits || []).map((visit: any) => ({
           ...visit,
-          date: formatDateIso(visit.visitDate),
+          date: visit.visitDate ? formatDateIso(visit.visitDate) : null,
           time: visit.nextAppointment ? formatAppointmentTime(visit.nextAppointment) : null,
           visitNotes: visit.treatmentNotes,
           plannedNotes: visit.plannedTreatment,
