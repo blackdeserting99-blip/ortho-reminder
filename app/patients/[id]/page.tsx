@@ -43,6 +43,7 @@ export default function PatientProfilePage() {
   const [patient, setPatient] = useState<Patient | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
   const [saveMessage, setSaveMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [saveLoading, setSaveLoading] = useState(false);
@@ -83,6 +84,8 @@ export default function PatientProfilePage() {
   const [activeTab, setActiveTab] = useState<"overview" | "visits" | "gallery" | "payments">("overview");
 
   useEffect(() => {
+    let cancelled = false;
+
     const load = async () => {
       if (!id) {
         setErrorMessage("Patient id missing.");
@@ -95,12 +98,14 @@ export default function PatientProfilePage() {
 
       try {
         const res = await fetch(`/api/patients/${id}`, { cache: "no-store", credentials: "same-origin" });
+        if (cancelled) return;
         if (!res.ok) {
           const body = await res.json().catch(() => null);
           throw new Error(body?.error || "Unable to load patient profile.");
         }
 
         const foundPatient = await res.json();
+        if (cancelled) return;
         if (!foundPatient || !foundPatient.id) {
           throw new Error("Patient profile could not be loaded.");
         }
@@ -129,20 +134,26 @@ export default function PatientProfilePage() {
         try {
           const p = await fetch(`/api/patients/${id}/payments`, { cache: "no-store", credentials: "same-origin" });
           const payments = p.ok ? await p.json().catch(() => []) : [];
+          if (cancelled) return;
           setManualPayments(Array.isArray(payments) ? payments : []);
         } catch (_) {
-          setManualPayments([]);
+          if (!cancelled) setManualPayments([]);
         }
       } catch (error: any) {
+        if (cancelled) return;
         setPatient(null);
         setManualPayments([]);
         setErrorMessage(error?.message || "Unable to load patient profile.");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
     void load();
-  }, [id]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, reloadToken]);
 
   const visitPaymentsTotal = useMemo(() => (patient?.visits ?? []).reduce((s: number, v: any) => s + (Number(v.paymentCollected) || 0), 0), [patient]);
   const manualPaymentsTotal = useMemo(() => manualPayments.reduce((s, p) => s + (Number(p.amount) || 0), 0), [manualPayments]);
@@ -376,8 +387,15 @@ export default function PatientProfilePage() {
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
             <div className="text-lg font-semibold text-slate-900">Patient profile unavailable</div>
             <div className="text-slate-700">{errorMessage ?? "The patient profile could not be loaded."}</div>
-            <div>
-              <Link href="/patients" className="rounded-full bg-teal-600 px-6 py-3 text-sm font-medium text-white hover:bg-teal-700">
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setReloadToken((t) => t + 1)}
+                className="rounded-full bg-teal-600 px-6 py-3 text-sm font-medium text-white hover:bg-teal-700"
+              >
+                Retry
+              </button>
+              <Link href="/patients" className="rounded-full border border-slate-200 px-6 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
                 Back to Patients
               </Link>
             </div>

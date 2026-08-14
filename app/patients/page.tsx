@@ -55,6 +55,7 @@ export default function PatientsPage() {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [isLoadingPatients, setIsLoadingPatients] = useState(true);
   const [loadPatientsError, setLoadPatientsError] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
   const [searchTerm, setSearchTerm] = useState("");
   const [clinicSearch, setClinicSearch] = useState("");
   const [filter, setFilter] = useState("all");
@@ -104,7 +105,7 @@ export default function PatientsPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadToken]);
 
 const [showDeletePatientModal, setShowDeletePatientModal] = useState(false);
 const [deletePatientId, setDeletePatientId] = useState<number | null>(null);
@@ -520,7 +521,14 @@ All ({allCount})
             ) : loadPatientsError ? (
               <tr>
                 <td colSpan={6} className="p-6 text-center text-red-600">
-                  {loadPatientsError}
+                  <div>{loadPatientsError}</div>
+                  <button
+                    type="button"
+                    onClick={() => setReloadToken((t) => t + 1)}
+                    className="mt-2 rounded-full bg-teal-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-teal-700"
+                  >
+                    Retry
+                  </button>
                 </td>
               </tr>
             ) : filteredPatients.length === 0 ? (
