@@ -126,10 +126,7 @@ function getRuntimeDiagnostics() {
 
 export async function GET() {
   try {
-    console.log("STEP 1", "GET /api/patients start");
-
     const user = await getCurrentUser();
-    console.log("STEP 2", user);
 
     if (!user) {
       return NextResponse.json(
@@ -138,10 +135,61 @@ export async function GET() {
       );
     }
 
-    console.log("STEP 3", "user authenticated, querying patients");
-
+    // Single round-trip: fetch each patient's latest visit + latest appointment via
+    // LATERAL joins instead of Prisma's `include`, which issues 3 separate queries
+    // (patients, then visits, then appointments) - each extra round trip to Neon adds
+    // its own network latency on top of the others.
     let patients: any[] = [];
     try {
+      const sql = getSqlClient();
+      const rows = await sql`
+        SELECT
+          p.*,
+          v.visit AS "latestVisit",
+          a."scheduledAt" AS "latestScheduledAt"
+        FROM "Patient" p
+        LEFT JOIN LATERAL (
+          SELECT row_to_json(v2) AS visit
+          FROM "Visit" v2
+          WHERE v2."patientId" = p.id
+          ORDER BY v2.id DESC
+          LIMIT 1
+        ) v ON true
+        LEFT JOIN LATERAL (
+          SELECT a2."scheduledAt"
+          FROM "Appointment" a2
+          WHERE a2."patientId" = p.id
+          ORDER BY a2.id DESC
+          LIMIT 1
+        ) a ON true
+        WHERE p."userId" = ${user.id}
+        ORDER BY p."createdAt" DESC
+      `;
+
+      patients = rows.map((row: any) => {
+        const { latestVisit, latestScheduledAt, ...patientFields } = row;
+        // row_to_json serializes dates as text, so revive the fields consumed downstream
+        const visit = latestVisit
+          ? {
+              ...latestVisit,
+              visitDate: latestVisit.visitDate ? new Date(latestVisit.visitDate) : null,
+              nextAppointment: latestVisit.nextAppointment
+                ? new Date(latestVisit.nextAppointment)
+                : null,
+            }
+          : null;
+
+        return {
+          ...patientFields,
+          visits: visit ? [visit] : [],
+          appointments: latestScheduledAt
+            ? [{ scheduledAt: new Date(latestScheduledAt) }]
+            : [],
+        };
+      });
+    } catch (rawQueryError) {
+      console.error("PATIENT LIST RAW QUERY FAILED, falling back to Prisma");
+      console.error(rawQueryError);
       patients = await prisma.patient.findMany({
         where: {
           userId: user.id,
@@ -160,30 +208,6 @@ export async function GET() {
           },
         },
       });
-    } catch {
-      const sql = getSqlClient();
-      const rows = await sql`
-        SELECT
-          p.*,
-          (
-            SELECT a."scheduledAt"
-            FROM "Appointment" a
-            WHERE a."patientId" = p.id
-            ORDER BY a.id DESC
-            LIMIT 1
-          ) AS "latestScheduledAt"
-        FROM "Patient" p
-        WHERE p."userId" = ${user.id}
-        ORDER BY p."createdAt" DESC
-      `;
-
-      patients = rows.map((row: any) => ({
-        ...row,
-        visits: [],
-        appointments: row.latestScheduledAt
-          ? [{ scheduledAt: new Date(row.latestScheduledAt) }]
-          : [],
-      }));
     }
 
     const patientsWithAppointment = patients.map((patient) => {

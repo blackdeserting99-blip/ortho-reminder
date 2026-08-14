@@ -53,6 +53,8 @@ type Patient = {
 export default function PatientsPage() {
   const today = new Date().toLocaleDateString("en-CA");
   const [patients, setPatients] = useState<Patient[]>([]);
+  const [isLoadingPatients, setIsLoadingPatients] = useState(true);
+  const [loadPatientsError, setLoadPatientsError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [clinicSearch, setClinicSearch] = useState("");
   const [filter, setFilter] = useState("all");
@@ -67,13 +69,18 @@ export default function PatientsPage() {
   });
 
   useEffect(() => {
+    let cancelled = false;
+
     const loadPatients = async () => {
+      setIsLoadingPatients(true);
+      setLoadPatientsError(null);
       try {
         const response = await fetch("/api/patients", { cache: "no-store" });
         if (!response.ok) {
           throw new Error("Failed to load patients");
         }
         const data = await response.json();
+        if (cancelled) return;
         const migratedPatients: Patient[] = (data || []).map((patient: any) => {
           const updated: any = { ...patient };
           if (patient.treatment === "Fixed Braces" && !patient.bracketType) {
@@ -83,11 +90,20 @@ export default function PatientsPage() {
         });
         setPatients(migratedPatients);
       } catch {
-        setPatients([]);
+        if (cancelled) return;
+        setLoadPatientsError("Failed to load patients. Please try again.");
+      } finally {
+        if (!cancelled) {
+          setIsLoadingPatients(false);
+        }
       }
     };
 
     loadPatients();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
 const [showDeletePatientModal, setShowDeletePatientModal] = useState(false);
@@ -304,7 +320,11 @@ const overdueCount = clinicFiltered.filter(
       Patients
     </div>
     <div className="text-4xl font-semibold text-teal-700 mt-3">
-      {totalPatients}
+      {isLoadingPatients ? (
+        <span className="text-lg font-medium text-slate-400">Loading…</span>
+      ) : (
+        totalPatients
+      )}
     </div>
   </div>
 
@@ -491,7 +511,19 @@ All ({allCount})
 
           <tbody>
 
-            {filteredPatients.length === 0 ? (
+            {isLoadingPatients ? (
+              <tr>
+                <td colSpan={6} className="p-6 text-center text-slate-500">
+                  Loading patients…
+                </td>
+              </tr>
+            ) : loadPatientsError ? (
+              <tr>
+                <td colSpan={6} className="p-6 text-center text-red-600">
+                  {loadPatientsError}
+                </td>
+              </tr>
+            ) : filteredPatients.length === 0 ? (
               <tr>
                 <td
                   colSpan={6}
