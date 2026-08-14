@@ -44,5 +44,14 @@
   },
   "overrides": {
     "@aws-sdk/credential-provider-ini": "3.973.13"
-  }
+  },
+  "trustedDependencies": [
+    "unrs-resolver",
+    "prisma",
+    "@prisma/client",
+    "@prisma/engines",
+    "esbuild",
+    "workerd",
+    "sharp"
+  ]
 }
