@@ -41,5 +41,8 @@
     "tailwindcss": "^4",
     "typescript": "^5",
     "wrangler": "^4.110.0"
+  },
+  "overrides": {
+    "@aws-sdk/credential-provider-ini": "3.973.13"
   }
 }
