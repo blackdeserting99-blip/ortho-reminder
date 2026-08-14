@@ -12,16 +12,20 @@ import {
 
 const DEFAULT_APPOINTMENT_TIME = "04:00 PM";
 
-function formatDateIso(date: Date) {
-  const y = date.getFullYear();
-  const mo = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
+function formatDateIso(date: Date | string | null | undefined) {
+  const parsed = date instanceof Date ? date : date ? new Date(date) : null;
+  if (!parsed || Number.isNaN(parsed.getTime())) return null;
+  const y = parsed.getFullYear();
+  const mo = String(parsed.getMonth() + 1).padStart(2, "0");
+  const d = String(parsed.getDate()).padStart(2, "0");
   return `${y}-${mo}-${d}`;
 }
 
-function formatAppointmentTime(date: Date) {
-  const h = date.getHours();
-  const mi = date.getMinutes();
+function formatAppointmentTime(date: Date | string | null | undefined) {
+  const parsed = date instanceof Date ? date : date ? new Date(date) : null;
+  if (!parsed || Number.isNaN(parsed.getTime())) return null;
+  const h = parsed.getHours();
+  const mi = parsed.getMinutes();
   const period = h >= 12 ? "PM" : "AM";
   const h12 = h % 12 || 12;
   return `${String(h12).padStart(2, "0")}:${String(mi).padStart(2, "0")} ${period}`;
@@ -225,37 +229,51 @@ export async function GET() {
     }
 
     const patientsWithAppointment = patients.map((patient) => {
-      let appointmentDate = null;
-      let appointmentTime = null;
-      const nextApptFromVisit = patient.visits?.[0]?.nextAppointment;
-      const nextApptFromAppointment = patient.appointments?.[0]?.scheduledAt;
-      const nextAppt = nextApptFromVisit || nextApptFromAppointment;
+      try {
+        let appointmentDate = null;
+        let appointmentTime = null;
+        const nextApptFromVisit = patient.visits?.[0]?.nextAppointment;
+        const nextApptFromAppointment = patient.appointments?.[0]?.scheduledAt;
+        const nextAppt = nextApptFromVisit || nextApptFromAppointment;
 
-      if (nextAppt) {
-        appointmentDate = formatDateIso(nextAppt);
-        appointmentTime = formatAppointmentTime(nextAppt);
+        if (nextAppt) {
+          appointmentDate = formatDateIso(nextAppt);
+          appointmentTime = formatAppointmentTime(nextAppt);
+        }
+
+        return {
+          ...patient,
+          caseStatus: getCaseStatusFromMetadata(patient.metadata),
+          treatment: patient.treatmentCategory,
+          visits: (patient.visits || []).map((visit: any) => ({
+            ...visit,
+            date: formatDateIso(visit.visitDate),
+            time: formatAppointmentTime(visit.nextAppointment),
+            visitNotes: visit.treatmentNotes,
+            plannedNotes: visit.plannedTreatment,
+            payment: Number(visit.paymentCollected ?? 0),
+            upperWire: visit.upperArch,
+            lowerWire: visit.lowerArch,
+            elasticEnabled: Boolean(visit.elastics),
+            elasticType: visit.elastics,
+            tadsNote: visit.tads,
+          })),
+          appointmentDate,
+          appointmentTime,
+        };
+      } catch (perPatientError) {
+        // Never let one malformed patient/visit row take down the whole list
+        console.error("PATIENT LIST ROW MAPPING FAILED", patient?.id);
+        console.error(perPatientError);
+        return {
+          ...patient,
+          caseStatus: getCaseStatusFromMetadata(patient.metadata),
+          treatment: patient.treatmentCategory,
+          visits: [],
+          appointmentDate: null,
+          appointmentTime: null,
+        };
       }
-
-      return {
-        ...patient,
-        caseStatus: getCaseStatusFromMetadata(patient.metadata),
-        treatment: patient.treatmentCategory,
-        visits: (patient.visits || []).map((visit: any) => ({
-          ...visit,
-          date: visit.visitDate ? formatDateIso(visit.visitDate) : null,
-          time: visit.nextAppointment ? formatAppointmentTime(visit.nextAppointment) : null,
-          visitNotes: visit.treatmentNotes,
-          plannedNotes: visit.plannedTreatment,
-          payment: Number(visit.paymentCollected ?? 0),
-          upperWire: visit.upperArch,
-          lowerWire: visit.lowerArch,
-          elasticEnabled: Boolean(visit.elastics),
-          elasticType: visit.elastics,
-          tadsNote: visit.tads,
-        })),
-        appointmentDate,
-        appointmentTime,
-      };
     });
 
     return NextResponse.json(patientsWithAppointment);
