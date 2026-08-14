@@ -139,94 +139,29 @@ export async function GET() {
       );
     }
 
-    // Single round-trip: fetch each patient's latest visit + latest appointment via
-    // LATERAL joins instead of Prisma's `include`, which issues 3 separate queries
-    // (patients, then visits, then appointments) - each extra round trip to Neon adds
-    // its own network latency on top of the others.
-    // Uses prisma.$queryRaw (the same pooled adapter connection as everything else in
-    // this route) instead of a second, independent Neon client, so this path doesn't
-    // pay its own separate cold-start/connection cost on top of Prisma's.
-    let patients: any[] = [];
-    try {
-      const rows = await prisma.$queryRaw<any[]>`
-        SELECT
-          p.*,
-          v.visit AS "latestVisit",
-          a."scheduledAt" AS "latestScheduledAt"
-        FROM "Patient" p
-        LEFT JOIN LATERAL (
-          SELECT row_to_json(v2) AS visit
-          FROM "Visit" v2
-          WHERE v2."patientId" = p.id
-          ORDER BY v2.id DESC
-          LIMIT 1
-        ) v ON true
-        LEFT JOIN LATERAL (
-          SELECT a2."scheduledAt"
-          FROM "Appointment" a2
-          WHERE a2."patientId" = p.id
-          ORDER BY a2.id DESC
-          LIMIT 1
-        ) a ON true
-        WHERE p."userId" = ${user.id}
-        ORDER BY p."createdAt" DESC
-      `;
-
-      patients = rows.map((row: any) => {
-        const { latestVisit, latestScheduledAt, ...patientFields } = row;
-        // row_to_json can come back as an already-parsed object or (depending on the
-        // driver/adapter) as raw JSON text, so normalize it before reading fields off it
-        const parsedVisit =
-          typeof latestVisit === "string"
-            ? (() => {
-                try {
-                  return JSON.parse(latestVisit);
-                } catch {
-                  return null;
-                }
-              })()
-            : latestVisit ?? null;
-        // row_to_json serializes dates as text, so revive the fields consumed downstream
-        const visit = parsedVisit
-          ? {
-              ...parsedVisit,
-              visitDate: parsedVisit.visitDate ? new Date(parsedVisit.visitDate) : null,
-              nextAppointment: parsedVisit.nextAppointment
-                ? new Date(parsedVisit.nextAppointment)
-                : null,
-            }
-          : null;
-
-        return {
-          ...patientFields,
-          visits: visit ? [visit] : [],
-          appointments: latestScheduledAt
-            ? [{ scheduledAt: new Date(latestScheduledAt) }]
-            : [],
-        };
-      });
-    } catch (rawQueryError) {
-      console.error("PATIENT LIST RAW QUERY FAILED, falling back to Prisma");
-      console.error(rawQueryError);
-      patients = await prisma.patient.findMany({
-        where: {
-          userId: user.id,
+    // Reliable, straightforward Prisma query. A previous single-round-trip raw SQL
+    // optimization (LATERAL joins + row_to_json) caused real production crashes when
+    // the JSON-serialized visit data wasn't shaped the way the mapping code expected.
+    // Correctness matters more than saving one round trip, so this uses Prisma's
+    // normal `include`, which always returns properly-typed Date/Decimal values.
+    const patients = await prisma.patient.findMany({
+      where: {
+        userId: user.id,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      include: {
+        visits: {
+          orderBy: [{ id: "desc" }],
+          take: 1,
         },
-        orderBy: {
-          createdAt: "desc",
+        appointments: {
+          orderBy: [{ id: "desc" }],
+          take: 1,
         },
-        include: {
-          visits: {
-            orderBy: [{ id: "desc" }],
-            take: 1,
-          },
-          appointments: {
-            orderBy: [{ id: "desc" }],
-            take: 1,
-          },
-        },
-      });
-    }
+      },
+    });
 
     const patientsWithAppointment = patients.map((patient) => {
       try {

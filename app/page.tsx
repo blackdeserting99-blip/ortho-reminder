@@ -6,6 +6,7 @@ import Link from "next/link";
 import Sidebar from "./components/Sidebar";
 import DateInput from "./components/DateInput";
 import { formatDateDMY } from "./lib/date";
+import { useAuth } from "./lib/auth-context";
 
 type Patient = {
         id: number;
@@ -38,7 +39,10 @@ type AlignerPatchNotification = {
 
       export default function Home() {
         const router = useRouter();
+        const { status: authStatus } = useAuth();
         const [patientCount, setPatientCount] = useState(0);
+        const [isLoadingPatients, setIsLoadingPatients] = useState(true);
+        const [loadPatientsError, setLoadPatientsError] = useState<string | null>(null);
         const [todayPatients, setTodayPatients] =
           useState<Patient[]>([]);
       const [overduePatients, setOverduePatients] =
@@ -114,13 +118,22 @@ type AlignerPatchNotification = {
       );
 
       useEffect(() => {
+        // Wait for the shared auth state to resolve so this doesn't race /api/me
+        // on the very first load.
+        if (authStatus === "loading") return;
+
+        let cancelled = false;
+
         const loadPatients = async () => {
+          setIsLoadingPatients(true);
+          setLoadPatientsError(null);
           try {
             const response = await fetch("/api/patients", { cache: "no-store" });
             if (!response.ok) {
               throw new Error("Failed to load patients");
             }
             const patients = await response.json();
+            if (cancelled) return;
 
             setPatientCount(
               patients.filter(
@@ -208,15 +221,23 @@ type AlignerPatchNotification = {
             setOverduePatients(overdueAppointments);
             setUpcomingPatients(upcomingAppointments);
           } catch {
+            if (cancelled) return;
+            setLoadPatientsError("Failed to load patients.");
             setPatientCount(0);
             setTodayPatients([]);
             setOverduePatients([]);
             setUpcomingPatients([]);
+          } finally {
+            if (!cancelled) setIsLoadingPatients(false);
           }
         };
 
         loadPatients();
-      }, [upcomingMode]);
+
+        return () => {
+          cancelled = true;
+        };
+      }, [upcomingMode, authStatus]);
 
       const noteMatches = (patient: any, query: string) => {
         const normalized = query.trim().toLowerCase();
@@ -413,7 +434,15 @@ type AlignerPatchNotification = {
               <p className="text-sm text-slate-500">Total patients</p>
             </div>
           </div>
-          <p className="mt-5 text-4xl font-semibold text-teal-700">{patientCount}</p>
+          <p className="mt-5 text-4xl font-semibold text-teal-700">
+            {isLoadingPatients ? (
+              <span className="text-lg font-medium text-slate-400">Loading…</span>
+            ) : loadPatientsError ? (
+              <span className="text-base font-medium text-red-600">{loadPatientsError}</span>
+            ) : (
+              patientCount
+            )}
+          </p>
         </Link>
               <button
                 type="button"
