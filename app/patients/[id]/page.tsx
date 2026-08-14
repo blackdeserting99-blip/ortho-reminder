@@ -43,7 +43,6 @@ export default function PatientProfilePage() {
   const [patient, setPatient] = useState<Patient | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [reloadToken, setReloadToken] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
   const [saveMessage, setSaveMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [saveLoading, setSaveLoading] = useState(false);
@@ -153,7 +152,7 @@ export default function PatientProfilePage() {
     return () => {
       cancelled = true;
     };
-  }, [id, reloadToken]);
+  }, [id]);
 
   const visitPaymentsTotal = useMemo(() => (patient?.visits ?? []).reduce((s: number, v: any) => s + (Number(v.paymentCollected) || 0), 0), [patient]);
   const manualPaymentsTotal = useMemo(() => manualPayments.reduce((s, p) => s + (Number(p.amount) || 0), 0), [manualPayments]);
@@ -387,15 +386,8 @@ export default function PatientProfilePage() {
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
             <div className="text-lg font-semibold text-slate-900">Patient profile unavailable</div>
             <div className="text-slate-700">{errorMessage ?? "The patient profile could not be loaded."}</div>
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setReloadToken((t) => t + 1)}
-                className="rounded-full bg-teal-600 px-6 py-3 text-sm font-medium text-white hover:bg-teal-700"
-              >
-                Retry
-              </button>
-              <Link href="/patients" className="rounded-full border border-slate-200 px-6 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
+            <div>
+              <Link href="/patients" className="rounded-full bg-teal-600 px-6 py-3 text-sm font-medium text-white hover:bg-teal-700">
                 Back to Patients
               </Link>
             </div>

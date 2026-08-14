@@ -1,50 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Pacifico } from "next/font/google";
 import { ChevronDown, UserCircle2 } from "lucide-react";
+import { useAuth } from "../lib/auth-context";
 
 const pacifico = Pacifico({ subsets: ["latin"], weight: "400" });
 
-type AuthUser = {
-  id: string;
-  name: string | null;
-  email: string;
-  whatsappPhone: string | null;
-};
-
 export default function Navbar() {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [isLoadingUser, setIsLoadingUser] = useState(true);
+  const { user, status } = useAuth();
+  const isLoadingUser = status === "loading";
   const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-
-    const loadUser = async () => {
-      try {
-        const response = await fetch("/api/me", { cache: "no-store" });
-        if (!active) return;
-        if (response.ok) {
-          const data = await response.json();
-          setUser(data);
-        } else {
-          setUser(null);
-        }
-      } catch {
-        if (active) setUser(null);
-      } finally {
-        if (active) setIsLoadingUser(false);
-      }
-    };
-
-    loadUser();
-
-    return () => {
-      active = false;
-    };
-  }, []);
 
   const initials = useMemo(() => {
     if (!user) return "U";

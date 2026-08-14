@@ -139,10 +139,12 @@ export async function GET() {
     // LATERAL joins instead of Prisma's `include`, which issues 3 separate queries
     // (patients, then visits, then appointments) - each extra round trip to Neon adds
     // its own network latency on top of the others.
+    // Uses prisma.$queryRaw (the same pooled adapter connection as everything else in
+    // this route) instead of a second, independent Neon client, so this path doesn't
+    // pay its own separate cold-start/connection cost on top of Prisma's.
     let patients: any[] = [];
     try {
-      const sql = getSqlClient();
-      const rows = await sql`
+      const rows = await prisma.$queryRaw<any[]>`
         SELECT
           p.*,
           v.visit AS "latestVisit",
