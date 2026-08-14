@@ -11,6 +11,7 @@ import Sidebar from "../components/Sidebar";
 import Modal from "../components/Modal";
 import DateInput from "../components/DateInput";
 import { formatDateDMY } from "../lib/date";
+import { useAuth } from "../lib/auth-context";
 type Visit = {
   date: string;
   time: string;
@@ -51,6 +52,7 @@ type Patient = {
 };
 
 export default function PatientsPage() {
+  const { status: authStatus } = useAuth();
   const today = new Date().toLocaleDateString("en-CA");
   const [patients, setPatients] = useState<Patient[]>([]);
   const [isLoadingPatients, setIsLoadingPatients] = useState(true);
@@ -69,6 +71,10 @@ export default function PatientsPage() {
   });
 
   useEffect(() => {
+    // Wait for the shared auth state to resolve so this doesn't race /api/me
+    // on the very first load.
+    if (authStatus === "loading") return;
+
     let cancelled = false;
 
     const loadPatients = async () => {
@@ -104,7 +110,7 @@ export default function PatientsPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authStatus]);
 
 const [showDeletePatientModal, setShowDeletePatientModal] = useState(false);
 const [deletePatientId, setDeletePatientId] = useState<number | null>(null);

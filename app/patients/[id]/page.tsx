@@ -7,6 +7,7 @@ import Sidebar from "../../components/Sidebar";
 import { CalendarDays, CircleDollarSign, StickyNote, Clock3, Pencil, Trash2 } from "lucide-react";
 import { formatDateDMY, convertTo12Hour } from "../../lib/date";
 import { CLINIC_COLORS } from "../../lib/patient";
+import { useAuth } from "../../lib/auth-context";
 
 type Patient = {
   id: number;
@@ -39,6 +40,7 @@ type Patient = {
 export default function PatientProfilePage() {
   const params = useParams();
   const id = params?.id ? String(params.id) : "";
+  const { status: authStatus } = useAuth();
 
   const [patient, setPatient] = useState<Patient | null>(null);
   const [loading, setLoading] = useState(true);
@@ -83,6 +85,10 @@ export default function PatientProfilePage() {
   const [activeTab, setActiveTab] = useState<"overview" | "visits" | "gallery" | "payments">("overview");
 
   useEffect(() => {
+    // Wait for the shared auth state to resolve so this doesn't race /api/me
+    // on the very first load.
+    if (authStatus === "loading") return;
+
     let cancelled = false;
 
     const load = async () => {
@@ -152,7 +158,7 @@ export default function PatientProfilePage() {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, authStatus]);
 
   const visitPaymentsTotal = useMemo(() => (patient?.visits ?? []).reduce((s: number, v: any) => s + (Number(v.paymentCollected) || 0), 0), [patient]);
   const manualPaymentsTotal = useMemo(() => manualPayments.reduce((s, p) => s + (Number(p.amount) || 0), 0), [manualPayments]);
