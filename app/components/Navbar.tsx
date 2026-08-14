@@ -16,6 +16,7 @@ type AuthUser = {
 
 export default function Navbar() {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [isLoadingUser, setIsLoadingUser] = useState(true);
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -33,6 +34,8 @@ export default function Navbar() {
         }
       } catch {
         if (active) setUser(null);
+      } finally {
+        if (active) setIsLoadingUser(false);
       }
     };
 
@@ -131,6 +134,10 @@ export default function Navbar() {
                   </div>
                 </div>
               ) : null}
+            </div>
+          ) : isLoadingUser ? (
+            <div className="flex h-10 w-10 items-center justify-center rounded-full border border-white/30 bg-white/15 sm:w-32">
+              <div className="h-5 w-5 animate-pulse rounded-full bg-white/40" />
             </div>
           ) : (
             <div className="flex items-center gap-2 rounded-full border border-white/30 bg-white/15 px-3 py-2 text-sm text-white/90">
