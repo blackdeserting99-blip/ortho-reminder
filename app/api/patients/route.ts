@@ -139,28 +139,68 @@ export async function GET() {
       );
     }
 
-    // Reliable, straightforward Prisma query. A previous single-round-trip raw SQL
-    // optimization (LATERAL joins + row_to_json) caused real production crashes when
-    // the JSON-serialized visit data wasn't shaped the way the mapping code expected.
-    // Correctness matters more than saving one round trip, so this uses Prisma's
-    // normal `include`, which always returns properly-typed Date/Decimal values.
-    const patients = await prisma.patient.findMany({
-      where: {
-        userId: user.id,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-      include: {
-        visits: {
-          orderBy: [{ id: "desc" }],
-          take: 1,
-        },
-        appointments: {
-          orderBy: [{ id: "desc" }],
-          take: 1,
-        },
-      },
+    // IMPORTANT: this route uses raw SQL via the neon() client, NOT prisma.patient.findMany().
+    // In this Cloudflare Worker deployment, Prisma's typed query engine (findMany/include)
+    // fails with "no such file or directory ... query_compiler_bg.wasm" - the compiled
+    // query-planner file isn't present in the deployed bundle. Raw SQL bypasses that
+    // engine entirely and is what already works reliably elsewhere in this app
+    // (getCurrentUser's fallback, /api/register, /api/login all use the same raw client).
+    const sql = getSqlClient();
+    const rows: any[] = await sql`
+      SELECT
+        p.*,
+        v.visit AS "latestVisit",
+        a."scheduledAt" AS "latestScheduledAt"
+      FROM "Patient" p
+      LEFT JOIN LATERAL (
+        SELECT row_to_json(v2) AS visit
+        FROM "Visit" v2
+        WHERE v2."patientId" = p.id
+        ORDER BY v2.id DESC
+        LIMIT 1
+      ) v ON true
+      LEFT JOIN LATERAL (
+        SELECT a2."scheduledAt"
+        FROM "Appointment" a2
+        WHERE a2."patientId" = p.id
+        ORDER BY a2.id DESC
+        LIMIT 1
+      ) a ON true
+      WHERE p."userId" = ${user.id}
+      ORDER BY p."createdAt" DESC
+    `;
+
+    const patients = rows.map((row: any) => {
+      const { latestVisit, latestScheduledAt, ...patientFields } = row;
+      // row_to_json can come back as an already-parsed object or as raw JSON text
+      // depending on the driver, so normalize it before reading fields off it
+      const parsedVisit =
+        typeof latestVisit === "string"
+          ? (() => {
+              try {
+                return JSON.parse(latestVisit);
+              } catch {
+                return null;
+              }
+            })()
+          : latestVisit ?? null;
+      const visit = parsedVisit
+        ? {
+            ...parsedVisit,
+            visitDate: parsedVisit.visitDate ? new Date(parsedVisit.visitDate) : null,
+            nextAppointment: parsedVisit.nextAppointment
+              ? new Date(parsedVisit.nextAppointment)
+              : null,
+          }
+        : null;
+
+      return {
+        ...patientFields,
+        visits: visit ? [visit] : [],
+        appointments: latestScheduledAt
+          ? [{ scheduledAt: new Date(latestScheduledAt) }]
+          : [],
+      };
     });
 
     const patientsWithAppointment = patients.map((patient) => {
