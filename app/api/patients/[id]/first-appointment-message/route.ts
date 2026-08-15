@@ -123,6 +123,7 @@ export async function POST(
     const doctorCredentials = await buildDoctorWhatsAppCredentials({
       whatsappAccessToken: patient.whatsappAccessToken ?? null,
       whatsappPhoneNumberId: patient.whatsappPhoneNumberId ?? null,
+      userId: user.id,
     });
 
     const patientMessage = buildWhatsAppBotMessage(

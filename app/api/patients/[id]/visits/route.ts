@@ -188,6 +188,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const doctorCredentials = await buildDoctorWhatsAppCredentials({
     whatsappAccessToken: doctor?.whatsappAccessToken,
     whatsappPhoneNumberId: doctor?.whatsappPhoneNumberId,
+    userId: user.id,
   });
 
   return NextResponse.json(
@@ -329,6 +330,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   const doctorCredentials = await buildDoctorWhatsAppCredentials({
     whatsappAccessToken: doctor?.whatsappAccessToken,
     whatsappPhoneNumberId: doctor?.whatsappPhoneNumberId,
+    userId: user.id,
   });
 
   const body = await request.json().catch(() => null);

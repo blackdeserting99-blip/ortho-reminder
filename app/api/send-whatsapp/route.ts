@@ -55,6 +55,7 @@ export async function POST(request: Request) {
     const doctorCredentials = await buildDoctorWhatsAppCredentials({
       whatsappAccessToken: doctor?.whatsappAccessToken ?? null,
       whatsappPhoneNumberId: doctor?.whatsappPhoneNumberId ?? null,
+      userId: user.id,
     });
 
     const result = await sendWhatsAppText(doctorCredentials, phone, message);

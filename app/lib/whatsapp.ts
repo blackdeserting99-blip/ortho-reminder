@@ -1,4 +1,5 @@
 import { formatDateDMY } from "./date";
+import { recordOutboundWhatsAppMessage } from "./whatsapp-message-tracking";
 
 export type WhatsAppReminderType = "3days" | "sameDay" | "general";
 
@@ -431,6 +432,7 @@ export type DoctorWhatsAppCredentials = {
   accessToken: string;
   phoneNumberId: string;
   businessAccountId: string | null;
+  userId?: string;
 };
 
 const ENCRYPTED_TOKEN_PREFIX = "enc:v1:";
@@ -540,28 +542,11 @@ function sanitizeQuotedValue(value: string | null | undefined) {
   return raw.replace(/^"(.*)"$/, "$1").replace(/^'(.*)'$/, "$1");
 }
 
-export async function getEnvironmentWhatsAppCredentials(): Promise<DoctorWhatsAppCredentials | null> {
-  const accessToken = sanitizeQuotedValue(process.env.WHATSAPP_ACCESS_TOKEN);
-  const phoneNumberId = sanitizeQuotedValue(process.env.WHATSAPP_PHONE_NUMBER_ID);
-  const businessAccountId = sanitizeQuotedValue(
-    process.env.WHATSAPP_BUSINESS_ACCOUNT_ID
-  );
-
-  if (!accessToken || !phoneNumberId) {
-    return null;
-  }
-
-  return {
-    accessToken,
-    phoneNumberId,
-    businessAccountId: businessAccountId || null,
-  } as DoctorWhatsAppCredentials;
-}
-
 export async function buildDoctorWhatsAppCredentials(input: {
   whatsappAccessToken?: string | null;
   whatsappPhoneNumberId?: string | null;
   whatsappBusinessAccountId?: string | null;
+  userId?: string;
 }) {
   const phoneNumberId = sanitizeQuotedValue(input.whatsappPhoneNumberId);
   const decryptedAccessToken = sanitizeQuotedValue(
@@ -574,10 +559,11 @@ export async function buildDoctorWhatsAppCredentials(input: {
       accessToken: decryptedAccessToken,
       phoneNumberId,
       businessAccountId: businessAccountId || null,
+      userId: input.userId,
     } as DoctorWhatsAppCredentials;
   }
 
-  return await getEnvironmentWhatsAppCredentials();
+  return null;
 }
 
 function toMetaRecipient(phone: string) {
@@ -677,22 +663,10 @@ export function normalizePhone(phone: string) {
   return digits;
 }
 
-function isMetaAuthenticationError(
-  response: Response,
-  payload: any
-): boolean {
-  return (
-    response.status === 401 ||
-    payload?.error?.code === 190 ||
-    payload?.error?.type === "OAuthException"
-  );
-}
-
 export async function sendWhatsAppText(
   credentials: DoctorWhatsAppCredentials | null | undefined,
   phone: string,
-  message: string,
-  attemptedFallback = false
+  message: string
 ): Promise<WhatsAppSendResult> {
   const to = toMetaRecipient(phone);
 
@@ -743,47 +717,9 @@ export async function sendWhatsAppText(
       body,
     });
 
-    let payload = await response.json().catch(() => null);
+    const payload = await response.json().catch(() => null);
 
     if (!response.ok) {
-      const authError = isMetaAuthenticationError(response, payload);
-      if (!attemptedFallback && authError) {
-        const fallbackCredentials = await getEnvironmentWhatsAppCredentials();
-        if (
-          fallbackCredentials &&
-          (fallbackCredentials.accessToken !== accessToken ||
-            fallbackCredentials.phoneNumberId !== phoneNumberId)
-        ) {
-          return sendWhatsAppText(fallbackCredentials, phone, message, true);
-        }
-
-        const fallbackEndpoint = `${endpoint}?access_token=${encodeURIComponent(
-          accessToken
-        )}`;
-        const fallbackResponse = await fetch(fallbackEndpoint, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            "Content-Type": "application/json",
-          },
-          body,
-        });
-        payload = await fallbackResponse.json().catch(() => null);
-        if (fallbackResponse.ok) {
-          return {
-            ok: true,
-            provider: "meta",
-            to,
-            messageId: payload?.messages?.[0]?.id || payload?.id || undefined,
-            debug: {
-              endpoint: fallbackEndpoint,
-              statusCode: fallbackResponse.status,
-              payload,
-            },
-          };
-        }
-      }
-
       return {
         ok: false,
         provider: "meta",
@@ -800,7 +736,7 @@ export async function sendWhatsAppText(
       };
     }
 
-    return {
+    const result: WhatsAppSendResult = {
       ok: true,
       provider: "meta",
       to,
@@ -811,6 +747,15 @@ export async function sendWhatsAppText(
         payload,
       },
     };
+    await recordOutboundWhatsAppMessage({
+      userId: credentials?.userId,
+      providerMessageId: result.messageId,
+      phoneNumberId,
+      recipientPhone: to,
+      messageType: "text",
+      providerPayload: payload,
+    });
+    return result;
   } catch (error) {
     return {
       ok: false,
@@ -831,8 +776,7 @@ export async function sendWhatsAppTemplate(
   phone: string,
   templateName = "hello_world",
   languageCode = "en_US",
-  components?: WhatsAppTemplateComponent[],
-  attemptedFallback = false
+  components?: WhatsAppTemplateComponent[]
 ): Promise<WhatsAppSendResult> {
   const to = normalizePhone(phone);
 
@@ -893,28 +837,9 @@ export async function sendWhatsAppTemplate(
       body,
     });
 
-    let payload = await response.json().catch(() => null);
+    const payload = await response.json().catch(() => null);
 
     if (!response.ok) {
-      const authError = isMetaAuthenticationError(response, payload);
-      if (!attemptedFallback && authError) {
-        const fallbackCredentials = await getEnvironmentWhatsAppCredentials();
-        if (
-          fallbackCredentials &&
-          (fallbackCredentials.accessToken !== accessToken ||
-            fallbackCredentials.phoneNumberId !== phoneNumberId)
-        ) {
-          return sendWhatsAppTemplate(
-            fallbackCredentials,
-            phone,
-            templateName,
-            languageCode,
-            components,
-            true
-          );
-        }
-      }
-
       return {
         ok: false,
         provider: "meta",
@@ -931,7 +856,7 @@ export async function sendWhatsAppTemplate(
       };
     }
 
-    return {
+    const result: WhatsAppSendResult = {
       ok: true,
       provider: "meta",
       to,
@@ -942,6 +867,15 @@ export async function sendWhatsAppTemplate(
         payload,
       },
     };
+    await recordOutboundWhatsAppMessage({
+      userId: credentials?.userId,
+      providerMessageId: result.messageId,
+      phoneNumberId,
+      recipientPhone: to,
+      messageType: "template",
+      providerPayload: payload,
+    });
+    return result;
   } catch (error) {
     return {
       ok: false,

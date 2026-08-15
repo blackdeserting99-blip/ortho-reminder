@@ -532,6 +532,7 @@ export async function POST(request: Request) {
     const doctorCredentials = await buildDoctorWhatsAppCredentials({
       whatsappAccessToken: doctor?.whatsappAccessToken,
       whatsappPhoneNumberId: doctor?.whatsappPhoneNumberId,
+      userId: user.id,
     });
 
     let firstAppointmentNotification: {

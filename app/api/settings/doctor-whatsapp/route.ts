@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/app/lib/auth";
 import {
   buildDoctorWhatsAppCredentials,
-  encryptWhatsAppProviderToken,
   normalizePhone,
 } from "@/app/lib/whatsapp";
 import { neon } from "@neondatabase/serverless";
@@ -174,6 +173,16 @@ export async function PATCH(request: Request) {
     Boolean(whatsappPhoneNumberId) ||
     Boolean(whatsappAccessToken);
 
+  if (hasAnyMetaField) {
+    return NextResponse.json(
+      {
+        error:
+          "Manual WhatsApp credential updates are disabled. Connect through Meta Embedded Signup instead.",
+      },
+      { status: 403 }
+    );
+  }
+
   const hasAllMetaFields =
     Boolean(whatsappBusinessAccountId) &&
     Boolean(whatsappPhoneNumberId) &&
@@ -190,64 +199,29 @@ export async function PATCH(request: Request) {
   }
 
   const normalized = phone ? normalizePhone(phone) : "";
-  const encryptedApiToken = whatsappAccessToken
-    ? await encryptWhatsAppProviderToken(whatsappAccessToken)
-    : null;
-
   try {
     const { prisma } = await import("@/app/lib/prisma");
     await prisma.user.update({
       where: { id: user.id },
       data: {
         ...(phone ? { whatsappPhone: normalized } : {}),
-        ...(hasAllMetaFields
-          ? {
-              whatsappBusinessAccountId,
-              whatsappPhoneNumberId,
-              whatsappAccessToken: encryptedApiToken,
-              whatsappConnectedAt: new Date(),
-            }
-          : {}),
       },
     });
   } catch {
     const sql = getSqlClient();
-    if (hasAllMetaFields) {
-      await sql`
-        UPDATE "User"
-        SET "whatsappPhone" = ${phone ? normalized : null},
-            "whatsappBusinessAccountId" = ${whatsappBusinessAccountId},
-            "whatsappPhoneNumberId" = ${whatsappPhoneNumberId},
-            "whatsappAccessToken" = ${encryptedApiToken},
-            "whatsappConnectedAt" = ${new Date()},
-            "updatedAt" = ${new Date()}
-        WHERE id = ${user.id}
-      `;
-    } else {
-      await sql`
-        UPDATE "User"
-        SET "whatsappPhone" = ${normalized},
-            "updatedAt" = ${new Date()}
-        WHERE id = ${user.id}
-      `;
-    }
+    await sql`
+      UPDATE "User"
+      SET "whatsappPhone" = ${normalized},
+          "updatedAt" = ${new Date()}
+      WHERE id = ${user.id}
+    `;
   }
 
   const response = NextResponse.json({
     ok: true,
     phone: phone ? normalized : undefined,
-    connected: hasAllMetaFields,
+    connected: false,
   });
-
-  if (hasAllMetaFields) {
-    response.cookies.set("whatsapp_configured", "1", {
-      httpOnly: false,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 7,
-      path: "/",
-    });
-  }
 
   return response;
 }

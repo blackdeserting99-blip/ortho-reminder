@@ -78,6 +78,42 @@ async function exchangeCodeForToken(code: string) {
   return accessToken;
 }
 
+async function validateAndSubscribeAssets(input: {
+  accessToken: string;
+  businessAccountId: string;
+  phoneNumberId: string;
+}) {
+  const baseUrl = `https://graph.facebook.com/${getMetaGraphApiVersion()}`;
+  const headers = { Authorization: `Bearer ${input.accessToken}` };
+  const phoneNumbersUrl = new URL(`${baseUrl}/${input.businessAccountId}/phone_numbers`);
+  phoneNumbersUrl.searchParams.set("fields", "id");
+
+  const phoneNumbersResponse = await fetch(phoneNumbersUrl, { headers });
+  const phoneNumbersPayload = await phoneNumbersResponse.json().catch(() => null);
+  if (!phoneNumbersResponse.ok) {
+    throw new Error(phoneNumbersPayload?.error?.message || "Meta could not verify the WhatsApp Business account");
+  }
+
+  const ownsPhoneNumber = Array.isArray(phoneNumbersPayload?.data) && phoneNumbersPayload.data.some(
+    (phoneNumber: { id?: unknown }) => String(phoneNumber.id || "") === input.phoneNumberId
+  );
+  if (!ownsPhoneNumber) {
+    throw new Error("The selected WhatsApp phone number is not authorized for this business account");
+  }
+
+  const subscribeResponse = await fetch(`${baseUrl}/${input.businessAccountId}/subscribed_apps`, {
+    method: "POST",
+    headers,
+  });
+  const subscribePayload = await subscribeResponse.json().catch(() => null);
+  if (!subscribeResponse.ok) {
+    throw new Error(
+      subscribePayload?.error?.message ||
+        "Meta could not subscribe this WhatsApp Business account to webhooks. Advanced Access may still be required."
+    );
+  }
+}
+
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) {
@@ -94,12 +130,19 @@ export async function POST(request: Request) {
   }
 
   try {
+    if (!process.env.WHATSAPP_TOKEN_ENCRYPTION_KEY?.trim()) {
+      throw new Error("WHATSAPP_TOKEN_ENCRYPTION_KEY must be configured before connecting a doctor account");
+    }
+
     const accessToken = await exchangeCodeForToken(parsed.data.code.trim());
+    const businessAccountId = parsed.data.businessAccountId.trim();
+    const phoneNumberId = parsed.data.phoneNumberId.trim();
+    await validateAndSubscribeAssets({ accessToken, businessAccountId, phoneNumberId });
 
     const credentials = await buildDoctorWhatsAppCredentials({
       whatsappAccessToken: accessToken,
-      whatsappPhoneNumberId: parsed.data.phoneNumberId.trim(),
-      whatsappBusinessAccountId: parsed.data.businessAccountId.trim(),
+      whatsappPhoneNumberId: phoneNumberId,
+      whatsappBusinessAccountId: businessAccountId,
     });
 
     const tested = await testWhatsAppConnection(credentials);
@@ -118,12 +161,25 @@ export async function POST(request: Request) {
 
     try {
       const { prisma } = await import("@/app/lib/prisma");
+      const assignedElsewhere = await prisma.user.findFirst({
+        where: {
+          id: { not: user.id },
+          OR: [
+            { whatsappBusinessAccountId: businessAccountId },
+            { whatsappPhoneNumberId: phoneNumberId },
+          ],
+        },
+        select: { id: true },
+      });
+      if (assignedElsewhere) {
+        throw new Error("This WhatsApp Business account or phone number is already connected to another doctor");
+      }
       await prisma.user.update({
         where: { id: user.id },
         data: {
           ...(normalizedPhone ? { whatsappPhone: normalizedPhone } : {}),
-          whatsappBusinessAccountId: parsed.data.businessAccountId.trim(),
-          whatsappPhoneNumberId: parsed.data.phoneNumberId.trim(),
+          whatsappBusinessAccountId: businessAccountId,
+          whatsappPhoneNumberId: phoneNumberId,
           whatsappAccessToken: encryptedToken,
           whatsappConnectedAt: new Date(),
         },
@@ -133,8 +189,8 @@ export async function POST(request: Request) {
       await sql`
         UPDATE "User"
         SET "whatsappPhone" = ${normalizedPhone || null},
-            "whatsappBusinessAccountId" = ${parsed.data.businessAccountId.trim()},
-            "whatsappPhoneNumberId" = ${parsed.data.phoneNumberId.trim()},
+            "whatsappBusinessAccountId" = ${businessAccountId},
+            "whatsappPhoneNumberId" = ${phoneNumberId},
             "whatsappAccessToken" = ${encryptedToken},
             "whatsappConnectedAt" = ${new Date()},
             "updatedAt" = ${new Date()}

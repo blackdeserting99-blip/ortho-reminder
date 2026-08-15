@@ -614,6 +614,7 @@ export async function POST(request: Request) {
         ? await sql`
             SELECT
               a.*,
+              p."userId" AS "doctorId",
               p.name AS "patientName",
               p.phone AS "patientPhone",
               p.metadata AS "patientMetadata",
@@ -643,6 +644,7 @@ export async function POST(request: Request) {
         : await sql`
             SELECT
               a.*,
+              p."userId" AS "doctorId",
               p.name AS "patientName",
               p.phone AS "patientPhone",
               p.metadata AS "patientMetadata",
@@ -721,6 +723,7 @@ export async function POST(request: Request) {
         const doctorCredentials = await buildDoctorWhatsAppCredentials({
           whatsappAccessToken: appointment.doctorWhatsappAccessToken ?? null,
           whatsappPhoneNumberId: appointment.doctorWhatsappPhoneNumberId ?? null,
+          userId: String(appointment.doctorId || ""),
         });
 
         const patientMessage = buildWhatsAppBotMessage(
@@ -899,6 +902,7 @@ export async function POST(request: Request) {
     const doctorCredentials = await buildDoctorWhatsAppCredentials({
       whatsappAccessToken: patient.user?.whatsappAccessToken,
       whatsappPhoneNumberId: patient.user?.whatsappPhoneNumberId,
+      userId: patient.userId,
     });
 
     const message = buildRetainerYearOnePatientMessage({
@@ -945,6 +949,7 @@ export async function POST(request: Request) {
     const doctorCredentials = await buildDoctorWhatsAppCredentials({
       whatsappAccessToken: appointment.patient.user?.whatsappAccessToken,
       whatsappPhoneNumberId: appointment.patient.user?.whatsappPhoneNumberId,
+      userId: appointment.patient.userId,
     });
 
     const leadDays = getAlignerPrepLeadDays();

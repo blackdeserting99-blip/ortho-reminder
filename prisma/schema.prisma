@@ -41,6 +41,7 @@ generator client {
     createdVisits       Visit[]       @relation("VisitCreatedBy")
     updatedVisits       Visit[]       @relation("VisitUpdatedBy")
     auditLogs           AuditLog[]
+    whatsAppMessages    WhatsAppMessage[]
   }
 
   model AuditLog {
@@ -56,6 +57,26 @@ generator client {
     @@index([userId])
     @@index([createdAt])
     @@index([targetType, targetId])
+  }
+
+  model WhatsAppMessage {
+    id                String   @id @default(cuid())
+    userId            String
+    providerMessageId String?  @unique
+    phoneNumberId     String
+    recipientPhone    String?
+    direction         String
+    messageType       String?
+    status            String?
+    error             String?
+    providerPayload   Json?
+    eventAt           DateTime?
+    createdAt         DateTime @default(now())
+    updatedAt         DateTime @updatedAt
+    user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@index([userId, createdAt])
+    @@index([phoneNumberId])
   }
 
   model Clinic {
