@@ -33,6 +33,16 @@ type SignupEventData = {
   phoneNumberId: string;
 };
 
+type MetaSignupMessage = {
+  type?: unknown;
+  event?: unknown;
+  data?: {
+    waba_id?: unknown;
+    phone_number_id?: unknown;
+    error_message?: unknown;
+  };
+};
+
 declare global {
   interface Window {
     FB?: {
@@ -213,13 +223,21 @@ export default function WhatsAppSetupPage() {
 
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
+      try {
+        if (!new URL(event.origin).hostname.endsWith("facebook.com")) {
+          return;
+        }
+      } catch {
+        return;
+      }
+
       if (typeof event.data !== "string") {
         return;
       }
 
-      let payload: any;
+      let payload: MetaSignupMessage;
       try {
-        payload = JSON.parse(event.data);
+        payload = JSON.parse(event.data) as MetaSignupMessage;
       } catch {
         return;
       }
@@ -243,7 +261,11 @@ export default function WhatsAppSetupPage() {
 
       if (payload?.event === "ERROR") {
         setConnectLoading(false);
-        setStatusError(payload?.data?.error_message || "Meta signup failed.");
+        setStatusError(
+          typeof payload.data?.error_message === "string"
+            ? payload.data.error_message
+            : "Meta signup failed."
+        );
       }
     };
 
@@ -284,6 +306,30 @@ export default function WhatsAppSetupPage() {
         },
       }
     );
+  };
+
+  const handleStartHostedEmbeddedSignup = async () => {
+    setConnectLoading(true);
+    setStatusMessage(null);
+    setStatusError(null);
+    setDebugOutput(null);
+
+    try {
+      const response = await fetch("/api/settings/doctor-whatsapp/meta/start", {
+        method: "POST",
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || typeof data.url !== "string") {
+        setConnectLoading(false);
+        setStatusError(data.error || "Unable to start Meta Embedded Signup.");
+        return;
+      }
+
+      window.location.assign(data.url);
+    } catch {
+      setConnectLoading(false);
+      setStatusError("Network error while starting Meta Embedded Signup.");
+    }
   };
 
   const handleSavePhone = async () => {
@@ -460,13 +506,22 @@ export default function WhatsAppSetupPage() {
           </button>
           <button
             type="button"
-            onClick={handleStartEmbeddedSignup}
-            disabled={connectLoading || !sdkReady || !metaConfig?.configId}
+            onClick={handleStartHostedEmbeddedSignup}
+            disabled={connectLoading || !metaConfig?.configId}
             className="flex-1 rounded-2xl bg-cyan-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-cyan-800 disabled:opacity-50"
           >
             {connectLoading ? "Connecting..." : "Connect with Meta"}
           </button>
         </div>
+
+        <button
+          type="button"
+          onClick={handleStartEmbeddedSignup}
+          disabled={connectLoading || !sdkReady || !metaConfig?.configId}
+          className="mt-3 w-full rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm font-semibold text-cyan-700 transition hover:bg-cyan-100 disabled:opacity-50"
+        >
+          Continue with Meta popup
+        </button>
 
         <div className="mt-3">
           <button

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/app/lib/auth";
+import { getMetaEmbeddedSignupConfig } from "@/app/lib/meta-embedded-signup";
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -7,10 +8,7 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const appId = (process.env.META_APP_ID || "").trim();
-  const configId = (process.env.META_EMBEDDED_SIGNUP_CONFIG_ID || "").trim();
-  const graphVersion = (process.env.META_GRAPH_API_VERSION || "v23.0").trim();
-  const redirectUri = (process.env.META_EMBEDDED_SIGNUP_REDIRECT_URI || "").trim();
+  const { appId, configId, graphVersion, redirectUri } = getMetaEmbeddedSignupConfig();
 
   if (!appId || !configId) {
     return NextResponse.json(

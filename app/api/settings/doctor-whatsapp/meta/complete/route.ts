@@ -186,6 +186,19 @@ export async function POST(request: Request) {
       });
     } catch {
       const sql = getSqlClient();
+      const assignedElsewhere = await sql`
+        SELECT id
+        FROM "User"
+        WHERE id <> ${user.id}
+          AND (
+            "whatsappBusinessAccountId" = ${businessAccountId}
+            OR "whatsappPhoneNumberId" = ${phoneNumberId}
+          )
+        LIMIT 1
+      `;
+      if (assignedElsewhere?.[0]) {
+        throw new Error("This WhatsApp Business account or phone number is already connected to another doctor");
+      }
       await sql`
         UPDATE "User"
         SET "whatsappPhone" = ${normalizedPhone || null},
