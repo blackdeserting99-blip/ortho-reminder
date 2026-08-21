@@ -657,10 +657,16 @@ export async function POST(request: Request) {
       console.error(error.stack);
     }
 
+    const message = error instanceof Error ? error.message : String(error);
+    const isDbConfigIssue =
+      /DATABASE_URL|NEON_DATABASE_URL|Authentication failed against database server|P1000|provided database credentials/i.test(message);
+
     return NextResponse.json(
       {
-        message: "Internal Server Error",
-        error: String(error),
+        message: isDbConfigIssue ? "Database configuration error" : "Internal Server Error",
+        error: isDbConfigIssue
+          ? "The app database is not configured correctly. Update the Neon DATABASE_URL in .env with the real connection string, then redeploy."
+          : message,
       },
       { status: 500 }
     );

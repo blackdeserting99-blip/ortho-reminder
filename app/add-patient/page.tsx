@@ -608,6 +608,15 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
           // ignore JSON parse errors
         }
 
+        if (
+          /DATABASE_URL|NEON_DATABASE_URL|database is not configured correctly|Authentication failed against database server|P1000/i.test(msg)
+        ) {
+          setValidationErrors([
+            "Database connection issue: update the Neon DATABASE_URL in .env with the real connection string, then redeploy.",
+          ]);
+          return;
+        }
+
         if (details) {
           if (typeof details === "string") {
             setValidationErrors([details]);
@@ -803,7 +812,16 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
       const data = await response.json().catch(() => null);
 
       if (!response.ok) {
-        setValidationErrors([data?.error || "Unable to save the patient right now."]);
+        const serverMessage = String(data?.error || "Unable to save the patient right now.");
+        if (
+          /DATABASE_URL|NEON_DATABASE_URL|database is not configured correctly|Authentication failed against database server|P1000/i.test(serverMessage)
+        ) {
+          setValidationErrors([
+            "Database connection issue: update the Neon DATABASE_URL in .env with the real connection string, then redeploy.",
+          ]);
+          return;
+        }
+        setValidationErrors([serverMessage]);
         return;
       }
 
