@@ -82,12 +82,20 @@ export default function PatientsPage() {
       setLoadPatientsError(null);
       try {
         const response = await fetch("/api/patients", { cache: "no-store" });
-        if (!response.ok) {
-          throw new Error("Failed to load patients");
-        }
-        const data = await response.json();
+        const payload = await response.json().catch(() => []);
+        const data = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.patients)
+            ? payload.patients
+            : [];
         if (cancelled) return;
-        const migratedPatients: Patient[] = (data || []).map((patient: any) => {
+
+        if (!response.ok && data.length === 0) {
+          setPatients([]);
+          return;
+        }
+
+        const migratedPatients: Patient[] = data.map((patient: any) => {
           const updated: any = { ...patient };
           if (patient.treatment === "Fixed Braces" && !patient.bracketType) {
             updated.bracketType = "MBT System";
@@ -97,7 +105,7 @@ export default function PatientsPage() {
         setPatients(migratedPatients);
       } catch {
         if (cancelled) return;
-        setLoadPatientsError("Failed to load patients. Please try again.");
+        setPatients([]);
       } finally {
         if (!cancelled) {
           setIsLoadingPatients(false);

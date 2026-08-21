@@ -26,16 +26,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const loadUser = async () => {
       try {
-        const response = await fetch("/api/me", { cache: "no-store" });
+        const response = await fetch("/api/me", {
+          cache: "no-store",
+          credentials: "same-origin",
+        });
         if (cancelled) return;
+
         if (response.ok) {
-          const data = await response.json();
-          setState({ user: data, status: "authenticated" });
-        } else {
-          setState({ user: null, status: "unauthenticated" });
+          const data = await response.json().catch(() => null);
+          if (data && typeof data === "object") {
+            setState({ user: data as AuthUser, status: "authenticated" });
+            return;
+          }
         }
+
+        if (response.status === 401) {
+          setState({ user: null, status: "unauthenticated" });
+          return;
+        }
+
+        setState((prev) => (prev.user ? prev : { user: null, status: "unauthenticated" }));
       } catch {
-        if (!cancelled) setState({ user: null, status: "unauthenticated" });
+        if (!cancelled) {
+          setState((prev) => (prev.user ? prev : { user: null, status: "unauthenticated" }));
+        }
       }
     };
 

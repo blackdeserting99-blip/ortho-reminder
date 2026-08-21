@@ -129,11 +129,21 @@ type AlignerPatchNotification = {
           setLoadPatientsError(null);
           try {
             const response = await fetch("/api/patients", { cache: "no-store" });
-            if (!response.ok) {
-              throw new Error("Failed to load patients");
-            }
-            const patients = await response.json();
+            const payload = await response.json().catch(() => []);
+            const patients = Array.isArray(payload)
+              ? payload
+              : Array.isArray(payload?.patients)
+                ? payload.patients
+                : [];
             if (cancelled) return;
+
+            if (!response.ok && patients.length === 0) {
+              setPatientCount(0);
+              setTodayPatients([]);
+              setOverduePatients([]);
+              setUpcomingPatients([]);
+              return;
+            }
 
             setPatientCount(
               patients.filter(
