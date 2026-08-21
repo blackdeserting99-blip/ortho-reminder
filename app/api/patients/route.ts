@@ -516,103 +516,112 @@ export async function POST(request: Request) {
     console.log('[DEBUG][POST /api/patients] created patient object:', patient);
     console.log('[DEBUG][POST /api/patients] usedSqlFallback:', usedSqlFallback);
 
-    const shouldAttemptFirstAppointmentMessage =
-      autoReminderEnabled &&
-      Boolean(appointmentDateTime) &&
-      Boolean((patient?.phone || "").trim());
-
-    let doctor:
-      | {
-          whatsappAccessToken: string | null;
-          whatsappPhoneNumberId: string | null;
-        }
-      | null = null;
-    try {
-      doctor = await prisma.user.findUnique({
-        where: { id: user.id },
-        select: {
-          whatsappAccessToken: true,
-          whatsappPhoneNumberId: true,
-        },
-      });
-    } catch {
-      doctor = null;
-    }
-
-    const doctorCredentials = await buildDoctorWhatsAppCredentials({
-      whatsappAccessToken: doctor?.whatsappAccessToken,
-      whatsappPhoneNumberId: doctor?.whatsappPhoneNumberId,
-      userId: user.id,
-    });
-
     let firstAppointmentNotification: {
       attempted: boolean;
       sent: boolean;
       error?: string;
     } | null = null;
 
-    if (shouldAttemptFirstAppointmentMessage) {
-      const existingMetadata = getMetadataObject(patient.metadata);
-      const remindersSent = getMetadataObject(existingMetadata.remindersSent);
+    try {
+      const shouldAttemptFirstAppointmentMessage =
+        autoReminderEnabled &&
+        Boolean(appointmentDateTime) &&
+        Boolean((patient?.phone || "").trim());
 
-      if (remindersSent.firstAppointmentConfirmation !== true) {
-        const confirmationMessage = buildFirstAppointmentConfirmationMessage({
-          patientName: patient.name,
-          appointmentDate: appointmentDateTime as Date,
-          appointmentTime:
-            data.appointmentTime ||
-            formatAppointmentTime(appointmentDateTime as Date),
-        });
-
-        const sendResult = await sendWhatsAppText(
-          doctorCredentials,
-          patient.phone,
-          confirmationMessage
-        );
-        firstAppointmentNotification = {
-          attempted: true,
-          sent: sendResult.ok,
-          error: sendResult.error,
-        };
-
-        const nextMetadata: Record<string, unknown> = {
-          ...existingMetadata,
-          remindersSent: {
-            ...remindersSent,
-            firstAppointmentConfirmation: sendResult.ok,
-            firstAppointmentConfirmationSentAt: sendResult.ok
-              ? new Date().toISOString()
-              : remindersSent.firstAppointmentConfirmationSentAt,
-            firstAppointmentConfirmationLastError: sendResult.ok
-              ? null
-              : sendResult.error || "Unknown WhatsApp send error",
-          },
-        };
-
-        try {
-          await prisma.patient.update({
-            where: { id: patient.id },
-            data: { metadata: nextMetadata as any },
-          });
-        } catch {
-          try {
-            const sql = getSqlClient();
-            await sql`
-              UPDATE "Patient"
-              SET metadata = ${nextMetadata}::jsonb,
-                  "updatedAt" = ${new Date()}
-              WHERE id = ${patient.id}
-            `;
-          } catch (metadataUpdateError) {
-            console.error(
-              "Failed to persist first appointment reminder metadata:",
-              metadataUpdateError
-            );
+      let doctor:
+        | {
+            whatsappAccessToken: string | null;
+            whatsappPhoneNumberId: string | null;
           }
-        }
-
-        patient.metadata = nextMetadata;
+        | null = null;
+      try {
+        doctor = await prisma.user.findUnique({
+          where: { id: user.id },
+          select: {
+            whatsappAccessToken: true,
+            whatsappPhoneNumberId: true,
+          },
+        });
+      } catch {
+        doctor = null;
       }
+
+      const doctorCredentials = await buildDoctorWhatsAppCredentials({
+        whatsappAccessToken: doctor?.whatsappAccessToken,
+        whatsappPhoneNumberId: doctor?.whatsappPhoneNumberId,
+        userId: user.id,
+      });
+
+      if (shouldAttemptFirstAppointmentMessage) {
+        const existingMetadata = getMetadataObject(patient.metadata);
+        const remindersSent = getMetadataObject(existingMetadata.remindersSent);
+
+        if (remindersSent.firstAppointmentConfirmation !== true) {
+          const confirmationMessage = buildFirstAppointmentConfirmationMessage({
+            patientName: patient.name,
+            appointmentDate: appointmentDateTime as Date,
+            appointmentTime:
+              data.appointmentTime ||
+              formatAppointmentTime(appointmentDateTime as Date),
+          });
+
+          const sendResult = await sendWhatsAppText(
+            doctorCredentials,
+            patient.phone,
+            confirmationMessage
+          );
+          firstAppointmentNotification = {
+            attempted: true,
+            sent: sendResult.ok,
+            error: sendResult.error,
+          };
+
+          const nextMetadata: Record<string, unknown> = {
+            ...existingMetadata,
+            remindersSent: {
+              ...remindersSent,
+              firstAppointmentConfirmation: sendResult.ok,
+              firstAppointmentConfirmationSentAt: sendResult.ok
+                ? new Date().toISOString()
+                : remindersSent.firstAppointmentConfirmationSentAt,
+              firstAppointmentConfirmationLastError: sendResult.ok
+                ? null
+                : sendResult.error || "Unknown WhatsApp send error",
+            },
+          };
+
+          try {
+            await prisma.patient.update({
+              where: { id: patient.id },
+              data: { metadata: nextMetadata as any },
+            });
+          } catch {
+            try {
+              const sql = getSqlClient();
+              await sql`
+                UPDATE "Patient"
+                SET metadata = ${nextMetadata}::jsonb,
+                    "updatedAt" = ${new Date()}
+                WHERE id = ${patient.id}
+              `;
+            } catch (metadataUpdateError) {
+              console.error(
+                "Failed to persist first appointment reminder metadata:",
+                metadataUpdateError
+              );
+            }
+          }
+
+          patient.metadata = nextMetadata;
+        }
+      }
+    } catch (notificationError) {
+      console.error("[WARN][POST /api/patients] optional reminder notification failed:", notificationError);
+      firstAppointmentNotification = {
+        attempted: false,
+        sent: false,
+        error: notificationError instanceof Error ? notificationError.message : "Optional reminder failed",
+      };
     }
 
     const responsePayload = { ...patient, id: patient.id, userId: patient.userId };
@@ -623,12 +632,16 @@ export async function POST(request: Request) {
         firstAppointmentNotification;
     }
 
-    await recordAuditLog({
-      userId: user.id,
-      action: "DOCTOR_CREATED_PATIENT",
-      targetType: "PATIENT",
-      targetId: String(responsePayload.id),
-    });
+    try {
+      await recordAuditLog({
+        userId: user.id,
+        action: "DOCTOR_CREATED_PATIENT",
+        targetType: "PATIENT",
+        targetId: String(responsePayload.id),
+      });
+    } catch (auditError) {
+      console.error("[WARN][POST /api/patients] audit log failed but patient save should still succeed:", auditError);
+    }
 
     // Return the created patient explicitly including id and userId to avoid
     // any client-side ambiguity about the returned shape.
