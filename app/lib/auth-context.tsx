@@ -41,14 +41,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         if (response.status === 401) {
-          setState({ user: null, status: "unauthenticated" });
+          setState((prev) => ({ user: prev.user ?? null, status: prev.user ? "authenticated" : "unauthenticated" }));
           return;
         }
 
-        setState((prev) => (prev.user ? prev : { user: null, status: "unauthenticated" }));
+        setState((prev) => ({ ...prev, status: prev.user ? "authenticated" : "unauthenticated" }));
       } catch {
         if (!cancelled) {
-          setState((prev) => (prev.user ? prev : { user: null, status: "unauthenticated" }));
+          setState((prev) => ({ ...prev, status: prev.user ? "authenticated" : "unauthenticated" }));
         }
       }
     };

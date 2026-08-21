@@ -72,8 +72,15 @@ export default function PatientsPage() {
 
   useEffect(() => {
     // Wait for the shared auth state to resolve so this doesn't race /api/me
-    // on the very first load.
+    // on the very first load. If the user is not authenticated, stay in a safe
+    // empty state rather than surfacing a misleading patient-load error.
     if (authStatus === "loading") return;
+    if (authStatus === "unauthenticated") {
+      setPatients([]);
+      setIsLoadingPatients(false);
+      setLoadPatientsError(null);
+      return;
+    }
 
     let cancelled = false;
 

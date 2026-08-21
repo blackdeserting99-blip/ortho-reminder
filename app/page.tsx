@@ -119,8 +119,18 @@ type AlignerPatchNotification = {
 
       useEffect(() => {
         // Wait for the shared auth state to resolve so this doesn't race /api/me
-        // on the very first load.
+        // on the very first load. If auth is explicitly unavailable, keep the page
+        // in a safe empty state instead of treating it as a data failure.
         if (authStatus === "loading") return;
+        if (authStatus === "unauthenticated") {
+          setPatientCount(0);
+          setTodayPatients([]);
+          setOverduePatients([]);
+          setUpcomingPatients([]);
+          setIsLoadingPatients(false);
+          setLoadPatientsError(null);
+          return;
+        }
 
         let cancelled = false;
 
