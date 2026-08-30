@@ -741,13 +741,6 @@ function getVonageMessagesEndpoint() {
     endpoint.pathname = "/v1/messages";
   }
 
-  if (
-    process.env.NODE_ENV !== "development" &&
-    endpoint.hostname === "messages-sandbox.nexmo.com"
-  ) {
-    throw new Error("Vonage sandbox endpoint is not allowed in production");
-  }
-
   return endpoint.toString();
 }
 
