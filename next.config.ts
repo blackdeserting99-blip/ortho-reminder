@@ -1,18 +1,15 @@
   import type { NextConfig } from "next";
   import path from "path";
 
-  const traceRoot = process.env.NEXT_PRIVATE_OUTPUT_TRACE_ROOT
-    ? path.resolve(process.env.NEXT_PRIVATE_OUTPUT_TRACE_ROOT)
-    : path.resolve(__dirname);
-
   const nextConfig: NextConfig = {
-    // OpenNext sets NEXT_PRIVATE_OUTPUT_TRACE_ROOT for monorepos; use it when present.
-    // Fallback to the app root for regular local Next.js builds.
-    outputFileTracingRoot: traceRoot,
+    // Keep standalone output at the app root, where OpenNext expects it.
+    outputFileTracingRoot: path.resolve(__dirname),
     serverExternalPackages: [
-    "@prisma/client",
-    ".prisma/client",
+    "styled-jsx",
   ],
+    outputFileTracingIncludes: {
+      "/*": ["../../node_modules/.prisma/client/**/*"],
+    },
     images: {
       unoptimized: true,
     },

@@ -52,7 +52,7 @@ type Patient = {
 };
 
 export default function PatientsPage() {
-  const { status: authStatus } = useAuth();
+  const { user, status: authStatus } = useAuth();
   const today = new Date().toLocaleDateString("en-CA");
   const [patients, setPatients] = useState<Patient[]>([]);
   const [isLoadingPatients, setIsLoadingPatients] = useState(true);
@@ -71,10 +71,8 @@ export default function PatientsPage() {
   });
 
   useEffect(() => {
-    // Wait for the shared auth state to resolve so this doesn't race /api/me
-    // on the very first load. If the user is not authenticated, stay in a safe
-    // empty state rather than surfacing a misleading patient-load error.
-    if (authStatus === "loading") return;
+    // Prefer the browser cache immediately so the app does not sit in a dead
+    // loading state while the slower /api/me + /api/patients requests finish.
     if (authStatus === "unauthenticated") {
       setPatients([]);
       setIsLoadingPatients(false);
@@ -83,22 +81,48 @@ export default function PatientsPage() {
     }
 
     let cancelled = false;
+    const cacheKey = user?.id ? `ortho-patients:${user.id}` : null;
+    let usedCachedPatients = false;
+
+    if (cacheKey) {
+      try {
+        const cached = JSON.parse(sessionStorage.getItem(cacheKey) || "null");
+        if (Array.isArray(cached)) {
+          usedCachedPatients = true;
+          setPatients(cached);
+          setIsLoadingPatients(false);
+        }
+      } catch {
+        // Ignore an unavailable or malformed browser cache.
+      }
+    }
+
+    if (authStatus === "loading" && !usedCachedPatients) {
+      return;
+    }
 
     const loadPatients = async () => {
       setIsLoadingPatients(true);
       setLoadPatientsError(null);
       try {
         const response = await fetch("/api/patients", { cache: "no-store" });
-        const payload = await response.json().catch(() => []);
+        const payload = await response.json().catch(() => null);
         const data = Array.isArray(payload)
           ? payload
           : Array.isArray(payload?.patients)
             ? payload.patients
-            : [];
+            : null;
         if (cancelled) return;
 
-        if (!response.ok && data.length === 0) {
+        if (response.status === 401) {
           setPatients([]);
+          if (cacheKey) sessionStorage.removeItem(cacheKey);
+          setLoadPatientsError("Your session has expired. Please sign in again.");
+          return;
+        }
+
+        if (!response.ok || !data) {
+          setLoadPatientsError("Unable to refresh patients right now. Showing the last saved list.");
           return;
         }
 
@@ -110,9 +134,10 @@ export default function PatientsPage() {
           return updated;
         });
         setPatients(migratedPatients);
+        if (cacheKey) sessionStorage.setItem(cacheKey, JSON.stringify(migratedPatients));
       } catch {
         if (cancelled) return;
-        setPatients([]);
+        setLoadPatientsError("Unable to refresh patients right now. Showing the last saved list.");
       } finally {
         if (!cancelled) {
           setIsLoadingPatients(false);
@@ -125,7 +150,7 @@ export default function PatientsPage() {
     return () => {
       cancelled = true;
     };
-  }, [authStatus]);
+  }, [authStatus, user?.id]);
 
 const [showDeletePatientModal, setShowDeletePatientModal] = useState(false);
 const [deletePatientId, setDeletePatientId] = useState<number | null>(null);

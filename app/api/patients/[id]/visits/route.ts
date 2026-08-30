@@ -58,6 +58,10 @@ async function sendElasticsStartedNotification(input: {
     elasticType: input.elasticType,
     doctorName,
   });
+  console.log("[WhatsApp] Automatic instruction triggered", {
+    type: "elasticsStarted",
+    patientId: input.patient.id,
+  });
   await sendWhatsAppText(input.doctorCredentials, patientPhone, patientMessage);
 
   const doctorPhone = getDoctorWhatsApp({
@@ -110,6 +114,10 @@ async function sendTadsStartedNotification(input: {
     patientName: input.patient.name,
     tadsNote: input.tadsNote,
     doctorName,
+  });
+  console.log("[WhatsApp] Automatic instruction triggered", {
+    type: "tadsStarted",
+    patientId: input.patient.id,
   });
   await sendWhatsAppText(input.doctorCredentials, patientPhone, patientMessage);
 

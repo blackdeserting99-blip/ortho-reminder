@@ -57,18 +57,37 @@ function parseAppointmentDateTime(dateValue?: string, timeValue?: string) {
   return dateTime;
 }
 
-function formatAppointmentTime(date: Date) {
-  const h = date.getHours();
-  const mi = date.getMinutes();
+function asDate(value: Date | string | number | null | undefined) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  const parsed = value instanceof Date ? value : new Date(value);
+  if (!Number.isFinite(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed;
+}
+
+function formatAppointmentTime(date: Date | string | number | null | undefined) {
+  const parsed = asDate(date);
+  if (!parsed) return null;
+
+  const h = parsed.getHours();
+  const mi = parsed.getMinutes();
   const period = h >= 12 ? "PM" : "AM";
   const h12 = h % 12 || 12;
   return `${String(h12).padStart(2, "0")}:${String(mi).padStart(2, "0")} ${period}`;
 }
 
-function formatDateIso(date: Date) {
-  const y = date.getFullYear();
-  const mo = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
+function formatDateIso(date: Date | string | number | null | undefined) {
+  const parsed = asDate(date);
+  if (!parsed) return null;
+
+  const y = parsed.getFullYear();
+  const mo = String(parsed.getMonth() + 1).padStart(2, "0");
+  const d = String(parsed.getDate()).padStart(2, "0");
   return `${y}-${mo}-${d}`;
 }
 
@@ -237,6 +256,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
             orderBy: [{ id: 'asc' }],
           },
           appointments: {
+            where: {
+              status: { notIn: ["CANCELED", "COMPLETED", "NO_SHOW"] },
+            },
             orderBy: [{ id: "desc" }],
             take: 1,
           },
@@ -250,8 +272,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         let appointmentTime = null;
 
         const latestVisit = patient.visits.length > 0 ? patient.visits[patient.visits.length - 1] : null;
-        const nextApptFromVisit = latestVisit?.nextAppointment || null;
-        const nextApptFromAppointment = patient.appointments?.[0]?.scheduledAt || null;
+        const nextApptFromVisit = latestVisit?.nextAppointment ? asDate(latestVisit.nextAppointment) : null;
+        const nextApptFromAppointment = patient.appointments?.[0]?.scheduledAt ? asDate(patient.appointments[0].scheduledAt) : null;
         const nextAppt = nextApptFromVisit || nextApptFromAppointment;
 
         if (nextAppt) {
@@ -270,7 +292,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
           return {
             ...visit,
-            date: formatDateIso(visit.visitDate),
+            date: visit.visitDate ? formatDateIso(visit.visitDate) : null,
             time: nextTime,
             visitNotes: visit.treatmentNotes,
             plannedNotes: visit.plannedTreatment,
@@ -309,7 +331,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
           retainerFee: patient.retainerFee,
           elasticEnabled: patient.elasticEnabled === true,
           elasticType: patient.elasticEnabled === true ? (patient.elasticType ?? (typeof metadata.elasticType === "string" ? metadata.elasticType : null)) : null,
-          tadsNote: patient.elasticEnabled === true ? (patient.tadsNote ?? (typeof metadata.tadsNote === "string" ? metadata.tadsNote : null)) : null,
+            tadsNote: patient.tadsNote ?? (typeof metadata.tadsNote === "string" ? metadata.tadsNote : null),
           caseStatus: getCaseStatusFromMetadata(patient.metadata),
           damonTorques: typeof metadata.damonTorques === "string" ? String(metadata.damonTorques) : null,
           wireSettings: typeof metadata.wireSettings === "object" && metadata.wireSettings !== null ? metadata.wireSettings : null,
@@ -354,6 +376,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
           SELECT "scheduledAt"
           FROM "Appointment"
           WHERE "patientId" = ${patientId}
+            AND status NOT IN ('CANCELED', 'COMPLETED', 'NO_SHOW')
           ORDER BY id DESC
           LIMIT 1
         `;
@@ -361,9 +384,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         let appointmentDate = null;
         let appointmentTime = null;
         const latestVisit = visits.length > 0 ? visits[visits.length - 1] : null;
-        const nextApptFromVisit = latestVisit?.nextAppointment ? new Date(latestVisit.nextAppointment) : null;
+        const nextApptFromVisit = latestVisit?.nextAppointment ? asDate(latestVisit.nextAppointment) : null;
         const nextApptFromAppointment = latestAppointmentRows?.[0]?.scheduledAt
-          ? new Date(latestAppointmentRows[0].scheduledAt)
+          ? asDate(latestAppointmentRows[0].scheduledAt)
           : null;
         const nextAppt = nextApptFromVisit || nextApptFromAppointment;
 
@@ -416,9 +439,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
           retainerFee: patient.retainerFee,
           elasticEnabled: patient.elasticEnabled === true,
           elasticType: patient.elasticEnabled === true ? patient.elasticType : null,
-          tadsNote: patient.elasticEnabled === true ? (patient.tadsNote ?? null) : null,
+            tadsNote: patient.tadsNote ?? null,
           caseStatus: getCaseStatusFromMetadata(patient.metadata),
           damonTorques: typeof metadata.damonTorques === "string" ? String(metadata.damonTorques) : null,
+          wireSettings: typeof metadata.wireSettings === "object" && metadata.wireSettings !== null ? metadata.wireSettings : null,
           autoReminderEnabled: metadata.autoReminderEnabled !== false,
           alignerDaysPerTray: Number(metadata.alignerDaysPerTray || 14),
           galleryPhotos: Array.isArray(metadata.galleryPhotos) ? metadata.galleryPhotos : [],
@@ -509,6 +533,22 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ error: "Request body must be valid JSON." }, { status: 400 });
     }
 
+    const metadata = getMetadataObject(existing.metadata);
+    const remindersSent = getMetadataObject(metadata.remindersSent);
+    if (
+      body.firstAppointment === false &&
+      existing.firstAppointment === true &&
+      remindersSent.firstAppointmentConfirmation !== true
+    ) {
+      return NextResponse.json(
+        {
+          error: "Cannot clear firstAppointment before the first-appointment WhatsApp message is sent successfully.",
+          firstAppointment: true,
+        },
+        { status: 409 }
+      );
+    }
+
     const parseResult = patientSchema.safeParse(body);
 
     if (!parseResult.success) {
@@ -537,6 +577,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       Object.prototype.hasOwnProperty.call(body, "galleryPhotos") ||
       Object.prototype.hasOwnProperty.call(body, "caseSheetAttachments");
     const shouldUpdateWireSettings = Object.prototype.hasOwnProperty.call(body, "wireSettings");
+    const shouldUpdateClinicalFields =
+      Object.prototype.hasOwnProperty.call(body, "upperWire") ||
+      Object.prototype.hasOwnProperty.call(body, "lowerWire") ||
+      Object.prototype.hasOwnProperty.call(body, "elasticEnabled") ||
+      Object.prototype.hasOwnProperty.call(body, "elasticType") ||
+      Object.prototype.hasOwnProperty.call(body, "tadsNote");
     const shouldUpdateDamonTorques =
       Object.prototype.hasOwnProperty.call(body, "damonTorques");
 
@@ -573,8 +619,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       shouldUpdateCaseStatus ||
       shouldUpdateGalleryAttachments ||
       shouldUpdateDamonTorques ||
-      shouldUpdateWireSettings;
+      shouldUpdateWireSettings ||
+      shouldUpdateClinicalFields;
     const existingMetadata = getMetadataObject(existing.metadata);
+    const existingWireSettings = getMetadataObject(existingMetadata.wireSettings);
 
     if (shouldUpdateMetadata) {
       const previousCaseStatus = getCaseStatusFromMetadata(existingMetadata);
@@ -607,7 +655,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           ? { damonTorques: incoming.damonTorques }
           : {}),
         ...(typeof incoming.wireSettings !== "undefined"
-          ? { wireSettings: incoming.wireSettings }
+          ? { wireSettings: { ...existingWireSettings, ...getMetadataObject(incoming.wireSettings) } }
+          : shouldUpdateClinicalFields
+            ? {
+                wireSettings: {
+                  ...existingWireSettings,
+                  ...(Object.prototype.hasOwnProperty.call(body, "upperWire") ? { upperWire: incoming.upperWire } : {}),
+                  ...(Object.prototype.hasOwnProperty.call(body, "lowerWire") ? { lowerWire: incoming.lowerWire } : {}),
+                },
+              }
           : {}),
       };
 
@@ -685,10 +741,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         LIMIT 1
       `;
       const latestAppointmentRows = await sql`
-        SELECT id
+        SELECT id, "scheduledAt"
         FROM "Appointment"
         WHERE "patientId" = ${patientId}
-        ORDER BY id DESC
+          AND status NOT IN ('CANCELED', 'COMPLETED', 'NO_SHOW')
+        ORDER BY "scheduledAt" DESC, id DESC
         LIMIT 1
       `;
 
@@ -717,9 +774,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           `;
         }
       } else {
+        const existingAppointmentTime = latestAppointmentRows?.[0]?.scheduledAt
+          ? formatAppointmentTime(new Date(latestAppointmentRows[0].scheduledAt))
+          : null;
         const appointmentDateTime = parseAppointmentDateTime(
           appointmentDateValue,
-          incoming.appointmentTime
+          typeof incoming.appointmentTime === "string" && incoming.appointmentTime.trim()
+            ? incoming.appointmentTime
+            : existingAppointmentTime ?? undefined
         );
 
         if (!appointmentDateTime) {
@@ -768,6 +830,30 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       }
     }
 
+    if (shouldUpdateClinicalFields) {
+      const latestVisitRows = await sql`
+        SELECT id
+        FROM "Visit"
+        WHERE "patientId" = ${patientId}
+        ORDER BY id DESC
+        LIMIT 1
+      `;
+      const latestVisit = latestVisitRows?.[0];
+
+      if (latestVisit) {
+        await sql`
+          UPDATE "Visit"
+          SET
+            "upperArch" = CASE WHEN ${Object.prototype.hasOwnProperty.call(body, "upperWire")} THEN ${incoming.upperWire ?? null} ELSE "upperArch" END,
+            "lowerArch" = CASE WHEN ${Object.prototype.hasOwnProperty.call(body, "lowerWire")} THEN ${incoming.lowerWire ?? null} ELSE "lowerArch" END,
+            elastics = CASE WHEN ${Object.prototype.hasOwnProperty.call(body, "elasticType")} OR ${Object.prototype.hasOwnProperty.call(body, "elasticEnabled")} THEN ${incoming.elasticEnabled === false ? null : incoming.elasticType ?? null} ELSE elastics END,
+            tads = CASE WHEN ${Object.prototype.hasOwnProperty.call(body, "tadsNote")} THEN ${incoming.tadsNote ?? null} ELSE tads END,
+            "updatedAt" = ${new Date()}
+          WHERE id = ${latestVisit.id} AND "patientId" = ${patientId}
+        `;
+      }
+    }
+
     const reloadedRows = await sql`
       SELECT *
       FROM "Patient"
@@ -779,7 +865,18 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ error: "Patient not found" }, { status: 404 });
     }
 
-    const metadata = getMetadataObject(reloaded.metadata);
+    const savedAppointmentRows = await sql`
+      SELECT "scheduledAt"
+      FROM "Appointment"
+      WHERE "patientId" = ${patientId}
+        AND status NOT IN ('CANCELED', 'COMPLETED', 'NO_SHOW')
+      ORDER BY "scheduledAt" DESC, id DESC
+      LIMIT 1
+    `;
+    const savedAppointment = savedAppointmentRows?.[0]?.scheduledAt
+      ? new Date(savedAppointmentRows[0].scheduledAt)
+      : null;
+    const responseMetadata = getMetadataObject(reloaded.metadata);
 
     return NextResponse.json({
       id: reloaded.id,
@@ -795,23 +892,23 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       bracketType: reloaded.bracketType,
       caseSheet: reloaded.caseSheet,
       firstAppointment: reloaded.firstAppointment,
-      appointmentDate: null,
-      appointmentTime: null,
+      appointmentDate: savedAppointment ? formatDateIso(savedAppointment) : null,
+      appointmentTime: savedAppointment ? formatAppointmentTime(savedAppointment) : null,
       totalFee: reloaded.totalFee,
       totalPaid: reloaded.totalPaid,
       plannedNotes: reloaded.plannedNotes,
       notes: reloaded.notes,
       retainerFee: reloaded.retainerFee,
-      elasticEnabled: Boolean(reloaded.elasticEnabled || metadata.elasticEnabled),
-      elasticType: reloaded.elasticType ?? (typeof metadata.elasticType === "string" ? metadata.elasticType : null),
-      tadsNote: reloaded.tadsNote ?? (typeof metadata.tadsNote === "string" ? metadata.tadsNote : null),
+      elasticEnabled: Boolean(reloaded.elasticEnabled || responseMetadata.elasticEnabled),
+      elasticType: reloaded.elasticType ?? (typeof responseMetadata.elasticType === "string" ? responseMetadata.elasticType : null),
+      tadsNote: reloaded.tadsNote ?? (typeof responseMetadata.tadsNote === "string" ? responseMetadata.tadsNote : null),
       caseStatus: getCaseStatusFromMetadata(reloaded.metadata),
-      damonTorques: typeof metadata.damonTorques === "string" ? String(metadata.damonTorques) : null,
-      wireSettings: typeof metadata.wireSettings === "object" && metadata.wireSettings !== null ? metadata.wireSettings : null,
-      autoReminderEnabled: metadata.autoReminderEnabled !== false,
-      alignerDaysPerTray: Number(metadata.alignerDaysPerTray || 14),
-      galleryPhotos: Array.isArray(metadata.galleryPhotos) ? metadata.galleryPhotos : [],
-      caseSheetAttachments: Array.isArray(metadata.caseSheetAttachments) ? metadata.caseSheetAttachments : [],
+      damonTorques: typeof responseMetadata.damonTorques === "string" ? String(responseMetadata.damonTorques) : null,
+      wireSettings: typeof responseMetadata.wireSettings === "object" && responseMetadata.wireSettings !== null ? responseMetadata.wireSettings : null,
+      autoReminderEnabled: responseMetadata.autoReminderEnabled !== false,
+      alignerDaysPerTray: Number(responseMetadata.alignerDaysPerTray || 14),
+      galleryPhotos: Array.isArray(responseMetadata.galleryPhotos) ? responseMetadata.galleryPhotos : [],
+      caseSheetAttachments: Array.isArray(responseMetadata.caseSheetAttachments) ? responseMetadata.caseSheetAttachments : [],
     });
   } catch (fallbackError) {
     console.error("[PATCH /api/patients/[id] SQL FALLBACK ERROR]", fallbackError);

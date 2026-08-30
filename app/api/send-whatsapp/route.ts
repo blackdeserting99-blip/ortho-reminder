@@ -32,16 +32,29 @@ export async function POST(request: Request) {
       );
     }
 
-    const { phone, message, reminderType } = body;
+    const { patientId, phone, message, reminderType } = body;
 
-    if (!phone || !message) {
+    if (!message || (!phone && !patientId)) {
       return NextResponse.json(
-        { error: "phone and message are required" },
+        { error: "patientId or phone, and message are required" },
         { status: 400 }
       );
     }
 
     const sql = getSqlClient();
+    let selectedPhone = typeof phone === "string" ? phone : "";
+    if (patientId !== undefined) {
+      const patientRows = await sql`
+        SELECT phone
+        FROM "Patient"
+        WHERE id = ${Number(patientId)} AND "userId" = ${user.id}
+        LIMIT 1
+      `;
+      if (!patientRows?.[0]) {
+        return NextResponse.json({ error: "Patient not found" }, { status: 404 });
+      }
+      selectedPhone = String(patientRows[0].phone || "");
+    }
     const doctorRows = await sql`
       SELECT
         "whatsappAccessToken",
@@ -58,13 +71,13 @@ export async function POST(request: Request) {
       userId: user.id,
     });
 
-    const result = await sendWhatsAppText(doctorCredentials, phone, message);
+    const result = await sendWhatsAppText(doctorCredentials, selectedPhone, message);
 
     if (!result.ok) {
       return NextResponse.json(
         {
           error: "Failed to send WhatsApp message",
-          details: result.error || "Unknown provider error",
+          details: result.error || "The WhatsApp provider rejected the message.",
           provider: result.provider,
         },
         { status: 502 }
@@ -73,7 +86,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       status: "ok",
-      phone,
+      phone: result.to,
       reminderType,
       provider: result.provider,
       messageId: result.messageId || null,

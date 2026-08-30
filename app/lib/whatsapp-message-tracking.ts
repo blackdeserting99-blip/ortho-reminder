@@ -51,7 +51,7 @@ export async function recordWhatsAppWebhookEvent(input: {
   providerMessageId?: string;
   status?: string;
   recipientPhone?: string;
-  timestamp?: number;
+  timestamp?: number | string;
   error?: string;
   raw?: unknown;
 }) {
@@ -61,21 +61,59 @@ export async function recordWhatsAppWebhookEvent(input: {
 
   try {
     const { prisma } = await import("@/app/lib/prisma");
-    const eventAt = input.timestamp ? new Date(input.timestamp * 1000) : new Date();
+    const eventAt = input.timestamp
+      ? typeof input.timestamp === "number"
+        ? new Date(input.timestamp * 1000)
+        : new Date(input.timestamp)
+      : new Date();
     const existing = await prisma.whatsAppMessage.findUnique({
       where: { providerMessageId: input.providerMessageId },
     });
 
     if (existing) {
+      const existingPayload = asJson(existing.providerPayload);
+      const rawPayload = asJson(input.raw);
+      const errorText = `${input.error || ""} ${JSON.stringify(input.raw || {})}`;
+      const isOutsideWindow =
+        /1340|131047|outside allowed window|more than 24 hours/i.test(errorText);
+      const templateFallback = asJson(existingPayload?._vonageTemplateFallback);
+      const fallbackAttempted = existingPayload?._vonageTemplateFallbackAttempted === true;
+      const shouldSendTemplateFallback =
+        existing.direction === "OUTBOUND" &&
+        existing.messageType === "TEXT" &&
+        isOutsideWindow &&
+        Boolean(templateFallback?.name) &&
+        Boolean(templateFallback?.locale) &&
+        Array.isArray(templateFallback?.parameters) &&
+        !fallbackAttempted;
+      const mergedPayload = {
+        ...(existingPayload || {}),
+        ...(rawPayload || {}),
+        ...(shouldSendTemplateFallback ? { _vonageTemplateFallbackAttempted: true } : {}),
+      };
+
       await prisma.whatsAppMessage.update({
         where: { providerMessageId: input.providerMessageId },
         data: {
           status: input.status?.toUpperCase() || existing.status,
           error: input.error || null,
-          providerPayload: asJson(input.raw) as never,
+          providerPayload: mergedPayload as never,
           eventAt,
         },
       });
+
+      if (shouldSendTemplateFallback) {
+        const { sendVonageWhatsAppTemplate } = await import("@/app/lib/whatsapp");
+        await sendVonageWhatsAppTemplate(
+          input.recipientPhone || existing.recipientPhone || "",
+          {
+            name: String(templateFallback?.name),
+            locale: String(templateFallback?.locale),
+            parameters: (templateFallback?.parameters as unknown[]).map(String),
+          },
+          existing.userId
+        );
+      }
       return;
     }
 

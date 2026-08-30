@@ -123,6 +123,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       });
 
       if (patient?.phone?.trim()) {
+        console.log("[WhatsApp] Automatic instruction triggered", {
+          type: "elasticsStarted",
+          patientId,
+        });
         const doctorName = process.env.DOCTOR_DISPLAY_NAME || "Doctor";
         const patientMessage = buildElasticsStartedPatientMessage({
           patientName: patient.name,
@@ -182,6 +186,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       });
 
       if (patient?.phone?.trim()) {
+        console.log("[WhatsApp] Automatic instruction triggered", {
+          type: "tadsStarted",
+          patientId,
+        });
         const doctorName = process.env.DOCTOR_DISPLAY_NAME || "Doctor";
         const patientMessage = buildTadsStartedPatientMessage({
           patientName: patient.name,

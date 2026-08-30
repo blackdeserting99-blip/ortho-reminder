@@ -129,8 +129,21 @@ const buildCareInstructions = (
   );
   const upcomingDate = formatDateDMY(patient.appointmentDate);
 
-  if (patient.firstAppointment) {
-    if (
+  const getFirstAppointmentArabicInstructions = () => {
+    const isFixedBraces =
+      category.includes("fixed") ||
+      treatment.includes("braces") ||
+      treatment.includes("fixed");
+
+    const isClearAligners =
+      category.includes("aligner") ||
+      treatment.includes("aligner");
+
+    const isRetainers =
+      category.includes("retainer") ||
+      treatment.includes("retainer");
+
+    const isMyofunctional =
       category.includes("myofunctional") ||
       category.includes("orthopedic") ||
       treatment.includes("hyrax") ||
@@ -139,73 +152,65 @@ const buildCareInstructions = (
       treatment.includes("trainer") ||
       treatment.includes("frankel") ||
       treatment.includes("bionator") ||
-      treatment.includes("activator")
-    ) {
-      parts.push(
-        `السلام عليكم ${patientName} 🌹
+      treatment.includes("activator") ||
+      treatment.includes("quad helix") ||
+      treatment.includes("tpa") ||
+      treatment.includes("nance") ||
+      treatment.includes("habit breaker");
 
-نتمنى لكم التوفيق في رحلة العلاج.
-
-يرجى الالتزام بتعليمات الطبيب لضمان تحقيق أفضل النتائج.
-
-📅 موعد التفعيل القادم:
-${upcomingDate}
-
-🔄 تعليمات التفعيل:
-${myoScheduleText || "حسب تعليمات الطبيب"}
-
-يرجى الالتزام بالمواعيد المحددة وعدم زيادة أو تقليل عدد مرات التفعيل إلا بتوجيه من الطبيب.
-
-تعليمات مهمة:
-✅ ارتداء الجهاز حسب المدة التي أوصى بها الطبيب.
-✅ المحافظة على نظافة الجهاز بغسله بالماء الفاتر وتنظيفه يومياً.
-✅ حفظ الجهاز داخل علبته المخصصة عند عدم استخدامه.
-❌ تجنب تعريض الجهاز للماء الساخن أو أشعة الشمس المباشرة.
-❌ عدم محاولة تعديل الجهاز أو تفعيله بطرق غير موصى بها.
-
-⚠️ في حال كسر الجهاز، أو فقدانه، أو الشعور بألم غير طبيعي، يرجى التواصل مع العيادة مباشرة.
-
-شكراً لثقتكم بنا، ونتمنى لكم علاجاً ناجحاً 🌹
-
-${doctorName}`
-      );
-    } else if (
-      category.includes("fixed") ||
-      treatment.includes("braces") ||
-      treatment.includes("fixed")
-    ) {
-      parts.push(
-        `السلام عليكم ${patientName} 🌹
-
-نبارك لكم بداية رحلة العلاج بالتقويم، ونتمنى لكم تجربة علاج ناجحة وابتسامة جميلة بإذن الله.
-
-من الطبيعي خلال الأيام الأولى الشعور بضغط أو ألم خفيف على الأسنان، وقد تواجهون صعوبة بسيطة أثناء المضغ، وهذا أمر طبيعي وسيختفي تدريجياً مع تأقلم الأسنان على التقويم.
-
-يرجى الالتزام بالتعليمات التالية:
-
-✅ تناول الأطعمة اللينة خلال الأيام الأولى.
-✅ تجنب الأطعمة القاسية واللزجة مثل المكسرات، الثلج، العلكة، والكراميل.
-✅ تنظيف الأسنان والتقويم جيداً بعد كل وجبة للحفاظ على صحة الأسنان واللثة.
-
-⚠️ في حال سقوط أي نجمة من التقويم، أو انقطاع السلك، أو حدوث أي مشكلة غير معتادة، يرجى التواصل مع العيادة مباشرة وعدم محاولة إصلاحها بأنفسكم.
-
-شكراً لثقتكم بنا، ونتمنى لكم علاجاً ناجحاً وابتسامة جميلة. 🌹
-
-${doctorName}`
-      );
-    } else if (category.includes("retainer") || treatment.includes("retainer")) {
-      parts.push(
-        "Retainer care instructions:\n- Wear exactly as prescribed by your doctor.\n- Clean daily with lukewarm water and a soft brush.\n- Do not eat while wearing your retainer.\n- Keep it in its case when not in use."
-      );
-    } else if (category.includes("aligner") || treatment.includes("aligner")) {
-      parts.push(
-        `Aligner instructions:\n- Wear aligners 20-22 hours per day.\n- Remove aligners only for meals and hot drinks.\n- Clean aligners daily using soft brush and lukewarm water.\n- Wear each aligner for ${alignerDays} days unless doctor changes plan.\n- When ${alignerDays} days are completed, switch to the next aligner set.`
-      );
-    } else {
-      parts.push(
-        "General appliance instructions:\n- Keep excellent oral hygiene.\n- Follow appliance use exactly as prescribed.\n- Avoid habits or foods that damage the appliance.\n- Contact clinic if breakage, severe pain, or fitting issues occur."
-      );
+    if (isFixedBraces) {
+      return `✅ خلال الأيام الأولى قد تشعر بعدم الراحة أو ضغط خفيف على الأسنان.
+✅ تناول الأطعمة اللينة في البداية.
+✅ تجنب الأطعمة الصلبة واللزجة مثل المكسرات، الثلج، العلكة، والكراميل.
+✅ نظف الأسنان والتقويم بعناية بعد كل وجبة.
+✅ إذا تسبب السلك أو أي جزء من التقويم في تهيج اللثة أو الخد، استخدم الخيط أو اتصل بالعيادة لتقييم الوضع.
+⚠️ إذا شعرتم بألم شديد، أو تلف جزء من الجهاز، أو انكسر السلك، يرجى التواصل مع العيادة فوراً.`;
     }
+
+    if (isClearAligners) {
+      return `✅ ارتدِ التقويم الشفاف قرابة 20-22 ساعة يومياً.
+✅ أزلها عند تناول الطعام أو المشروبات.
+✅ نظفها بانتظام وحافظ عليها جافة في علبة خاصة بها.
+✅ احفظها دائمًا في العلبة عند إزالتها.
+✅ اتبع تعليمات الطبيب بشأن تغيير مجموعات التقويم.`;
+    }
+
+    if (isRetainers) {
+      return `✅ اتباع جدول ارتداء الريتينر حسب تعليمات الطبيب.
+✅ تنظيف الريتينر بانتظام.
+✅ حفظ الريتينر داخل علبته دائماً عند عدم استخدامه.
+✅ إبقاؤه بعيداً عن الحرارة والمواد الساخنة.
+⚠️ في حال كسر الريتينر، فقدانه، أو عدم ملاءمته، يرجى التواصل مع العيادة.`;
+    }
+
+    if (isMyofunctional) {
+      return `✅ التزم بجدول ارتداء الجهاز حسب تعليمات الطبيب.
+✅ نظف الجهاز يومياً بشكل جيد.
+✅ احفظه في مكان آمن عند إزالته.
+✅ لا تعدّل أو تضبط الجهاز بنفسك.
+⚠️ إذا كسر الجهاز أو تسبب في ألم مستمر، يرجى التواصل مع العيادة.`;
+    }
+
+    return `✅ الالتزام بتعليمات الطبيب بدقة.
+✅ المحافظة على نظافة الجهاز والابتعاد عن الأطعمة أو العادات التي قد تؤثر عليه.
+✅ التواصل مع العيادة في حال وجود ألم مستمر أو تلف في الجهاز.`;
+  };
+
+  if (patient.firstAppointment) {
+    const instructions = getFirstAppointmentArabicInstructions();
+    parts.push(
+      `مرحباً ${patientName} 👋
+
+أهلاً بك، نتمنى لك رحلة علاج ناجحة 🌟
+
+فيما يلي بعض التعليمات المهمة للعناية بجهازك:
+
+${instructions}
+
+شكراً لثقتكم بنا، ونتمنى لكم علاجاً ناجحاً. 🌹
+
+${doctorName}`
+    );
   }
 
   const hasElastic =
@@ -269,16 +274,64 @@ export function buildFirstAppointmentConfirmationMessage(input: {
   patientName?: string;
   appointmentDate: string | Date;
   appointmentTime?: string;
+  treatmentCategory?: string;
+  treatment?: string;
 }) {
-  const patientName = (input.patientName || "").trim() || "Patient";
+  const patientName = (input.patientName || "").trim() || "المريض";
   const appointmentDateValue =
     input.appointmentDate instanceof Date
       ? input.appointmentDate.toISOString()
       : input.appointmentDate;
   const appointmentDate = formatDateDMY(appointmentDateValue);
   const appointmentTime = (input.appointmentTime || "04:00 PM").trim();
+  const treatmentCategory = (input.treatmentCategory || input.treatment || "").toLowerCase();
+  const treatment = (input.treatment || "").toLowerCase();
 
-  return `Hello ${patientName},\nYour first orthodontic appointment has been scheduled for ${appointmentDate} at ${appointmentTime}.\nWe look forward to seeing you.`;
+  const firstAppointmentInstructions = (() => {
+    if (
+      treatmentCategory.includes("fixed") ||
+      treatment.includes("braces") ||
+      treatment.includes("fixed")
+    ) {
+      return `✅ خلال الأيام الأولى قد تشعر بعدم الراحة أو ضغط خفيف على الأسنان.\n✅ تناول الأطعمة اللينة في البداية.\n✅ تجنب الأطعمة الصلبة واللزجة مثل المكسرات، الثلج، العلكة، والكراميل.\n✅ نظف الأسنان والتقويم بعناية بعد كل وجبة.\n✅ إذا تسبب السلك أو أي جزء من التقويم في تهيج اللثة أو الخد، استخدم الخيط أو اتصل بالعيادة لتقييم الوضع.\n⚠️ إذا شعرتم بألم شديد، أو تلف جزء من الجهاز، أو انكسر السلك، يرجى التواصل مع العيادة فوراً.`;
+    }
+
+    if (
+      treatmentCategory.includes("aligner") ||
+      treatment.includes("aligner")
+    ) {
+      return `✅ ارتدِ التقويم الشفاف قرابة 20-22 ساعة يومياً.\n✅ أزلها عند تناول الطعام أو المشروبات.\n✅ نظفها بانتظام وحافظ عليها جافة في علبة خاصة بها.\n✅ احفظها دائمًا في العلبة عند إزالتها.\n✅ اتبع تعليمات الطبيب بشأن تغيير مجموعات التقويم.`;
+    }
+
+    if (
+      treatmentCategory.includes("retainer") ||
+      treatment.includes("retainer")
+    ) {
+      return `✅ اتباع جدول ارتداء الريتينر حسب تعليمات الطبيب.\n✅ تنظيف الريتينر بانتظام.\n✅ حفظ الريتينر داخل علبته دائماً عند عدم استخدامه.\n✅ إبقاؤه بعيداً عن الحرارة والمواد الساخنة.\n⚠️ في حال كسر الريتينر، فقدانه، أو عدم ملاءمته، يرجى التواصل مع العيادة.`;
+    }
+
+    if (
+      treatmentCategory.includes("myofunctional") ||
+      treatmentCategory.includes("orthopedic") ||
+      treatment.includes("hyrax") ||
+      treatment.includes("twin block") ||
+      treatment.includes("myobrace") ||
+      treatment.includes("trainer") ||
+      treatment.includes("frankel") ||
+      treatment.includes("bionator") ||
+      treatment.includes("activator") ||
+      treatment.includes("quad helix") ||
+      treatment.includes("tpa") ||
+      treatment.includes("nance") ||
+      treatment.includes("habit breaker")
+    ) {
+      return `✅ التزم بجدول ارتداء الجهاز حسب تعليمات الطبيب.\n✅ نظف الجهاز يومياً بشكل جيد.\n✅ احفظه في مكان آمن عند إزالته.\n✅ لا تعدّل أو تضبط الجهاز بنفسك.\n⚠️ إذا كسر الجهاز أو تسبب في ألم مستمر، يرجى التواصل مع العيادة.`;
+    }
+
+    return `✅ الالتزام بتعليمات الطبيب بدقة.\n✅ المحافظة على نظافة الجهاز والابتعاد عن الأطعمة أو العادات التي قد تؤثر عليه.\n✅ التواصل مع العيادة في حال وجود ألم مستمر أو تلف في الجهاز.`;
+  })();
+
+  return `مرحباً ${patientName} 👋\n\nأهلاً بك، نتمنى لك رحلة علاج ناجحة 🌟\n\nفيما يلي بعض التعليمات المهمة للعناية بجهازك:\n\n${firstAppointmentInstructions}\n\nموعدك القادم: ${appointmentDate} الساعة ${appointmentTime}.\n\nشكراً لثقتكم بنا، ونتمنى لكم علاجاً ناجحاً. 🌹`;
 }
 
 export function buildElasticsStartedPatientMessage(input: {
@@ -409,7 +462,7 @@ export function createWhatsAppUrl(phone: string, message: string) {
 
 export type WhatsAppSendResult = {
   ok: boolean;
-  provider: "meta" | "simulation";
+  provider: "meta" | "vonage" | "simulation";
   to: string;
   messageId?: string;
   error?: string;
@@ -426,6 +479,12 @@ export type WhatsAppTemplateComponent = {
     type: "text";
     text: string;
   }>;
+};
+
+export type VonageTemplateFallback = {
+  name: string;
+  locale: string;
+  parameters: string[];
 };
 
 export type DoctorWhatsAppCredentials = {
@@ -583,6 +642,294 @@ function getMetaGraphBaseUrl() {
   return `https://graph.facebook.com/${getMetaGraphApiVersion()}`;
 }
 
+function base64UrlEncode(value: Uint8Array | string) {
+  const bytes = typeof value === "string" ? new TextEncoder().encode(value) : value;
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function pemToBytes(pem: string) {
+  const base64 = normalizePrivateKey(pem)
+    .replace(/-----BEGIN PRIVATE KEY-----/g, "")
+    .replace(/-----END PRIVATE KEY-----/g, "")
+    .replace(/\s/g, "");
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return bytes;
+}
+
+function normalizePrivateKey(value: string) {
+  return value
+    .trim()
+    .replace(/^"([\s\S]*)"$/, "$1")
+    .replace(/^'([\s\S]*)'$/, "$1")
+    .replace(/\\r\\n/g, "\n")
+    .replace(/\\n/g, "\n")
+    .replace(/\r\n/g, "\n");
+}
+
+function isOutsideWhatsAppWindow(payload: unknown) {
+  return /1340|131047|outside allowed window|more than 24 hours/i.test(
+    JSON.stringify(payload || {})
+  );
+}
+
+async function getVonagePrivateKey() {
+  if (process.env.NODE_ENV === "development") {
+    try {
+      const { readFile } = await import("node:fs/promises");
+      const fileKey = normalizePrivateKey(
+        await readFile(`${process.cwd()}/vonage-private.key`, "utf8")
+      );
+      if (fileKey) {
+        return fileKey;
+      }
+    } catch {
+      // Local key file is optional; use the environment fallback below.
+    }
+  }
+
+  return normalizePrivateKey(process.env.VONAGE_PRIVATE_KEY || "");
+}
+
+async function createVonageJwt(applicationId: string, privateKeyPem: string) {
+  const now = Math.floor(Date.now() / 1000);
+  const header = base64UrlEncode(JSON.stringify({ typ: "JWT", alg: "RS256" }));
+  const payload = base64UrlEncode(JSON.stringify({
+    application_id: applicationId,
+    iat: now,
+    exp: now + 300,
+    jti: crypto.randomUUID(),
+  }));
+  const signingInput = `${header}.${payload}`;
+  const key = await crypto.subtle.importKey(
+    "pkcs8",
+    pemToBytes(privateKeyPem),
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const signature = await crypto.subtle.sign(
+    "RSASSA-PKCS1-v1_5",
+    key,
+    new TextEncoder().encode(signingInput)
+  );
+  return `${signingInput}.${base64UrlEncode(new Uint8Array(signature))}`;
+}
+
+export function hasVonageConfiguration() {
+  return Boolean(
+    process.env.VONAGE_APPLICATION_ID?.trim() &&
+      process.env.VONAGE_WHATSAPP_NUMBER?.trim()
+  );
+}
+
+function getVonageMessagesEndpoint() {
+  const configured = process.env.VONAGE_MESSAGES_API_URL?.trim();
+  const fallback =
+    process.env.NODE_ENV === "development"
+      ? "https://messages-sandbox.nexmo.com/v1/messages"
+      : "https://api.nexmo.com/v1/messages";
+  const rawEndpoint = configured || fallback;
+  const endpoint = new URL(
+    rawEndpoint.includes("://") ? rawEndpoint : `https://${rawEndpoint}`
+  );
+
+  if (!endpoint.pathname || endpoint.pathname === "/") {
+    endpoint.pathname = "/v1/messages";
+  }
+
+  if (
+    process.env.NODE_ENV !== "development" &&
+    endpoint.hostname === "messages-sandbox.nexmo.com"
+  ) {
+    throw new Error("Vonage sandbox endpoint is not allowed in production");
+  }
+
+  return endpoint.toString();
+}
+
+async function sendVonageWhatsAppText(
+  phone: string,
+  message: string,
+  userId?: string,
+  options?: { templateFallback?: VonageTemplateFallback }
+): Promise<WhatsAppSendResult> {
+  const to = normalizePhone(phone);
+  const applicationId = process.env.VONAGE_APPLICATION_ID?.trim() || "";
+  const apiKey = process.env.VONAGE_API_KEY?.trim() || "";
+  const apiSecret = process.env.VONAGE_API_SECRET?.trim() || "";
+  const privateKey = await getVonagePrivateKey();
+  const from = normalizePhone(process.env.VONAGE_WHATSAPP_NUMBER || "");
+  const useSandboxBasicAuth = process.env.NODE_ENV === "development";
+  let endpoint = "";
+
+  try {
+    endpoint = getVonageMessagesEndpoint();
+  } catch (error) {
+    return {
+      ok: false,
+      provider: "vonage",
+      to,
+      error: error instanceof Error ? error.message : "Vonage endpoint configuration is invalid.",
+      debug: { endpoint, statusCode: null, payload: null },
+    };
+  }
+
+  if (!to || !applicationId || !from || (useSandboxBasicAuth ? !apiKey || !apiSecret : !privateKey)) {
+    console.warn("[WhatsApp] Message failed: Vonage configuration or recipient is missing.");
+    return { ok: false, provider: "vonage", to, error: "Vonage WhatsApp messaging is not configured." };
+  }
+
+  try {
+    console.log("[WhatsApp] Sending message", { provider: "vonage", to });
+    const authorization = useSandboxBasicAuth
+      ? `Basic ${btoa(`${apiKey}:${apiSecret}`)}`
+      : `Bearer ${await createVonageJwt(applicationId, privateKey)}`;
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        Authorization: authorization,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from,
+        to,
+        message_type: "text",
+        text: message,
+        channel: "whatsapp",
+        webhook_url: process.env.VONAGE_STATUS_WEBHOOK_URL?.trim() || "https://orthoprimeoa.com/api/whatsapp/webhook-status",
+        webhook_version: "v1",
+      }),
+    });
+    const payload = await response.json().catch(() => null);
+    console.log("[WhatsApp] Vonage response", {
+      statusCode: response.status,
+      messageId: payload?.message_uuid || null,
+    });
+    if (!response.ok) {
+      if (options?.templateFallback && isOutsideWhatsAppWindow(payload)) {
+        return sendVonageWhatsAppTemplate(
+          phone,
+          options.templateFallback,
+          userId
+        );
+      }
+
+      console.warn("[WhatsApp] Message failed", { statusCode: response.status, to });
+      return { ok: false, provider: "vonage", to, error: "Vonage rejected the WhatsApp message.", debug: { endpoint, statusCode: response.status, payload } };
+    }
+
+    const messageId = payload?.message_uuid || payload?.message_uuid?.toString();
+    await recordOutboundWhatsAppMessage({
+      userId,
+      providerMessageId: messageId,
+      phoneNumberId: applicationId,
+      recipientPhone: to,
+      messageType: "text",
+      providerPayload: options?.templateFallback
+        ? { ...payload, _vonageTemplateFallback: options.templateFallback }
+        : payload,
+    });
+    console.log("[WhatsApp] Message sent successfully", { provider: "vonage", to, messageId });
+    return { ok: true, provider: "vonage", to, messageId, debug: { endpoint, statusCode: response.status, payload } };
+  } catch (error) {
+    console.warn("[WhatsApp] Message failed", {
+      to,
+      error: error instanceof Error ? error.message : "Unknown Vonage error",
+    });
+    return { ok: false, provider: "vonage", to, error: "Unable to reach the Vonage WhatsApp service.", debug: { endpoint, statusCode: null, payload: null } };
+  }
+}
+
+export async function sendVonageWhatsAppTemplate(
+  phone: string,
+  template: VonageTemplateFallback,
+  userId?: string
+): Promise<WhatsAppSendResult> {
+  const to = normalizePhone(phone);
+  const applicationId = process.env.VONAGE_APPLICATION_ID?.trim() || "";
+  const privateKey = await getVonagePrivateKey();
+  const from = normalizePhone(process.env.VONAGE_WHATSAPP_NUMBER || "");
+  const endpoint =
+    process.env.VONAGE_TEMPLATE_MESSAGES_API_URL?.trim() ||
+    "https://api.nexmo.com/v1/messages";
+
+  if (!to || !applicationId || !from || !privateKey || !template.name || !template.locale) {
+    return {
+      ok: false,
+      provider: "vonage",
+      to,
+      error: "Vonage template configuration is incomplete.",
+      debug: { endpoint, statusCode: null, payload: null },
+    };
+  }
+
+  try {
+    const authorization = `Bearer ${await createVonageJwt(applicationId, privateKey)}`;
+    const requestPayload = {
+      to,
+      from,
+      channel: "whatsapp",
+      message_type: "template",
+      whatsapp: {
+        policy: "deterministic",
+        locale: template.locale,
+      },
+      template: {
+        name: template.name,
+        parameters: template.parameters,
+      },
+      webhook_url:
+        process.env.VONAGE_STATUS_WEBHOOK_URL?.trim() ||
+        "https://orthoprimeoa.com/api/whatsapp/webhook-status",
+      webhook_version: "v1",
+    };
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        Authorization: authorization,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(requestPayload),
+    });
+    const responsePayload = await response.json().catch(() => null);
+    const result: WhatsAppSendResult = {
+      ok: response.ok,
+      provider: "vonage",
+      to,
+      messageId: responsePayload?.message_uuid || undefined,
+      error: response.ok
+        ? undefined
+        : responsePayload?.error?.detail || "Vonage template message was rejected.",
+      debug: { endpoint, statusCode: response.status, payload: responsePayload },
+    };
+
+    if (result.ok) {
+      await recordOutboundWhatsAppMessage({
+        userId,
+        providerMessageId: result.messageId,
+        phoneNumberId: applicationId,
+        recipientPhone: to,
+        messageType: "template",
+        providerPayload: responsePayload,
+      });
+    }
+
+    return result;
+  } catch (error) {
+    return {
+      ok: false,
+      provider: "vonage",
+      to,
+      error: error instanceof Error ? error.message : String(error),
+      debug: { endpoint, statusCode: null, payload: null },
+    };
+  }
+}
+
 export async function testWhatsAppConnection(
   credentials: DoctorWhatsAppCredentials | null | undefined
 ) {
@@ -666,8 +1013,19 @@ export function normalizePhone(phone: string) {
 export async function sendWhatsAppText(
   credentials: DoctorWhatsAppCredentials | null | undefined,
   phone: string,
-  message: string
+  message: string,
+  userId?: string,
+  options?: { vonageTemplateFallback?: VonageTemplateFallback }
 ): Promise<WhatsAppSendResult> {
+  if (hasVonageConfiguration()) {
+    return sendVonageWhatsAppText(
+      phone,
+      message,
+      credentials?.userId || userId,
+      { templateFallback: options?.vonageTemplateFallback }
+    );
+  }
+
   const to = toMetaRecipient(phone);
 
   if (!to) {

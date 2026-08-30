@@ -469,9 +469,15 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
   };
 
   const savePatient = async () => {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      setValidationErrors(["Patient name is required."]);
+      return;
+    }
+
     const existingPatients = [] as Patient[];
     try {
-      const response = await fetch("/api/patients", { cache: "no-store" });
+      const response = await fetch("/api/patients", { cache: "no-store", credentials: "same-origin" });
       if (response.ok) {
         const data = await response.json();
         existingPatients.push(...(Array.isArray(data) ? data : []));
@@ -575,6 +581,7 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
     try {
       const response = await fetch("/api/patients", {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...newPatient,
@@ -805,6 +812,7 @@ const [alreadyPaid, setAlreadyPaid] = useState("");
 
       const response = await fetch("/api/patients", {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newPatient),
       });

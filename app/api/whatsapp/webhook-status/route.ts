@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/app/lib/auth";
+import { POST as receiveWebhook } from "../webhook/route";
+
+export async function POST(request: Request) {
+  return receiveWebhook(request);
+}
 
 export async function GET() {
   const user = await getCurrentUser();

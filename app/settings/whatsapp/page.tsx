@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type MeResponse = {
@@ -43,6 +43,13 @@ type MetaSignupMessage = {
   };
 };
 
+type MetaConnectionStatus =
+  | "not-connected"
+  | "opening"
+  | "connecting"
+  | "connected"
+  | "failed";
+
 declare global {
   interface Window {
     FB?: {
@@ -63,6 +70,7 @@ export default function WhatsAppSetupPage() {
   const [checking, setChecking] = useState(true);
   const [sdkReady, setSdkReady] = useState(false);
   const [connectLoading, setConnectLoading] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<MetaConnectionStatus>("not-connected");
   const [currentUserLabel, setCurrentUserLabel] = useState("");
   const [connected, setConnected] = useState(false);
   const [connectedAt, setConnectedAt] = useState<string | null>(null);
@@ -79,11 +87,29 @@ export default function WhatsAppSetupPage() {
   const [metaConfig, setMetaConfig] = useState<MetaConfigResponse | null>(null);
   const [pendingSignupCode, setPendingSignupCode] = useState<string | null>(null);
   const [pendingSignupData, setPendingSignupData] = useState<SignupEventData | null>(null);
+  const signupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearSignupTimeout = () => {
+    if (signupTimeoutRef.current) {
+      clearTimeout(signupTimeoutRef.current);
+      signupTimeoutRef.current = null;
+    }
+  };
+
+  const failSignup = (message: string) => {
+    clearSignupTimeout();
+    setConnectLoading(false);
+    setPendingSignupCode(null);
+    setPendingSignupData(null);
+    setConnectionStatus("failed");
+    setStatusError(message);
+  };
 
   const reloadSettings = async () => {
     const response = await fetch("/api/settings/doctor-whatsapp", { cache: "no-store" });
     const settingsData = (await response.json().catch(() => ({}))) as SettingsResponse;
     setConnected(Boolean(settingsData.connected));
+    setConnectionStatus(settingsData.connected ? "connected" : "not-connected");
     setConnectedAt(settingsData.whatsapp?.connectedAt || null);
     setSavedBusinessAccountIdMasked(settingsData.whatsapp?.businessAccountIdMasked || "");
     setSavedPhoneNumberIdMasked(settingsData.whatsapp?.phoneNumberIdMasked || "");
@@ -115,6 +141,7 @@ export default function WhatsAppSetupPage() {
         const userId = (meData.id || "").trim();
         setCurrentUserLabel(userName || userEmail || userId || "Unknown user");
         setConnected(Boolean(settingsData.connected));
+        setConnectionStatus(settingsData.connected ? "connected" : "not-connected");
         setConnectedAt(settingsData.whatsapp?.connectedAt || null);
         setSavedBusinessAccountIdMasked(settingsData.whatsapp?.businessAccountIdMasked || "");
         setSavedPhoneNumberIdMasked(settingsData.whatsapp?.phoneNumberIdMasked || "");
@@ -198,15 +225,17 @@ export default function WhatsAppSetupPage() {
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        setStatusError(data.error || data.details || "Failed to complete Meta signup.");
+        failSignup(data.error || data.details || "Failed to complete Meta signup.");
         return;
       }
 
       await reloadSettings();
+      setConnectionStatus("connected");
       setStatusMessage("Meta WhatsApp connected successfully.");
     } catch {
-      setStatusError("Network error while completing Meta signup.");
+      failSignup("Network error while completing Meta signup.");
     } finally {
+      clearSignupTimeout();
       setConnectLoading(false);
       setPendingSignupCode(null);
       setPendingSignupData(null);
@@ -251,17 +280,17 @@ export default function WhatsAppSetupPage() {
         const phoneNumberId = String(payload?.data?.phone_number_id || "").trim();
         if (businessAccountId && phoneNumberId) {
           setPendingSignupData({ businessAccountId, phoneNumberId });
+        } else {
+          failSignup("Meta signup finished without the required WhatsApp account details.");
         }
       }
 
       if (payload?.event === "CANCEL") {
-        setConnectLoading(false);
-        setStatusError("Meta signup was cancelled.");
+        failSignup("Meta signup was closed or cancelled before the connection was completed.");
       }
 
       if (payload?.event === "ERROR") {
-        setConnectLoading(false);
-        setStatusError(
+        failSignup(
           typeof payload.data?.error_message === "string"
             ? payload.data.error_message
             : "Meta signup failed."
@@ -277,23 +306,29 @@ export default function WhatsAppSetupPage() {
 
   const handleStartEmbeddedSignup = async () => {
     if (!window.FB || !metaConfig?.configId) {
-      setStatusError("Meta SDK is not ready yet. Please try again.");
+      failSignup("Meta SDK is not ready yet. Please try again.");
       return;
     }
 
+    clearSignupTimeout();
     setConnectLoading(true);
+    setConnectionStatus("opening");
     setStatusMessage(null);
     setStatusError(null);
     setDebugOutput(null);
+
+    signupTimeoutRef.current = setTimeout(() => {
+      failSignup("Meta signup timed out. The popup may have been closed or signup was not completed.");
+    }, 2 * 60 * 1000);
 
     window.FB.login(
       (response) => {
         const code = String(response?.authResponse?.code || "").trim();
         if (!code) {
-          setConnectLoading(false);
-          setStatusError("Meta signup did not return an authorization code.");
+          failSignup("Meta signup was closed or did not return an authorization code.");
           return;
         }
+        setConnectionStatus("connecting");
         setPendingSignupCode(code);
       },
       {
@@ -308,29 +343,36 @@ export default function WhatsAppSetupPage() {
     );
   };
 
-  const handleStartHostedEmbeddedSignup = async () => {
-    setConnectLoading(true);
-    setStatusMessage(null);
-    setStatusError(null);
-    setDebugOutput(null);
+  useEffect(() => () => clearSignupTimeout(), []);
 
-    try {
-      const response = await fetch("/api/settings/doctor-whatsapp/meta/start", {
-        method: "POST",
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || typeof data.url !== "string") {
-        setConnectLoading(false);
-        setStatusError(data.error || "Unable to start Meta Embedded Signup.");
-        return;
-      }
-
-      window.location.assign(data.url);
-    } catch {
-      setConnectLoading(false);
-      setStatusError("Network error while starting Meta Embedded Signup.");
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
     }
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("meta") === "connected") {
+      void reloadSettings();
+      setConnectionStatus("connected");
+      setStatusMessage("Meta WhatsApp connected successfully.");
+    }
+  }, []);
+
+  const handleStartHostedEmbeddedSignup = async () => {
+    setConnectLoading(false);
+    setConnectionStatus("failed");
+    setStatusMessage(null);
+    setStatusError("Hosted Meta signup is temporarily unavailable. Use Continue with Meta popup.");
+    setDebugOutput(null);
   };
+
+  const connectionStatusLabel = {
+    "not-connected": "Not Connected",
+    opening: "Opening Meta...",
+    connecting: "Connecting...",
+    connected: "Connected Successfully",
+    failed: "Connection Failed",
+  }[connectionStatus];
 
   const handleSavePhone = async () => {
     setSavingPhone(true);
@@ -450,8 +492,16 @@ export default function WhatsAppSetupPage() {
           </div>
           <div className="flex items-center justify-between gap-3">
             <span className="font-medium text-slate-700">Status</span>
-            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${connected ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
-              {connected ? "Connected" : "Not connected"}
+            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
+              connectionStatus === "connected"
+                ? "bg-emerald-100 text-emerald-700"
+                : connectionStatus === "failed"
+                  ? "bg-red-100 text-red-700"
+                  : connectionStatus === "not-connected"
+                    ? "bg-amber-100 text-amber-700"
+                    : "bg-cyan-100 text-cyan-700"
+            }`}>
+              {connectionStatusLabel}
             </span>
           </div>
           {connectedAt ? (
@@ -494,6 +544,16 @@ export default function WhatsAppSetupPage() {
         {statusError ? (
           <p className="mt-6 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">{statusError}</p>
         ) : null}
+        {connectionStatus === "failed" ? (
+          <button
+            type="button"
+            onClick={handleStartEmbeddedSignup}
+            disabled={connectLoading || !sdkReady || !metaConfig?.configId}
+            className="mt-3 w-full rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm font-semibold text-cyan-700 transition hover:bg-cyan-100 disabled:opacity-50"
+          >
+            Retry Meta connection
+          </button>
+        ) : null}
 
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
           <button
@@ -507,10 +567,10 @@ export default function WhatsAppSetupPage() {
           <button
             type="button"
             onClick={handleStartHostedEmbeddedSignup}
-            disabled={connectLoading || !metaConfig?.configId}
-            className="flex-1 rounded-2xl bg-cyan-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-cyan-800 disabled:opacity-50"
+            disabled
+            className="flex-1 rounded-2xl bg-slate-300 px-4 py-3 text-sm font-semibold text-slate-500"
           >
-            {connectLoading ? "Connecting..." : "Connect with Meta"}
+            Connect with Meta unavailable
           </button>
         </div>
 
@@ -520,7 +580,7 @@ export default function WhatsAppSetupPage() {
           disabled={connectLoading || !sdkReady || !metaConfig?.configId}
           className="mt-3 w-full rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm font-semibold text-cyan-700 transition hover:bg-cyan-100 disabled:opacity-50"
         >
-          Continue with Meta popup
+          {connectionStatus === "opening" ? "Opening Meta..." : connectionStatus === "connecting" ? "Connecting..." : "Continue with Meta popup"}
         </button>
 
         <div className="mt-3">

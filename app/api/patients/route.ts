@@ -86,6 +86,42 @@ function getMetadataObject(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+function normalizeOptionalInteger(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? Math.trunc(value) : null;
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed || trimmed === "null") return null;
+    const normalized = trimmed.replace(/,/g, "");
+    const numericValue = Number(normalized);
+    return Number.isFinite(numericValue) ? Math.trunc(numericValue) : null;
+  }
+
+  return null;
+}
+
+function normalizeOptionalFloat(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed || trimmed === "null") return null;
+    const normalized = trimmed.replace(/,/g, "");
+    const numericValue = Number(normalized);
+    return Number.isFinite(numericValue) ? numericValue : null;
+  }
+
+  return null;
+}
+
 function getCaseStatusFromMetadata(metadata: unknown) {
   if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
     return "active" as const;
@@ -128,6 +164,49 @@ function getRuntimeDiagnostics() {
   };
 }
 
+async function getDoctorWhatsAppSettings(userId: string) {
+  try {
+    const { prisma } = await import("@/app/lib/prisma");
+    const doctor = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        whatsappAccessToken: true,
+        whatsappPhoneNumberId: true,
+        whatsappBusinessAccountId: true,
+      },
+    });
+    if (doctor) {
+      return doctor;
+    }
+  } catch {
+    // Fall back to raw SQL below for Cloudflare worker compatibility.
+  }
+
+  try {
+    const sql = getSqlClient();
+    const rows = await sql`
+      SELECT
+        "whatsappAccessToken",
+        "whatsappPhoneNumberId",
+        "whatsappBusinessAccountId"
+      FROM "User"
+      WHERE id = ${userId}
+      LIMIT 1
+    `;
+    const row = rows?.[0];
+    if (!row) {
+      return null;
+    }
+    return {
+      whatsappAccessToken: row.whatsappAccessToken ?? null,
+      whatsappPhoneNumberId: row.whatsappPhoneNumberId ?? null,
+      whatsappBusinessAccountId: row.whatsappBusinessAccountId ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function GET() {
   try {
     const user = await getCurrentUser();
@@ -146,61 +225,48 @@ export async function GET() {
     // engine entirely and is what already works reliably elsewhere in this app
     // (getCurrentUser's fallback, /api/register, /api/login all use the same raw client).
     const sql = getSqlClient();
-    const rawRows: any[] = await sql`
-      SELECT
-        p.*,
-        v.visit AS "latestVisit",
-        a."scheduledAt" AS "latestScheduledAt"
+    const patientRows: any[] = await sql`
+      SELECT p.*
       FROM "Patient" p
-      LEFT JOIN LATERAL (
-        SELECT row_to_json(v2) AS visit
-        FROM "Visit" v2
-        WHERE v2."patientId" = p.id
-        ORDER BY v2.id DESC
-        LIMIT 1
-      ) v ON true
-      LEFT JOIN LATERAL (
-        SELECT a2."scheduledAt"
-        FROM "Appointment" a2
-        WHERE a2."patientId" = p.id
-        ORDER BY a2.id DESC
-        LIMIT 1
-      ) a ON true
       WHERE p."userId" = ${user.id}
       ORDER BY p."createdAt" DESC
     `;
 
-    const rows = Array.isArray(rawRows) ? rawRows : []; 
+    const patientRowsList = Array.isArray(patientRows) ? patientRows : [];
+    const patientIds = patientRowsList.map((row) => row?.id).filter((id) => id !== null && id !== undefined);
 
-    const patients = rows.map((row: any) => {
+    let appointmentRows: any[] = [];
+    if (patientIds.length > 0) {
+      appointmentRows = await sql`
+        SELECT *
+        FROM "Appointment" a
+        WHERE a."patientId" = ANY(${patientIds})
+        ORDER BY a."scheduledAt" DESC
+      `;
+    }
+
+    const appointmentsByPatient = new Map<number, any[]>();
+    for (const appointment of appointmentRows) {
+      const patientId = Number(appointment?.patientId);
+      if (!Number.isFinite(patientId)) continue;
+      const list = appointmentsByPatient.get(patientId) ?? [];
+      list.push(appointment);
+      appointmentsByPatient.set(patientId, list);
+    }
+
+    const patients = patientRowsList.map((row: any) => {
       try {
-        const { latestVisit, latestScheduledAt, ...patientFields } = row || {};
-        const parsedVisit =
-          typeof latestVisit === "string"
-            ? (() => {
-                try {
-                  return JSON.parse(latestVisit);
-                } catch {
-                  return null;
-                }
-              })()
-            : latestVisit ?? null;
-
-        const visit = parsedVisit && typeof parsedVisit === "object"
-          ? {
-              ...parsedVisit,
-              visitDate: parsedVisit.visitDate ? new Date(parsedVisit.visitDate) : null,
-              nextAppointment: parsedVisit.nextAppointment
-                ? new Date(parsedVisit.nextAppointment)
-                : null,
-            }
-          : null;
+        const patientId = Number(row?.id);
+        const appointmentList = Number.isFinite(patientId)
+          ? appointmentsByPatient.get(patientId) ?? []
+          : [];
+        const latestAppointment = appointmentList[0] ?? null;
 
         return {
-          ...patientFields,
-          visits: visit ? [visit] : [],
-          appointments: latestScheduledAt
-            ? [{ scheduledAt: new Date(latestScheduledAt) }]
+          ...row,
+          visits: [],
+          appointments: latestAppointment
+            ? [{ scheduledAt: new Date(latestAppointment.scheduledAt) }]
             : [],
         };
       } catch (rowError) {
@@ -333,6 +399,10 @@ export async function POST(request: Request) {
     console.log("STEP 5", data);
 
     const normalizedName = (data.name || "").trim() || "Unnamed Patient";
+    const normalizedAge = normalizeOptionalInteger(data.age);
+    const normalizedTotalFee = normalizeOptionalFloat(data.totalFee);
+    const normalizedTotalPaid = normalizeOptionalFloat(data.totalPaid);
+    const normalizedRetainerFee = normalizeOptionalFloat(data.retainerFee);
 
     const treatmentCategory = data.treatmentCategory ?? data.treatment ?? null;
     const autoReminderEnabled = data.autoReminderEnabled !== false;
@@ -358,7 +428,7 @@ export async function POST(request: Request) {
           // Provide defaults for DB-required fields when absent in the request.
           name: normalizedName,
           phone: data.phone ?? "",
-          age: data.age ?? null,
+          age: normalizedAge,
           clinicName: data.clinicName ?? null,
           clinicColor: data.clinicColor ?? null,
           dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : null,
@@ -371,9 +441,9 @@ export async function POST(request: Request) {
           firstAppointment: data.firstAppointment ?? false,
           notes: data.notes ?? null,
           plannedNotes: data.plannedNotes ?? null,
-          totalFee: data.totalFee ?? null,
-          totalPaid: data.totalPaid ?? null,
-          retainerFee: data.retainerFee ?? null,
+          totalFee: normalizedTotalFee,
+          totalPaid: normalizedTotalPaid,
+          retainerFee: normalizedRetainerFee,
           elasticEnabled: data.elasticEnabled ?? false,
           elasticType: data.elasticType ?? null,
           tadsNote: data.tadsNote ?? null,
@@ -450,7 +520,7 @@ export async function POST(request: Request) {
           ${user.id},
           ${normalizedName},
           ${data.phone ?? ""},
-          ${data.age ?? null},
+          ${normalizedAge ?? null},
           ${data.clinicName ?? null},
           ${data.clinicColor ?? null},
           ${"PLANNED"},
@@ -464,9 +534,9 @@ export async function POST(request: Request) {
           ${data.firstAppointment ?? false},
           ${data.notes ?? null},
           ${data.plannedNotes ?? null},
-          ${data.totalFee ?? null},
-          ${data.totalPaid ?? null},
-          ${data.retainerFee ?? null},
+          ${normalizedTotalFee ?? null},
+          ${normalizedTotalPaid ?? null},
+          ${normalizedRetainerFee ?? null},
           ${data.elasticEnabled ?? false},
           ${data.elasticType ?? null},
           ${data.tadsNote ?? null},
@@ -525,34 +595,24 @@ export async function POST(request: Request) {
     try {
       const shouldAttemptFirstAppointmentMessage =
         autoReminderEnabled &&
+        Boolean(patient?.firstAppointment) &&
         Boolean(appointmentDateTime) &&
         Boolean((patient?.phone || "").trim());
 
-      let doctor:
-        | {
-            whatsappAccessToken: string | null;
-            whatsappPhoneNumberId: string | null;
-          }
-        | null = null;
-      try {
-        doctor = await prisma.user.findUnique({
-          where: { id: user.id },
-          select: {
-            whatsappAccessToken: true,
-            whatsappPhoneNumberId: true,
-          },
-        });
-      } catch {
-        doctor = null;
-      }
+      const doctor = await getDoctorWhatsAppSettings(user.id);
 
       const doctorCredentials = await buildDoctorWhatsAppCredentials({
         whatsappAccessToken: doctor?.whatsappAccessToken,
         whatsappPhoneNumberId: doctor?.whatsappPhoneNumberId,
+        whatsappBusinessAccountId: doctor?.whatsappBusinessAccountId,
         userId: user.id,
       });
 
       if (shouldAttemptFirstAppointmentMessage) {
+        console.log("[WhatsApp] Automatic instruction triggered", {
+          type: "firstAppointmentConfirmation",
+          patientId: patient.id,
+        });
         const existingMetadata = getMetadataObject(patient.metadata);
         const remindersSent = getMetadataObject(existingMetadata.remindersSent);
 

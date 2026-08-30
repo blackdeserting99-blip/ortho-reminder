@@ -119,7 +119,11 @@ export async function POST(req: Request) {
         (user as any).whatsappAccessToken
     );
 
-    const sessionValue = await createSessionValue(user.id);
+    const sessionValue = await createSessionValue(user.id, {
+      name: user.name,
+      email: user.email,
+      whatsappPhone: user.whatsappPhone,
+    });
 
     const response = NextResponse.json({
       ok: true,
@@ -206,7 +210,11 @@ export async function POST(req: Request) {
             (user as any).whatsappAccessToken
         );
 
-        const sessionValue = await createSessionValue(user.id);
+        const sessionValue = await createSessionValue(user.id, {
+          name: user.name,
+          email: user.email,
+          whatsappPhone: user.whatsappPhone,
+        });
 
         const response = NextResponse.json({
           ok: true,

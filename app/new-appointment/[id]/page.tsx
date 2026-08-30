@@ -685,7 +685,6 @@ const response = await fetch(`/api/patients/${id}`, { cache: "no-store", credent
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          firstAppointment: false,
           elasticEnabled,
           elasticType: finalElastics || "",
           plannedNotes: existingVisits.length === 0 ? "" : existingPatient.plannedNotes,

@@ -4,10 +4,18 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import Sidebar from "../../components/Sidebar";
-import { CalendarDays, CircleDollarSign, StickyNote, Clock3, Pencil, Trash2 } from "lucide-react";
+import { CalendarDays, CircleDollarSign, StickyNote, Clock3, Pencil, Trash2, MessageCircle } from "lucide-react";
 import { formatDateDMY, convertTo12Hour } from "../../lib/date";
 import { CLINIC_COLORS } from "../../lib/patient";
 import { useAuth } from "../../lib/auth-context";
+
+const APPOINTMENT_TIMES = Array.from({ length: 96 }, (_, index) => {
+  const hour24 = Math.floor(index / 4);
+  const minutes = String((index % 4) * 15).padStart(2, "0");
+  const period = hour24 >= 12 ? "PM" : "AM";
+  const hour12 = hour24 % 12 || 12;
+  return `${String(hour12).padStart(2, "0")}:${minutes} ${period}`;
+});
 
 type Patient = {
   id: number;
@@ -48,6 +56,10 @@ export default function PatientProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [saveMessage, setSaveMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [saveLoading, setSaveLoading] = useState(false);
+  const [whatsappMessage, setWhatsappMessage] = useState("");
+  const [whatsappOpen, setWhatsappOpen] = useState(false);
+  const [whatsappStatus, setWhatsappStatus] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [whatsappSending, setWhatsappSending] = useState(false);
   const [formState, setFormState] = useState({
     name: "",
     phone: "",
@@ -65,6 +77,11 @@ export default function PatientProfilePage() {
     appointmentTime: "",
     totalFee: "",
     totalPaid: "",
+    upperWire: "",
+    lowerWire: "",
+    elasticEnabled: false,
+    elasticType: "",
+    tadsNote: "",
     caseStatus: "active",
   });
   const [manualPayments, setManualPayments] = useState<any[]>([]);
@@ -133,6 +150,11 @@ export default function PatientProfilePage() {
           appointmentTime: foundPatient.appointmentTime || "",
           totalFee: foundPatient.totalFee != null ? String(foundPatient.totalFee) : "",
           totalPaid: foundPatient.totalPaid != null ? String(foundPatient.totalPaid) : "",
+          upperWire: foundPatient.visits?.[foundPatient.visits.length - 1]?.upperWire || foundPatient.wireSettings?.upperWire || "",
+          lowerWire: foundPatient.visits?.[foundPatient.visits.length - 1]?.lowerWire || foundPatient.wireSettings?.lowerWire || "",
+          elasticEnabled: foundPatient.elasticEnabled === true,
+          elasticType: foundPatient.elasticType || "",
+          tadsNote: foundPatient.tadsNote || "",
           caseStatus: foundPatient.caseStatus || "active",
         });
 
@@ -162,7 +184,8 @@ export default function PatientProfilePage() {
 
   const visitPaymentsTotal = useMemo(() => (patient?.visits ?? []).reduce((s: number, v: any) => s + (Number(v.paymentCollected) || 0), 0), [patient]);
   const manualPaymentsTotal = useMemo(() => manualPayments.reduce((s, p) => s + (Number(p.amount) || 0), 0), [manualPayments]);
-  const totalPayments = visitPaymentsTotal + manualPaymentsTotal;
+  const patientPaidTotal = Number(patient?.totalPaid || 0);
+  const totalPayments = patientPaidTotal + visitPaymentsTotal + manualPaymentsTotal;
   const totalFee = Number(patient?.totalFee || 0);
   const remainingBalance = totalFee - totalPayments;
   const displayedTotalFee = isEditing ? Number(formState.totalFee || 0) : totalFee;
@@ -199,8 +222,8 @@ export default function PatientProfilePage() {
       ? (lastVisit?.upperWire || lastVisit?.upperArch || null)
       : (lastVisit?.lowerWire || lastVisit?.lowerArch || null);
     const patientValue = key === "upper"
-      ? (wireSettings.upperDamonWire || (wireSettings.upperWireGauge ? `${wireSettings.upperWireGauge} ${wireSettings.upperWireMaterial || ""}`.trim() : null))
-      : (wireSettings.lowerDamonWire || (wireSettings.lowerWireGauge ? `${wireSettings.lowerWireGauge} ${wireSettings.lowerWireMaterial || ""}`.trim() : null));
+      ? (wireSettings.upperWire || wireSettings.upperDamonWire || (wireSettings.upperWireGauge ? `${wireSettings.upperWireGauge} ${wireSettings.upperWireMaterial || ""}`.trim() : null))
+      : (wireSettings.lowerWire || wireSettings.lowerDamonWire || (wireSettings.lowerWireGauge ? `${wireSettings.lowerWireGauge} ${wireSettings.lowerWireMaterial || ""}`.trim() : null));
     return visitValue || patientValue || "—";
   };
   const resolveElasticDisplayValue = () => {
@@ -210,7 +233,7 @@ export default function PatientProfilePage() {
     return patient.elasticType || "Enabled";
   };
   const resolveTadsDisplayValue = () => {
-    if (!patient?.elasticEnabled || !patient?.tadsNote) {
+    if (!patient?.tadsNote) {
       return "—";
     }
     return patient.tadsNote;
@@ -430,6 +453,11 @@ export default function PatientProfilePage() {
       appointmentTime: patient.appointmentTime || "",
       totalFee: patient.totalFee != null ? String(patient.totalFee) : "",
       totalPaid: patient.totalPaid != null ? String(patient.totalPaid) : "",
+      upperWire: patient.visits?.[patient.visits.length - 1]?.upperWire || patient.wireSettings?.upperWire || "",
+      lowerWire: patient.visits?.[patient.visits.length - 1]?.lowerWire || patient.wireSettings?.lowerWire || "",
+      elasticEnabled: patient.elasticEnabled === true,
+      elasticType: patient.elasticType || "",
+      tadsNote: patient.tadsNote || "",
       caseStatus: patient.caseStatus || "active",
     });
   };
@@ -460,6 +488,11 @@ export default function PatientProfilePage() {
           appointmentTime: formState.appointmentTime || undefined,
           totalFee: formState.totalFee ? Number(formState.totalFee.replace(/,/g, "")) : undefined,
           totalPaid: formState.totalPaid ? Number(formState.totalPaid.replace(/,/g, "")) : undefined,
+          upperWire: formState.upperWire || null,
+          lowerWire: formState.lowerWire || null,
+          elasticEnabled: formState.elasticEnabled,
+          elasticType: formState.elasticEnabled ? formState.elasticType || null : null,
+          tadsNote: formState.tadsNote || null,
           caseStatus: formState.caseStatus,
         }),
       });
@@ -470,8 +503,13 @@ export default function PatientProfilePage() {
       }
 
       const updated = await response.json();
-      setPatient(updated);
-      populateForm(updated);
+      const refreshedResponse = await fetch(`/api/patients/${id}`, {
+        cache: "no-store",
+        credentials: "same-origin",
+      });
+      const refreshed = refreshedResponse.ok ? await refreshedResponse.json() : updated;
+      setPatient(refreshed);
+      populateForm(refreshed);
       setIsEditing(false);
       setSaveMessage({ type: "success", text: "Profile saved." });
     } catch (error: any) {
@@ -487,6 +525,31 @@ export default function PatientProfilePage() {
     }
     setIsEditing(false);
     setSaveMessage(null);
+  };
+
+  const handleSendWhatsApp = async () => {
+    if (!patient?.id || !whatsappMessage.trim()) {
+      setWhatsappStatus({ type: "error", text: "Enter a message before sending." });
+      return;
+    }
+
+    setWhatsappSending(true);
+    setWhatsappStatus(null);
+    try {
+      const response = await fetch("/api/send-whatsapp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ patientId: patient.id, message: whatsappMessage.trim() }),
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(payload?.error || "Failed to send WhatsApp message.");
+      setWhatsappMessage("");
+      setWhatsappStatus({ type: "success", text: "Sent successfully." });
+    } catch (error: any) {
+      setWhatsappStatus({ type: "error", text: error?.message || "Failed to send WhatsApp message." });
+    } finally {
+      setWhatsappSending(false);
+    }
   };
 
   return (
@@ -517,6 +580,14 @@ export default function PatientProfilePage() {
                 onClick={() => setActiveTab("overview")}
               >
                 Overview
+              </button>
+              <button
+                type="button"
+                onClick={() => { setWhatsappOpen(true); setWhatsappStatus(null); }}
+                className="flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white"
+              >
+                <MessageCircle className="h-4 w-4" />
+                WhatsApp
               </button>
               <button
                 className={`rounded-2xl px-4 py-2 text-sm font-semibold ${activeTab === "visits" ? "bg-teal-600 text-white" : "bg-slate-100 text-slate-700"}`}
@@ -572,6 +643,31 @@ export default function PatientProfilePage() {
         </div>
 
         <div className="mt-6">
+          {whatsappOpen ? (
+            <section className="mb-6 rounded-3xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h2 className="font-semibold text-emerald-900">Send WhatsApp message</h2>
+                  <p className="mt-1 text-sm text-emerald-800">To: {patient?.phone || "No phone number"}</p>
+                </div>
+                <button type="button" onClick={() => { setWhatsappOpen(false); setWhatsappStatus(null); }} className="text-sm font-semibold text-emerald-800">Close</button>
+              </div>
+              <textarea
+                value={whatsappMessage}
+                onChange={(event) => { setWhatsappMessage(event.target.value); setWhatsappStatus(null); }}
+                rows={3}
+                maxLength={2000}
+                placeholder="Write a WhatsApp message..."
+                className="mt-4 w-full rounded-2xl border border-emerald-200 bg-white px-3 py-2 text-sm text-slate-900"
+              />
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <button type="button" onClick={() => void handleSendWhatsApp()} disabled={whatsappSending || !patient?.phone} className="rounded-2xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+                  {whatsappSending ? "Sending..." : "Send"}
+                </button>
+                {whatsappStatus ? <span className={whatsappStatus.type === "success" ? "text-sm text-emerald-800" : "text-sm text-rose-700"}>{whatsappStatus.text}</span> : null}
+              </div>
+            </section>
+          ) : null}
           {/* Persistent quick summary */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6 mb-6">
             <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -784,6 +880,55 @@ export default function PatientProfilePage() {
                     ) : null}
                     <div className="grid gap-4 sm:grid-cols-2">
                       <label className="block text-sm font-medium text-slate-700">
+                        Upper Wire
+                        <input
+                          type="text"
+                          value={formState.upperWire}
+                          onChange={(event) => setFormState((prev) => ({ ...prev, upperWire: event.target.value }))}
+                          className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-3 py-2"
+                        />
+                      </label>
+                      <label className="block text-sm font-medium text-slate-700">
+                        Lower Wire
+                        <input
+                          type="text"
+                          value={formState.lowerWire}
+                          onChange={(event) => setFormState((prev) => ({ ...prev, lowerWire: event.target.value }))}
+                          className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-3 py-2"
+                        />
+                      </label>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={formState.elasticEnabled}
+                          onChange={(event) => setFormState((prev) => ({ ...prev, elasticEnabled: event.target.checked }))}
+                        />
+                        Elastics enabled
+                      </label>
+                      <label className="block text-sm font-medium text-slate-700">
+                        Elastic Type / Size
+                        <input
+                          type="text"
+                          value={formState.elasticType}
+                          onChange={(event) => setFormState((prev) => ({ ...prev, elasticType: event.target.value }))}
+                          disabled={!formState.elasticEnabled}
+                          className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-3 py-2 disabled:bg-slate-100"
+                        />
+                      </label>
+                    </div>
+                    <label className="block text-sm font-medium text-slate-700">
+                      TAD Information / Size
+                      <input
+                        type="text"
+                        value={formState.tadsNote}
+                        onChange={(event) => setFormState((prev) => ({ ...prev, tadsNote: event.target.value }))}
+                        className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-3 py-2"
+                      />
+                    </label>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <label className="block text-sm font-medium text-slate-700">
                         Appointment Date
                         <input
                           type="date"
@@ -794,13 +939,16 @@ export default function PatientProfilePage() {
                       </label>
                       <label className="block text-sm font-medium text-slate-700">
                         Appointment Time
-                        <input
-                          type="text"
+                        <select
                           value={formState.appointmentTime}
                           onChange={(event) => setFormState((prev) => ({ ...prev, appointmentTime: event.target.value }))}
                           className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-3 py-2"
-                          placeholder="04:00 PM"
-                        />
+                        >
+                          <option value="">Select a time</option>
+                          {APPOINTMENT_TIMES.map((time) => (
+                            <option key={time} value={time}>{time}</option>
+                          ))}
+                        </select>
                       </label>
                     </div>
                     <label className="block text-sm font-medium text-slate-700">

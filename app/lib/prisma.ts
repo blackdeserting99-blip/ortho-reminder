@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from "@prisma/client/wasm";
 import { PrismaNeon } from "@prisma/adapter-neon";
 
 type GlobalForPrisma = typeof globalThis & {
@@ -8,7 +8,16 @@ type GlobalForPrisma = typeof globalThis & {
 const globalForPrisma = globalThis as GlobalForPrisma;
 
 function getConnectionString() {
-  const connectionString = process.env.DATABASE_URL || process.env.NEON_DATABASE_URL;
+  const runtimeGlobal = globalThis as typeof globalThis & {
+    __DATABASE_URL__?: string;
+    __NEON_DATABASE_URL__?: string;
+  };
+
+  const connectionString =
+    process.env.DATABASE_URL ||
+    process.env.NEON_DATABASE_URL ||
+    runtimeGlobal.__DATABASE_URL__ ||
+    runtimeGlobal.__NEON_DATABASE_URL__;
 
   if (!connectionString || connectionString === "undefined") {
     return null;

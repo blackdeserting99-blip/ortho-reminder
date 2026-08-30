@@ -118,10 +118,6 @@ type AlignerPatchNotification = {
       );
 
       useEffect(() => {
-        // Wait for the shared auth state to resolve so this doesn't race /api/me
-        // on the very first load. If auth is explicitly unavailable, keep the page
-        // in a safe empty state instead of treating it as a data failure.
-        if (authStatus === "loading") return;
         if (authStatus === "unauthenticated") {
           setPatientCount(0);
           setTodayPatients([]);
@@ -133,6 +129,37 @@ type AlignerPatchNotification = {
         }
 
         let cancelled = false;
+        let usedCachedPatients = false;
+
+        try {
+          const cached = JSON.parse(sessionStorage.getItem("ortho-patients-dashboard") || "null");
+          if (Array.isArray(cached)) {
+            usedCachedPatients = true;
+            const filtered = cached.filter((p: any) => p.caseStatus !== "archived" && p.caseStatus !== "finished" && p.caseStatus !== "retainer");
+            setPatientCount(filtered.length);
+            const today = new Date().toLocaleDateString("en-CA");
+            setTodayPatients(
+              filtered.filter((patient: any) => patient.appointmentDate === today && patient.appointmentStatus !== "cancelled" && patient.caseStatus !== "archived" && patient.caseStatus !== "finished" && patient.caseStatus !== "retainer").sort((a: any, b: any) => (a.appointmentTime || "").localeCompare(b.appointmentTime || ""))
+            );
+            setOverduePatients(
+              filtered.filter((patient: any) => patient.appointmentDate && patient.appointmentDate < today && patient.appointmentStatus !== "cancelled" && patient.caseStatus !== "archived" && patient.caseStatus !== "finished" && patient.caseStatus !== "retainer").sort((a: any, b: any) => a.appointmentDate.localeCompare(b.appointmentDate))
+            );
+            setUpcomingPatients(
+              filtered.filter((patient: any) => {
+                if (!patient.appointmentDate || patient.appointmentStatus === "cancelled" || patient.caseStatus === "archived" || patient.caseStatus === "finished" || patient.caseStatus === "retainer") return false;
+                const diffDays = Math.ceil((new Date(patient.appointmentDate).getTime() - new Date(today).getTime()) / (1000 * 60 * 60 * 24));
+                return diffDays > 0 && diffDays <= 7;
+              }).sort((a: any, b: any) => a.appointmentDate.localeCompare(b.appointmentDate))
+            );
+            setIsLoadingPatients(false);
+          }
+        } catch {
+          // Ignore cached patient-data issues.
+        }
+
+        if (authStatus === "loading" && !usedCachedPatients) {
+          return;
+        }
 
         const loadPatients = async () => {
           setIsLoadingPatients(true);
@@ -147,6 +174,14 @@ type AlignerPatchNotification = {
                 : [];
             if (cancelled) return;
 
+            if (response.status === 401) {
+              setPatientCount(0);
+              setTodayPatients([]);
+              setOverduePatients([]);
+              setUpcomingPatients([]);
+              return;
+            }
+
             if (!response.ok && patients.length === 0) {
               setPatientCount(0);
               setTodayPatients([]);
@@ -154,6 +189,8 @@ type AlignerPatchNotification = {
               setUpcomingPatients([]);
               return;
             }
+
+            sessionStorage.setItem("ortho-patients-dashboard", JSON.stringify(patients));
 
             setPatientCount(
               patients.filter(

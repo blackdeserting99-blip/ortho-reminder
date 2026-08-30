@@ -84,6 +84,7 @@ export async function POST(
         p.id,
         p.name,
         p.phone,
+        p."firstAppointment",
         p."treatmentCategory",
         p."elasticEnabled",
         p."elasticType",
@@ -105,6 +106,31 @@ export async function POST(
 
     if (!patient) {
       return NextResponse.json({ error: "Patient not found" }, { status: 404 });
+    }
+
+    const existingMetadata = toMetadataObject(patient.metadata);
+    const remindersSent = toMetadataObject(existingMetadata.remindersSent);
+
+    if (patient.firstAppointment !== true) {
+      return NextResponse.json(
+        {
+          error: "First appointment WhatsApp message is not required for this patient.",
+          details: "The patient is not currently marked as firstAppointment = true.",
+          firstAppointment: Boolean(patient.firstAppointment),
+        },
+        { status: 409 }
+      );
+    }
+
+    if (remindersSent.firstAppointmentConfirmation === true) {
+      return NextResponse.json(
+        {
+          error: "First appointment WhatsApp message already sent.",
+          provider: "none",
+          alreadySent: true,
+        },
+        { status: 409 }
+      );
     }
 
     const visitRows = await sql`
@@ -163,10 +189,30 @@ export async function POST(
       );
     }
 
+    const nextMetadata = {
+      ...existingMetadata,
+      remindersSent: {
+        ...remindersSent,
+        firstAppointmentConfirmation: true,
+        firstAppointmentConfirmationSentAt: new Date().toISOString(),
+        firstAppointmentConfirmationLastError: null,
+      },
+    };
+
+    await sql`
+      UPDATE "Patient"
+      SET
+        "firstAppointment" = false,
+        metadata = ${nextMetadata}::jsonb,
+        "updatedAt" = ${new Date()}
+      WHERE id = ${patientId} AND "userId" = ${user.id}
+    `;
+
     return NextResponse.json({
       ok: true,
       provider: sendResult.provider,
       messageId: sendResult.messageId || null,
+      firstAppointmentUpdated: true,
     });
   } catch (error) {
     return NextResponse.json(

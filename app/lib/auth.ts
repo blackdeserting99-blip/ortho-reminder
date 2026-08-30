@@ -37,6 +37,17 @@ export async function getCurrentUser() {
     const session = await getSessionFromCookieValue(cookieValue);
     if (!session?.userId) return null;
 
+    const cachedUser = {
+      id: session.userId,
+      name: session.name ?? null,
+      email: session.email ?? "",
+      whatsappPhone: session.whatsappPhone ?? null,
+    };
+
+    if (cachedUser.email || cachedUser.name || cachedUser.whatsappPhone) {
+      return cachedUser;
+    }
+
     try {
       const { prisma } = await import("@/app/lib/prisma");
       const user = await prisma.user.findUnique({
@@ -71,12 +82,7 @@ export async function getCurrentUser() {
       }
     }
 
-    return {
-      id: session.userId,
-      name: null,
-      email: "",
-      whatsappPhone: null,
-    };
+    return cachedUser;
   } catch {
     return null;
   }

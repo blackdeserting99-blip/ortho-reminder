@@ -14,6 +14,8 @@ const PUBLIC_PATHS = [
   "/api/logout",
   "/api/password-reset",
   "/api/whatsapp/webhook",
+  "/api/whatsapp/webhook-status",
+  "/api/whatsapp/vonage-test",
 ];
 
 function isPublicPath(pathname: string) {
@@ -97,6 +99,10 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (isPublicPath(pathname)) {
+    return NextResponse.next();
+  }
+
+  if (pathname === "/api/reminders/run") {
     return NextResponse.next();
   }
 

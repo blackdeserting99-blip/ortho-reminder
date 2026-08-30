@@ -66,17 +66,34 @@ async function decodeSessionPayload(value: string): Promise<Record<string, unkno
   }
 }
 
-export async function createSessionValue(userId: string): Promise<string> {
+export async function createSessionValue(
+  userId: string,
+  user?: {
+    name?: string | null;
+    email?: string | null;
+    whatsappPhone?: string | null;
+  }
+): Promise<string> {
   const sessionPayload = {
     userId,
     sessionId: crypto.randomUUID(),
     expiresAt: Date.now() + SESSION_MAX_AGE_SECONDS * 1000,
+    name: user?.name ?? null,
+    email: user?.email ?? null,
+    whatsappPhone: user?.whatsappPhone ?? null,
   };
 
   return encodeSessionPayload(sessionPayload);
 }
 
-export async function getSessionFromCookieValue(cookieValue: string | undefined): Promise<{ userId: string } | null> {
+export async function getSessionFromCookieValue(
+  cookieValue: string | undefined
+): Promise<{
+  userId: string;
+  name?: string | null;
+  email?: string | null;
+  whatsappPhone?: string | null;
+} | null> {
   if (!cookieValue) {
     return null;
   }
@@ -96,7 +113,13 @@ export async function getSessionFromCookieValue(cookieValue: string | undefined)
     return null;
   }
 
-  return { userId: payload.userId };
+  return {
+    userId: payload.userId,
+    name: typeof payload.name === "string" ? payload.name : null,
+    email: typeof payload.email === "string" ? payload.email : "",
+    whatsappPhone:
+      typeof payload.whatsappPhone === "string" ? payload.whatsappPhone : null,
+  };
 }
 
 export async function createSessionCookie(userId: string): Promise<void> {

@@ -1,37 +1,47 @@
 {
-	"$schema": "node_modules/wrangler/config-schema.json",
-	"main": "worker.ts",
-	"name": "ortho-reminder",
-	"compatibility_date": "2026-07-14",
-	"triggers": {
-		"crons": [
-			"0 4 * * *"
-		]
-	},
-	"vars": {
-		"REMINDER_TIME_ZONE": "Asia/Baghdad",
-		"REMINDER_MORNING_HOUR": "7"
-	},
-	"compatibility_flags": [
-		"nodejs_compat",
-		"nodejs_compat_populate_process_env",
-		"global_fetch_strictly_public"
-	],
-	"assets": {
-		"directory": ".open-next/assets",
-		"binding": "ASSETS"
-	},
-	"services": [
-		{
-			// Self-reference service binding, the service name must match the worker name
-			// see https://opennext.js.org/cloudflare/caching
-			"binding": "WORKER_SELF_REFERENCE",
-			"service": "ortho-reminder"
-		}
-	],
-	"images": {
-		// Enable image optimization
-		// see https://opennext.js.org/cloudflare/howtos/image
-		"binding": "IMAGES"
-	}
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "main": "worker.ts",
+  "name": "ortho-reminder",
+
+  "routes": [
+    {
+      "pattern": "orthoprimeoa.com",
+      "custom_domain": true
+    }
+  ],
+
+  "compatibility_date": "2026-07-14",
+
+  "triggers": {
+    "crons": [
+      "0 4 * * *"
+    ]
+  },
+
+  "vars": {
+    "REMINDER_TIME_ZONE": "Asia/Baghdad",
+    "REMINDER_MORNING_HOUR": "7"
+  },
+
+  "compatibility_flags": [
+    "nodejs_compat",
+    "nodejs_compat_populate_process_env",
+    "global_fetch_strictly_public"
+  ],
+
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "ortho-reminder"
+    }
+  ],
+
+  "images": {
+    "binding": "IMAGES"
+  }
 }
