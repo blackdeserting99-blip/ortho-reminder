@@ -744,6 +744,11 @@ function getVonageMessagesEndpoint() {
   return endpoint.toString();
 }
 
+function isSandboxVonageEndpoint(endpoint?: string) {
+  const target = (endpoint || process.env.VONAGE_MESSAGES_API_URL || "").toLowerCase();
+  return target.includes("messages-sandbox.nexmo.com") || target.includes("sandbox");
+}
+
 async function sendVonageWhatsAppText(
   phone: string,
   message: string,
@@ -756,7 +761,6 @@ async function sendVonageWhatsAppText(
   const apiSecret = process.env.VONAGE_API_SECRET?.trim() || "";
   const privateKey = await getVonagePrivateKey();
   const from = normalizePhone(process.env.VONAGE_WHATSAPP_NUMBER || "");
-  const useSandboxBasicAuth = process.env.NODE_ENV === "development";
   let endpoint = "";
 
   try {
@@ -771,13 +775,15 @@ async function sendVonageWhatsAppText(
     };
   }
 
+  const useSandboxBasicAuth = isSandboxVonageEndpoint(endpoint);
+
   if (!to || !applicationId || !from || (useSandboxBasicAuth ? !apiKey || !apiSecret : !privateKey)) {
     console.warn("[WhatsApp] Message failed: Vonage configuration or recipient is missing.");
     return { ok: false, provider: "vonage", to, error: "Vonage WhatsApp messaging is not configured." };
   }
 
   try {
-    console.log("[WhatsApp] Sending message", { provider: "vonage", to });
+    console.log("[WhatsApp] Sending message", { provider: "vonage", to, endpoint, useSandboxBasicAuth });
     const authorization = useSandboxBasicAuth
       ? `Basic ${btoa(`${apiKey}:${apiSecret}`)}`
       : `Bearer ${await createVonageJwt(applicationId, privateKey)}`;

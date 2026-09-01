@@ -43,6 +43,18 @@ function safeProviderError(payload: unknown) {
   };
 }
 
+function getEndpointHostname(endpoint?: string | null) {
+  if (!endpoint) {
+    return "unknown";
+  }
+
+  try {
+    return new URL(endpoint).hostname;
+  } catch {
+    return "unknown";
+  }
+}
+
 export async function POST(request: Request) {
   let stage = "authentication";
 
@@ -85,13 +97,19 @@ export async function POST(request: Request) {
 
     if (!result.ok) {
       const providerError = safeProviderError(result.debug?.payload);
+      const endpointHostname = getEndpointHostname(result.debug?.endpoint);
+      const senderConfigured = Boolean(process.env.VONAGE_WHATSAPP_NUMBER?.trim());
+
       return NextResponse.json(
         {
           ok: false,
+          applicationHttpStatus: 502,
           vonageHttpStatus: statusCode,
           vonageErrorCode: providerError.code,
           vonageErrorTitle: providerError.title,
           vonageErrorDetail: providerError.detail || safeError(result.error),
+          endpointHostname,
+          senderConfigured,
         },
         { status: 502 }
       );
