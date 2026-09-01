@@ -728,19 +728,26 @@ export function hasVonageConfiguration() {
 
 function getVonageMessagesEndpoint() {
   const configured = process.env.VONAGE_MESSAGES_API_URL?.trim();
-  const fallback =
-    process.env.NODE_ENV === "development"
-      ? "https://messages-sandbox.nexmo.com/v1/messages"
-      : "https://api.nexmo.com/v1/messages";
-  const rawEndpoint = configured || fallback;
-  const endpoint = new URL(
-    rawEndpoint.includes("://") ? rawEndpoint : `https://${rawEndpoint}`
-  );
+  if (configured) {
+    const endpoint = new URL(
+      configured.includes("://") ? configured : `https://${configured}`
+    );
+    if (!endpoint.pathname || endpoint.pathname === "/") {
+      endpoint.pathname = "/v1/messages";
+    }
+    return endpoint.toString();
+  }
 
+  const hasSandboxCredentials = Boolean(
+    process.env.VONAGE_API_KEY?.trim() && process.env.VONAGE_API_SECRET?.trim()
+  );
+  const fallback = hasSandboxCredentials
+    ? "https://messages-sandbox.nexmo.com/v1/messages"
+    : "https://api.nexmo.com/v1/messages";
+  const endpoint = new URL(fallback);
   if (!endpoint.pathname || endpoint.pathname === "/") {
     endpoint.pathname = "/v1/messages";
   }
-
   return endpoint.toString();
 }
 
