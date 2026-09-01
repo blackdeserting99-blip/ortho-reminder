@@ -437,7 +437,7 @@ export default function WhatsAppSetupPage() {
     setDebugOutput(null);
 
     try {
-      const response = await fetch("/api/whatsapp/test-send", {
+      const response = await fetch("/api/whatsapp/vonage-test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -447,17 +447,46 @@ export default function WhatsAppSetupPage() {
 
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        setStatusError(data.details || data.error || "Failed to send test WhatsApp.");
-        if (data.debug) {
-          setDebugOutput(JSON.stringify(data.debug, null, 2));
-        }
+        const detail =
+          data.vonageErrorDetail ||
+          data.vonageErrorTitle ||
+          data.error ||
+          `Failed to send test WhatsApp (${response.status}).`;
+        setStatusError(detail);
+        setDebugOutput(
+          JSON.stringify(
+            {
+              httpStatus: response.status,
+              ok: false,
+              vonageHttpStatus: data.vonageHttpStatus ?? null,
+              vonageErrorCode: data.vonageErrorCode ?? null,
+              vonageErrorTitle: data.vonageErrorTitle ?? null,
+              vonageErrorDetail: data.vonageErrorDetail ?? null,
+            },
+            null,
+            2
+          )
+        );
         return;
       }
 
-      setStatusMessage(data.message || "Test WhatsApp sent successfully.");
-      if (data.debug) {
-        setDebugOutput(JSON.stringify(data.debug, null, 2));
-      }
+      const messageText = data.messageId
+        ? `Vonage accepted the WhatsApp test message. Message ID: ${data.messageId}`
+        : "Vonage accepted the WhatsApp test message.";
+      setStatusMessage(messageText);
+      setDebugOutput(
+        JSON.stringify(
+          {
+            httpStatus: response.status,
+            ok: true,
+            provider: data.provider ?? "vonage",
+            statusCode: data.statusCode ?? null,
+            messageId: data.messageId ?? null,
+          },
+          null,
+          2
+        )
+      );
     } catch {
       setStatusError("Network error while sending test WhatsApp.");
     } finally {
@@ -595,9 +624,9 @@ export default function WhatsAppSetupPage() {
         </div>
 
         <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-5">
-          <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">Send Template Test</h2>
+          <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">Send Test WhatsApp</h2>
           <p className="mt-2 text-sm text-slate-600">
-            Send one manual appointment_reminder template message from your Meta test number to an authorized recipient.
+            Send a direct Vonage WhatsApp test message from the currently logged-in doctor session to a recipient number.
           </p>
 
           <div className="mt-4 grid gap-4">
@@ -608,17 +637,17 @@ export default function WhatsAppSetupPage() {
                 value={testPhone}
                 onChange={(event) => setTestPhone(event.target.value)}
                 className="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200"
-                placeholder="e.g. 077XXXXXXXX"
+                placeholder="e.g. 9647873802110"
               />
             </label>
 
             <button
               type="button"
               onClick={handleSendTestWhatsapp}
-              disabled={testSending || !testPhone.trim() || !connected}
+              disabled={testSending || !testPhone.trim()}
               className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
             >
-              {testSending ? "Sending template test..." : "Send appointment_reminder Test"}
+              {testSending ? "Sending test message..." : "Send Test Message"}
             </button>
           </div>
 
