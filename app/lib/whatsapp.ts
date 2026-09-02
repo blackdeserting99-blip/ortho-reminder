@@ -722,38 +722,13 @@ async function createVonageJwt(applicationId: string, privateKeyPem: string) {
 export function hasVonageConfiguration() {
   return Boolean(
     process.env.VONAGE_APPLICATION_ID?.trim() &&
-      process.env.VONAGE_WHATSAPP_NUMBER?.trim()
+      process.env.VONAGE_WHATSAPP_NUMBER?.trim() &&
+      process.env.VONAGE_PRIVATE_KEY?.trim()
   );
 }
 
 function getVonageMessagesEndpoint() {
-  const configured = process.env.VONAGE_MESSAGES_API_URL?.trim();
-  if (configured) {
-    const endpoint = new URL(
-      configured.includes("://") ? configured : `https://${configured}`
-    );
-    if (!endpoint.pathname || endpoint.pathname === "/") {
-      endpoint.pathname = "/v1/messages";
-    }
-    return endpoint.toString();
-  }
-
-  const hasSandboxCredentials = Boolean(
-    process.env.VONAGE_API_KEY?.trim() && process.env.VONAGE_API_SECRET?.trim()
-  );
-  const fallback = hasSandboxCredentials
-    ? "https://messages-sandbox.nexmo.com/v1/messages"
-    : "https://api.nexmo.com/v1/messages";
-  const endpoint = new URL(fallback);
-  if (!endpoint.pathname || endpoint.pathname === "/") {
-    endpoint.pathname = "/v1/messages";
-  }
-  return endpoint.toString();
-}
-
-function isSandboxVonageEndpoint(endpoint?: string) {
-  const target = (endpoint || process.env.VONAGE_MESSAGES_API_URL || "").toLowerCase();
-  return target.includes("messages-sandbox.nexmo.com") || target.includes("sandbox");
+  return "https://api.nexmo.com/v1/messages";
 }
 
 async function sendVonageWhatsAppText(
@@ -764,8 +739,6 @@ async function sendVonageWhatsAppText(
 ): Promise<WhatsAppSendResult> {
   const to = normalizePhone(phone);
   const applicationId = process.env.VONAGE_APPLICATION_ID?.trim() || "";
-  const apiKey = process.env.VONAGE_API_KEY?.trim() || "";
-  const apiSecret = process.env.VONAGE_API_SECRET?.trim() || "";
   const privateKey = await getVonagePrivateKey();
   const from = normalizePhone(process.env.VONAGE_WHATSAPP_NUMBER || "");
   let endpoint = "";
@@ -782,18 +755,14 @@ async function sendVonageWhatsAppText(
     };
   }
 
-  const useSandboxBasicAuth = isSandboxVonageEndpoint(endpoint);
-
-  if (!to || !applicationId || !from || (useSandboxBasicAuth ? !apiKey || !apiSecret : !privateKey)) {
+  if (!to || !applicationId || !from || !privateKey) {
     console.warn("[WhatsApp] Message failed: Vonage configuration or recipient is missing.");
     return { ok: false, provider: "vonage", to, error: "Vonage WhatsApp messaging is not configured." };
   }
 
   try {
-    console.log("[WhatsApp] Sending message", { provider: "vonage", to, endpoint, useSandboxBasicAuth });
-    const authorization = useSandboxBasicAuth
-      ? `Basic ${btoa(`${apiKey}:${apiSecret}`)}`
-      : `Bearer ${await createVonageJwt(applicationId, privateKey)}`;
+    console.log("[WhatsApp] Sending message", { provider: "vonage", to, endpoint, authentication: "jwt" });
+    const authorization = `Bearer ${await createVonageJwt(applicationId, privateKey)}`;
     const response = await fetch(endpoint, {
       method: "POST",
       headers: {
@@ -859,9 +828,7 @@ export async function sendVonageWhatsAppTemplate(
   const applicationId = process.env.VONAGE_APPLICATION_ID?.trim() || "";
   const privateKey = await getVonagePrivateKey();
   const from = normalizePhone(process.env.VONAGE_WHATSAPP_NUMBER || "");
-  const endpoint =
-    process.env.VONAGE_TEMPLATE_MESSAGES_API_URL?.trim() ||
-    "https://api.nexmo.com/v1/messages";
+  const endpoint = "https://api.nexmo.com/v1/messages";
 
   if (!to || !applicationId || !from || !privateKey || !template.name || !template.locale) {
     return {
