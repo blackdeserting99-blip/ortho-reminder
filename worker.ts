@@ -93,33 +93,36 @@ async function runScheduledReminders(controller: ScheduledController, env: Worke
     return;
   }
 
-  let response: Response;
-  try {
-    response = await env.WORKER_SELF_REFERENCE.fetch("https://internal/api/reminders/run", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-reminder-token": env.REMINDER_API_TOKEN,
-        "x-reminder-cron": controller.cron,
-      },
-      body: JSON.stringify({
-        baseDate: new Date(controller.scheduledTime).toISOString(),
-      }),
-    });
-  } catch (error) {
-    console.error("[scheduler] reminders run request failed:", error instanceof Error ? error.message : "Unknown error");
-    return;
-  }
+  for (const reminderType of ["3days", "sameDay"] as const) {
+    let response: Response;
+    try {
+      response = await env.WORKER_SELF_REFERENCE.fetch("https://internal/api/reminders/run", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-reminder-token": env.REMINDER_API_TOKEN,
+          "x-reminder-cron": controller.cron,
+        },
+        body: JSON.stringify({
+          baseDate: new Date(controller.scheduledTime).toISOString(),
+          reminderType,
+        }),
+      });
+    } catch (error) {
+      console.error(`[scheduler] ${reminderType} reminders run request failed:`, error instanceof Error ? error.message : "Unknown error");
+      continue;
+    }
 
-  if (!response.ok) {
-    const errorBody = await response.text().catch(() => "");
-    console.error(
-      `[scheduler] reminders run failed (${response.status}): ${errorBody || "No response body"}`
-    );
-    return;
-  }
+    if (!response.ok) {
+      const errorBody = await response.text().catch(() => "");
+      console.error(
+        `[scheduler] ${reminderType} reminders run failed (${response.status}): ${errorBody || "No response body"}`
+      );
+      continue;
+    }
 
-  console.log(`[scheduler] reminders run completed for cron ${controller.cron}.`);
+    console.log(`[scheduler] ${reminderType} reminders run completed.`);
+  }
 }
 
 const worker = openNextWorker as {
