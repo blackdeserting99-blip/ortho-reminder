@@ -10,6 +10,8 @@ type WorkerEnv = {
   SESSION_SECRET?: string;
   AUTH_SECRET?: string;
   VONAGE_APPLICATION_ID?: string;
+  VONAGE_API_KEY?: string;
+  VONAGE_API_SECRET?: string;
   VONAGE_PRIVATE_KEY?: string;
   VONAGE_WHATSAPP_NUMBER?: string;
   VONAGE_MESSAGES_API_URL?: string;
@@ -24,15 +26,34 @@ type WorkerEnv = {
 
 const WORKER_REMINDER_AUTH_HEADER = "x-worker-reminder-auth";
 
+function normalizeRuntimeValue(value?: string) {
+  if (!value || value === "undefined") {
+    return value;
+  }
+
+  const trimmed = value.trim();
+  if (
+    trimmed.length >= 2 &&
+    ((trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+      (trimmed.startsWith("'") && trimmed.endsWith("'")))
+  ) {
+    return trimmed.slice(1, -1);
+  }
+
+  return trimmed;
+}
+
 function applyRuntimeSecrets(env: WorkerEnv) {
-  const runtimeUrl = env.DATABASE_URL || env.NEON_DATABASE_URL;
+  const runtimeUrl = normalizeRuntimeValue(env.DATABASE_URL || env.NEON_DATABASE_URL);
   if (runtimeUrl && runtimeUrl !== "undefined") {
     process.env.DATABASE_URL ??= runtimeUrl;
     process.env.NEON_DATABASE_URL ??= runtimeUrl;
     (globalThis as typeof globalThis & { __DATABASE_URL__?: string }).__DATABASE_URL__ ??= runtimeUrl;
   }
 
-  const sessionSecret = env.NEXTAUTH_SECRET || env.SESSION_SECRET || env.AUTH_SECRET;
+  const sessionSecret = normalizeRuntimeValue(
+    env.NEXTAUTH_SECRET || env.SESSION_SECRET || env.AUTH_SECRET
+  );
   if (sessionSecret && sessionSecret !== "undefined") {
     process.env.NEXTAUTH_SECRET ??= sessionSecret;
     process.env.SESSION_SECRET ??= sessionSecret;
@@ -41,6 +62,8 @@ function applyRuntimeSecrets(env: WorkerEnv) {
 
   for (const name of [
     "VONAGE_APPLICATION_ID",
+    "VONAGE_API_KEY",
+    "VONAGE_API_SECRET",
     "VONAGE_PRIVATE_KEY",
     "VONAGE_WHATSAPP_NUMBER",
     "VONAGE_MESSAGES_API_URL",
@@ -52,7 +75,7 @@ function applyRuntimeSecrets(env: WorkerEnv) {
     "REMINDER_TIME_ZONE",
     "REMINDER_MORNING_HOUR",
   ] as const) {
-    const value = env[name];
+    const value = normalizeRuntimeValue(env[name]);
     if (value && value !== "undefined") {
       process.env[name] ??= value;
     }
