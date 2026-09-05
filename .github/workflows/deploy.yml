@@ -1,0 +1,39 @@
+name: Deploy Ortho Reminder
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Check out deployment commit
+        uses: actions/checkout@v4
+        with:
+          ref: b8b63850669e75ea8ddf6117a7530a5ac493e951
+
+      - name: Verify required secrets
+        shell: bash
+        run: |
+          missing=()
+          [ -n "$DATABASE_URL" ] || missing+=(DATABASE_URL)
+          [ -n "$CLOUDFLARE_API_TOKEN" ] || missing+=(CLOUDFLARE_API_TOKEN)
+          [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || missing+=(CLOUDFLARE_ACCOUNT_ID)
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf 'Missing required GitHub Actions secret(s): %s\n' "${missing[*]}" >&2
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Deploy
+        run: npm run cf:deploy
